@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { View, Text, ScrollView, Pressable } from "react-native";
 import { useSignIn } from "@clerk/clerk-expo";
 import { useRouter } from "expo-router";
@@ -7,16 +7,63 @@ import NeoBox from "../src/components/NeoBox";
 import NeoButton from "../src/components/NeoButton";
 import { NeoInput } from "../src/components/ui";
 
+const RESEND_COOLDOWN = 30; // seconds
+
+// Strategies that send a code and support resend
+const CODE_SENDING_STRATEGIES = ["phone_code", "email_code"];
+
 export default function SignIn() {
   const { signIn, setActive, isLoaded } = useSignIn();
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [mfaCode, setMfaCode] = useState("");
+  const [email, setEmail]           = useState("");
+  const [password, setPassword]     = useState("");
+  const [mfaCode, setMfaCode]       = useState("");
   const [mfaStrategy, setMfaStrategy] = useState(null);
-  const [stage, setStage] = useState("credentials"); // "credentials" | "mfa"
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [mfaHint, setMfaHint]       = useState("");   // masked email/phone shown to user
+  const [stage, setStage]           = useState("credentials"); // "credentials" | "mfa"
+  const [error, setError]           = useState("");
+  const [loading, setLoading]       = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const cooldownRef = useRef(null);
+
+  useEffect(() => {
+    return () => { if (cooldownRef.current) clearInterval(cooldownRef.current); };
+  }, []);
+
+  const startCooldown = () => {
+    setResendCooldown(RESEND_COOLDOWN);
+    cooldownRef.current = setInterval(() => {
+      setResendCooldown(prev => {
+        if (prev <= 1) { clearInterval(cooldownRef.current); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  const prepareMfa = async (factors) => {
+    const email  = factors.find(f => f.strategy === "email_code");
+    const phone  = factors.find(f => f.strategy === "phone_code");
+    const totp   = factors.find(f => f.strategy === "totp");
+
+    if (email) {
+      await signIn.prepareSecondFactor({ strategy: "email_code", emailAddressId: email.emailAddressId });
+      setMfaStrategy("email_code");
+      setMfaHint(email.safeIdentifier ?? "your email");
+      startCooldown();
+    } else if (phone) {
+      await signIn.prepareSecondFactor({ strategy: "phone_code", phoneNumberId: phone.phoneNumberId });
+      setMfaStrategy("phone_code");
+      setMfaHint(phone.safeIdentifier ?? "your phone");
+      startCooldown();
+    } else if (totp) {
+      setMfaStrategy("totp");
+      setMfaHint("");
+    } else {
+      // fallback: backup code — no prepare needed
+      setMfaStrategy("backup_code");
+      setMfaHint("");
+    }
+  };
 
   const submit = async () => {
     if (!isLoaded) return;
@@ -29,17 +76,7 @@ export default function SignIn() {
         await setActive({ session: result.createdSessionId });
         router.replace("/(tabs)/discover");
       } else if (result.status === "needs_second_factor") {
-        const factors = result.supportedSecondFactors ?? [];
-        const phone = factors.find(f => f.strategy === "phone_code");
-        const totp  = factors.find(f => f.strategy === "totp");
-        if (phone) {
-          await signIn.prepareSecondFactor({ strategy: "phone_code", phoneNumberId: phone.phoneNumberId });
-          setMfaStrategy("phone_code");
-        } else if (totp) {
-          setMfaStrategy("totp");
-        } else {
-          setMfaStrategy("backup_code");
-        }
+        await prepareMfa(result.supportedSecondFactors ?? []);
         setStage("mfa");
       } else {
         setError("Sign in could not be completed. Please try again.");
@@ -70,11 +107,30 @@ export default function SignIn() {
     }
   };
 
+  const resend = async () => {
+    if (!isLoaded || resendCooldown > 0) return;
+    try {
+      setLoading(true);
+      setError("");
+      setMfaCode("");
+      const factors = signIn.supportedSecondFactors ?? [];
+      await prepareMfa(factors);
+    } catch (e) {
+      setError(e.errors?.[0]?.message || "Failed to resend code");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const mfaLabel = mfaStrategy === "totp"
-    ? "Enter the code from your authenticator app."
+    ? "Enter the 6-digit code from your authenticator app."
+    : mfaStrategy === "email_code"
+    ? `We sent a code to ${mfaHint}.`
     : mfaStrategy === "phone_code"
-    ? "We sent a code to your phone number."
+    ? `We sent a code to ${mfaHint}.`
     : "Enter one of your backup codes.";
+
+  const canResend = CODE_SENDING_STRATEGIES.includes(mfaStrategy);
 
   return (
     <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "center", padding: 20, backgroundColor: C.bg }}>
@@ -115,11 +171,32 @@ export default function SignIn() {
             <>
               <View style={{ backgroundColor: C.amberDim, borderColor: C.amber, borderWidth: 2, borderRadius: 10, padding: 14, marginBottom: 16 }}>
                 <Text style={{ color: C.amber, fontSize: 13, fontFamily: FONT, fontWeight: "600" }}>
-                  🔐 Two-factor authentication required.{"\n"}{mfaLabel}
+                  🔐 Two-factor authentication{"\n"}{mfaLabel}
                 </Text>
               </View>
-              <NeoInput label="Verification Code" value={mfaCode} onChangeText={setMfaCode} placeholder="123456" keyboardType="numeric" />
+
+              <NeoInput
+                label="Verification Code"
+                value={mfaCode}
+                onChangeText={setMfaCode}
+                placeholder="123456"
+                keyboardType="numeric"
+              />
+
               <NeoButton full title={loading ? "Verifying..." : "Verify →"} onPress={submitMfa} disabled={loading} />
+
+              {canResend && (
+                <Pressable
+                  onPress={resend}
+                  disabled={resendCooldown > 0 || loading}
+                  style={{ marginTop: 12, alignItems: "center" }}
+                >
+                  <Text style={{ color: resendCooldown > 0 ? C.muted : C.amber, fontSize: 13, fontFamily: FONT, fontWeight: "600" }}>
+                    {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : "Didn't receive a code? Resend →"}
+                  </Text>
+                </Pressable>
+              )}
+
               <Pressable onPress={() => { setStage("credentials"); setError(""); setMfaCode(""); }} style={{ marginTop: 12, alignItems: "center" }}>
                 <Text style={{ color: C.muted, fontSize: 13, fontFamily: FONT }}>← Back</Text>
               </Pressable>
