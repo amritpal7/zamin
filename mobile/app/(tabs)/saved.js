@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import { View, Text, ScrollView, ActivityIndicator } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useAuth } from "@clerk/clerk-expo";
@@ -12,16 +12,19 @@ export default function Saved() {
   const router = useRouter();
   const { isSignedIn } = useAuth();
   const api = useApi();
+  const apiRef = useRef(api);
+  apiRef.current = api;
   const [saved, setSaved] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // Refetch every time the tab gains focus so additions from other screens appear immediately
+  // Refetch every time the tab gains focus so additions from other screens appear immediately.
+  // apiRef avoids putting api in deps (Clerk's getToken isn't stable, causing infinite loops).
   useFocusEffect(
     useCallback(() => {
       if (!isSignedIn) return;
       setLoading(true);
-      api.getSaved().then(setSaved).catch(() => {}).finally(() => setLoading(false));
-    }, [isSignedIn, api])
+      apiRef.current.getSaved().then(setSaved).catch(() => {}).finally(() => setLoading(false));
+    }, [isSignedIn])
   );
 
   const unsave = async (p) => {

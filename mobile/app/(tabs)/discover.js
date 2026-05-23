@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useAuth } from "@clerk/clerk-expo";
@@ -30,6 +30,8 @@ export default function Discover() {
   const router = useRouter();
   const { isSignedIn } = useAuth();
   const api = useApi();
+  const apiRef = useRef(api);
+  apiRef.current = api;
   const [properties, setProperties] = useState(SEED_PROPERTIES);
   const [saved, setSaved] = useState([]);
   const [type, setType] = useState("All");
@@ -51,14 +53,14 @@ export default function Discover() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Refresh saved IDs (and property list for new posts) every time this tab is focused
+  // Refresh saved IDs on focus so heart icons are correct after saves/unsaves on other screens.
+  // Only refreshes IDs — property list is already filter-driven via useEffect([load]).
+  // apiRef avoids putting api in deps (Clerk's getToken isn't stable, causing infinite loops).
   useFocusEffect(
     useCallback(() => {
-      if (isSignedIn) {
-        api.getSaved().then(data => setSaved(data.map(p => p.id))).catch(() => {});
-      }
-      load();
-    }, [isSignedIn, api, load])
+      if (!isSignedIn) return;
+      apiRef.current.getSaved().then(data => setSaved(data.map(p => p.id))).catch(() => {});
+    }, [isSignedIn])
   );
 
   const toggleSave = async (p) => {
