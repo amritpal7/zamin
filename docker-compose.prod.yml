@@ -1,0 +1,29 @@
+version: "3.9"
+
+# Production overrides — run with:
+#   docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  api:
+    environment:
+      NODE_ENV: production
+    restart: always
+    # Remove volume mounts in prod (baked into image)
+    volumes: []
+
+  db:
+    restart: always
+
+  nginx:
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro  # certbot SSL
+
+  # Mobile dev server not needed in production —
+  # build a standalone Expo app with: npx expo build
+  mobile:
+    profiles: ["dev-only"]   # excluded from prod compose
