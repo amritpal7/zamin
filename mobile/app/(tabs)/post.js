@@ -1,6 +1,6 @@
-import React, { useState } from "react";
-import { View, Text, ScrollView, Pressable, Alert, KeyboardAvoidingView, Platform } from "react-native";
-import { useRouter } from "expo-router";
+import React, { useState, useEffect } from "react";
+import { View, Text, ScrollView, Pressable, Alert, KeyboardAvoidingView, Platform, ActivityIndicator } from "react-native";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { useAuth } from "@clerk/clerk-expo";
 import { C, FONT } from "../../src/theme";
 import Header from "../../src/components/Header";
@@ -11,25 +11,62 @@ import { useApi } from "../../src/hooks/useApi";
 
 const TYPES = ["House", "Apartment", "Land", "Commercial"];
 const STEPS = ["Details", "Media", "Location", "Review"];
+const EMPTY_FORM = { title: "", description: "", type: "House", status: "For Sale", price: "", area: "", beds: "", baths: "", location: "" };
 
 export default function Post() {
   const router = useRouter();
   const { isSignedIn } = useAuth();
   const api = useApi();
+  const { editId } = useLocalSearchParams();
+  const isEditing = !!editId;
+
   const [step, setStep] = useState(1);
-  const [form, setForm] = useState({ title: "", description: "", type: "House", status: "For Sale", price: "", area: "", beds: "", baths: "", location: "" });
+  const [form, setForm] = useState(EMPTY_FORM);
   const [loading, setLoading] = useState(false);
+  const [fetchingEdit, setFetchingEdit] = useState(isEditing);
+
+  // Pre-fill form when editing an existing property
+  useEffect(() => {
+    if (!editId) return;
+    setFetchingEdit(true);
+    api.getProperty(editId)
+      .then(p => {
+        setForm({
+          title:       p.title       || "",
+          description: p.description || "",
+          type:        p.type        || "House",
+          status:      p.status      || "For Sale",
+          price:       p.price       || "",
+          area:        p.area        || "",
+          beds:        p.beds  != null ? String(p.beds)  : "",
+          baths:       p.baths != null ? String(p.baths) : "",
+          location:    p.location    || "",
+        });
+      })
+      .catch(() => Alert.alert("Error", "Could not load property for editing."))
+      .finally(() => setFetchingEdit(false));
+  }, [editId]);
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }));
 
-  const publish = async () => {
+  const save = async () => {
     try {
       setLoading(true);
-      await api.createProperty({ ...form, beds: form.beds ? Number(form.beds) : null, baths: form.baths ? Number(form.baths) : null, owner_name: "Me", owner_avatar: "ME", img: "🏠", color: C.amber });
-      Alert.alert("🎉 Published!", "Your listing is now live.");
+      const payload = {
+        ...form,
+        beds:  form.beds  ? Number(form.beds)  : null,
+        baths: form.baths ? Number(form.baths) : null,
+      };
+      if (isEditing) {
+        await api.updateProperty(editId, payload);
+        Alert.alert("✅ Updated!", "Your listing has been updated.");
+      } else {
+        await api.createProperty({ ...payload, owner_name: "Me", owner_avatar: "ME", img: "🏠", color: C.amber });
+        Alert.alert("🎉 Published!", "Your listing is now live.");
+      }
       setStep(1);
-      setForm({ title: "", description: "", type: "House", status: "For Sale", price: "", area: "", beds: "", baths: "", location: "" });
-      router.push("/(tabs)/discover");
+      setForm(EMPTY_FORM);
+      router.push(isEditing ? "/(tabs)/profile" : "/(tabs)/discover");
     } catch (e) {
       Alert.alert("Error", e.message);
     } finally {
@@ -51,13 +88,38 @@ export default function Post() {
     );
   }
 
+  if (fetchingEdit) {
+    return (
+      <View style={{ flex: 1, backgroundColor: C.bg }}>
+        <Header />
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+          <ActivityIndicator color={C.amber} size="large" />
+          <Text style={{ color: C.muted, marginTop: 12, fontFamily: FONT }}>Loading property…</Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
       <Header />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
       <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: 24 }} keyboardShouldPersistTaps="handled">
-        <Text style={{ fontSize: 22, fontWeight: "800", color: C.text, fontFamily: FONT }}>Post a Property</Text>
-        <Text style={{ color: C.amber, fontSize: 13, fontWeight: "700", fontFamily: FONT, marginBottom: 20 }}>Free · No brokerage · Direct connect</Text>
+
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
+          <Text style={{ fontSize: 22, fontWeight: "800", color: C.text, fontFamily: FONT }}>
+            {isEditing ? "Edit Property" : "Post a Property"}
+          </Text>
+          {isEditing && (
+            <Pressable onPress={() => { setStep(1); setForm(EMPTY_FORM); router.back(); }}
+              style={{ paddingHorizontal: 10, paddingVertical: 5 }}>
+              <Text style={{ color: C.muted, fontFamily: FONT, fontSize: 13 }}>Cancel</Text>
+            </Pressable>
+          )}
+        </View>
+        <Text style={{ color: C.amber, fontSize: 13, fontWeight: "700", fontFamily: FONT, marginBottom: 20 }}>
+          {isEditing ? "Update your listing details" : "Free · No brokerage · Direct connect"}
+        </Text>
 
         {/* Step indicators */}
         <View style={{ flexDirection: "row", gap: 6, marginBottom: 22 }}>
@@ -151,7 +213,9 @@ export default function Post() {
           <View style={{ gap: 16 }}>
             <NeoBox offset={5} fullWidth>
               <View style={{ padding: 20 }}>
-                <Text style={{ color: C.text, fontWeight: "800", fontSize: 16, marginBottom: 14, fontFamily: FONT }}>Ready to publish! 🎉</Text>
+                <Text style={{ color: C.text, fontWeight: "800", fontSize: 16, marginBottom: 14, fontFamily: FONT }}>
+                  {isEditing ? "Ready to update! ✏️" : "Ready to publish! 🎉"}
+                </Text>
                 <Text style={{ color: C.text, fontSize: 14, fontFamily: FONT, marginBottom: 4 }}>{form.title}</Text>
                 <Text style={{ color: C.amber, fontSize: 16, fontWeight: "900", fontFamily: FONT, marginBottom: 12 }}>{form.price}</Text>
                 {["Property details complete", "Photos added", "Location pinned", "Contact info from profile"].map(x => (
@@ -161,7 +225,14 @@ export default function Post() {
             </NeoBox>
             <View style={{ flexDirection: "row", gap: 10 }}>
               <NeoButton title="← Back" fill={C.card} fg={C.text} onPress={() => setStep(3)} />
-              <NeoButton full title={loading ? "Publishing..." : "🚀 Publish Listing"} fill={C.green} disabled={loading} onPress={publish} style={{ flex: 1 }} />
+              <NeoButton
+                full
+                title={loading ? (isEditing ? "Updating..." : "Publishing...") : (isEditing ? "✏️ Update Listing" : "🚀 Publish Listing")}
+                fill={isEditing ? C.blue : C.green}
+                disabled={loading}
+                onPress={save}
+                style={{ flex: 1 }}
+              />
             </View>
           </View>
         )}

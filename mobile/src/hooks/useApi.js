@@ -25,7 +25,9 @@ export function useApi() {
       return request(`/properties${q ? `?${q}` : ""}`);
     },
     getProperty: (id) => request(`/properties/${id}`),
+    getMyProperties: () => request("/properties/mine"),
     createProperty: (data) => request("/properties", { method: "POST", body: JSON.stringify(data) }),
+    updateProperty: (id, data) => request(`/properties/${id}`, { method: "PUT", body: JSON.stringify(data) }),
     deleteProperty: (id) => request(`/properties/${id}`, { method: "DELETE" }),
 
     // Saved
