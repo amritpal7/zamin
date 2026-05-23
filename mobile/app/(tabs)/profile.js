@@ -1,18 +1,5 @@
 import React, { useState, useCallback, useRef } from "react";
-import { View, Text, ScrollView, Pressable, Alert, ActivityIndicator, Platform } from "react-native";
-
-// Alert.alert with multiple buttons doesn't work on web (window.alert ignores callbacks).
-const confirmAction = (title, message) =>
-  new Promise(resolve => {
-    if (Platform.OS === "web") {
-      resolve(window.confirm(`${title}\n\n${message}`));
-    } else {
-      Alert.alert(title, message, [
-        { text: "Cancel", style: "cancel", onPress: () => resolve(false) },
-        { text: "Delete", style: "destructive", onPress: () => resolve(true) },
-      ]);
-    }
-  });
+import { View, Text, ScrollView, Pressable, ActivityIndicator } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { C, FONT } from "../../src/theme";
@@ -22,45 +9,13 @@ import NeoButton from "../../src/components/NeoButton";
 import { Avatar, Tag } from "../../src/components/ui";
 import { useApi } from "../../src/hooks/useApi";
 
-function MyListingCard({ property: p, onEdit, onDelete }) {
-  return (
-    <NeoBox offset={4} fullWidth>
-      <View style={{ padding: 14 }}>
-        {/* Top row */}
-        <View style={{ flexDirection: "row", gap: 10, marginBottom: 8 }}>
-          <View style={{ width: 52, height: 52, backgroundColor: (p.color || C.amber) + "22", borderRadius: 10, borderWidth: 2, borderColor: C.ink, alignItems: "center", justifyContent: "center" }}>
-            <Text style={{ fontSize: 26 }}>{p.img || "🏠"}</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: C.text, fontWeight: "800", fontSize: 14, fontFamily: FONT }} numberOfLines={1}>{p.title || "Untitled"}</Text>
-            <Text style={{ color: C.muted, fontSize: 11, marginTop: 3, fontFamily: FONT }} numberOfLines={1}>📍 {p.location || "No location"}</Text>
-            <View style={{ flexDirection: "row", gap: 6, marginTop: 5 }}>
-              <Tag color={p.status === "For Sale" ? C.green : C.blue} solid>{p.status}</Tag>
-              <Tag color={C.amber}>{p.type}</Tag>
-            </View>
-          </View>
-          <View style={{ alignItems: "flex-end" }}>
-            <Text style={{ color: C.amber, fontWeight: "900", fontSize: 15, fontFamily: FONT }}>{p.price}</Text>
-          </View>
-        </View>
-
-        {/* Action row */}
-        <View style={{ flexDirection: "row", gap: 8, borderTopWidth: 2, borderTopColor: C.dim, paddingTop: 10 }}>
-          <Pressable onPress={onEdit}
-            style={{ flex: 1, backgroundColor: C.card, borderColor: C.ink, borderWidth: 2, borderRadius: 8, paddingVertical: 7, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 5 }}>
-            <Text style={{ fontSize: 13 }}>✏️</Text>
-            <Text style={{ color: C.text, fontWeight: "700", fontSize: 12, fontFamily: FONT }}>Edit</Text>
-          </Pressable>
-          <Pressable onPress={onDelete}
-            style={{ flex: 1, backgroundColor: C.red + "22", borderColor: C.red, borderWidth: 2, borderRadius: 8, paddingVertical: 7, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 5 }}>
-            <Text style={{ fontSize: 13 }}>🗑️</Text>
-            <Text style={{ color: C.red, fontWeight: "700", fontSize: 12, fontFamily: FONT }}>Delete</Text>
-          </Pressable>
-        </View>
-      </View>
-    </NeoBox>
-  );
-}
+const MENU = [
+  { icon: "🏠", label: "My Listings",     route: "/my-listings" },
+  { icon: "💬", label: "Messages",         route: null },
+  { icon: "🔔", label: "Notifications",    route: null },
+  { icon: "🔒", label: "Privacy Settings", route: null },
+  { icon: "❓", label: "Help & Support",   route: null },
+];
 
 export default function Profile() {
   const router = useRouter();
@@ -70,37 +25,23 @@ export default function Profile() {
   const apiRef = useRef(api);
   apiRef.current = api;
 
-  const [myListings, setMyListings] = useState([]);
-  const [savedCount, setSavedCount] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const [listedCount, setListedCount]   = useState(0);
+  const [savedCount, setSavedCount]     = useState(0);
+  const [statsLoading, setStatsLoading] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
       if (!isSignedIn) return;
-      setLoading(true);
+      setStatsLoading(true);
       Promise.all([
         apiRef.current.getMyProperties(),
         apiRef.current.getSaved(),
-      ]).then(([listings, saved]) => {
-        setMyListings(listings);
+      ]).then(([mine, saved]) => {
+        setListedCount(mine.length);
         setSavedCount(saved.length);
-      }).catch(() => {}).finally(() => setLoading(false));
+      }).catch(() => {}).finally(() => setStatsLoading(false));
     }, [isSignedIn])
   );
-
-  const handleDelete = async (p) => {
-    const ok = await confirmAction(
-      "Delete Listing",
-      `Delete "${p.title || "this property"}"? This cannot be undone.`
-    );
-    if (!ok) return;
-    try {
-      await apiRef.current.deleteProperty(p.id);
-      setMyListings(prev => prev.filter(x => x.id !== p.id));
-    } catch (e) {
-      Alert.alert("Error", e.message || "Delete failed");
-    }
-  };
 
   if (!isSignedIn) {
     return (
@@ -116,12 +57,14 @@ export default function Profile() {
   }
 
   const initials = `${user?.firstName?.[0] || ""}${user?.lastName?.[0] || ""}`.toUpperCase() || "ME";
-  const fullName = [user?.firstName, user?.lastName].filter(Boolean).join(" ") || user?.emailAddresses?.[0]?.emailAddress || "User";
+  const fullName = [user?.firstName, user?.lastName].filter(Boolean).join(" ")
+    || user?.emailAddresses?.[0]?.emailAddress || "User";
 
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
       <Header />
       <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: 40 }}>
+
         {/* Profile card */}
         <NeoBox offset={6} fullWidth>
           <View style={{ padding: 22, alignItems: "center" }}>
@@ -136,64 +79,34 @@ export default function Profile() {
         </NeoBox>
 
         {/* Stats */}
-        <View style={{ flexDirection: "row", gap: 10, marginTop: 18, marginBottom: 22 }}>
+        <View style={{ flexDirection: "row", gap: 10, marginTop: 18, marginBottom: 24 }}>
           {[
-            { l: "Listed",    v: loading ? "…" : myListings.length, c: C.amber },
-            { l: "Saved",     v: loading ? "…" : savedCount,        c: C.red   },
-            { l: "Inquiries", v: 0,                                  c: C.blue  },
+            { label: "Listed",    value: statsLoading ? "…" : listedCount, color: C.amber },
+            { label: "Saved",     value: statsLoading ? "…" : savedCount,  color: C.red   },
+            { label: "Inquiries", value: 0,                                 color: C.blue  },
           ].map(s => (
-            <View key={s.l} style={{ flex: 1 }}>
-              <NeoBox offset={3} shadowColor={s.c} radius={12} fullWidth>
+            <View key={s.label} style={{ flex: 1 }}>
+              <NeoBox offset={3} shadowColor={s.color} radius={12} fullWidth>
                 <View style={{ padding: 14, alignItems: "center" }}>
-                  <Text style={{ fontSize: 22, fontWeight: "900", color: s.c, fontFamily: FONT }}>{s.v}</Text>
-                  <Text style={{ color: C.muted, fontSize: 11, fontWeight: "600", marginTop: 2, fontFamily: FONT }}>{s.l}</Text>
+                  <Text style={{ fontSize: 22, fontWeight: "900", color: s.color, fontFamily: FONT }}>{s.value}</Text>
+                  <Text style={{ color: C.muted, fontSize: 11, fontWeight: "600", marginTop: 2, fontFamily: FONT }}>{s.label}</Text>
                 </View>
               </NeoBox>
             </View>
           ))}
         </View>
 
-        {/* My Listings section */}
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-          <Text style={{ color: C.text, fontSize: 16, fontWeight: "800", fontFamily: FONT }}>My Listings</Text>
-          <Pressable onPress={() => router.push("/(tabs)/post")}
-            style={{ backgroundColor: C.amber, borderColor: C.ink, borderWidth: 2, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, flexDirection: "row", alignItems: "center", gap: 4 }}>
-            <Text style={{ fontSize: 12 }}>＋</Text>
-            <Text style={{ color: C.ink, fontWeight: "800", fontSize: 12, fontFamily: FONT }}>New</Text>
-          </Pressable>
-        </View>
-
-        {loading && <ActivityIndicator color={C.amber} style={{ marginVertical: 20 }} />}
-
-        {!loading && myListings.length === 0 && (
-          <NeoBox offset={4} fullWidth>
-            <View style={{ padding: 32, alignItems: "center" }}>
-              <Text style={{ fontSize: 36, marginBottom: 10 }}>🏠</Text>
-              <Text style={{ color: C.muted, fontSize: 13, fontFamily: FONT, textAlign: "center" }}>No listings yet.</Text>
-              <Text style={{ color: C.muted, fontSize: 12, fontFamily: FONT, textAlign: "center", marginTop: 4, marginBottom: 16 }}>Post your first property for free.</Text>
-              <NeoButton title="Post a Property →" onPress={() => router.push("/(tabs)/post")} />
-            </View>
-          </NeoBox>
-        )}
-
-        {myListings.map(p => (
-          <View key={p.id} style={{ marginBottom: 12 }}>
-            <MyListingCard
-              property={p}
-              onEdit={() => router.push({ pathname: "/(tabs)/post", params: { editId: p.id } })}
-              onDelete={() => handleDelete(p)}
-            />
-          </View>
-        ))}
-
-        {/* Other menu items */}
-        <Text style={{ color: C.text, fontSize: 16, fontWeight: "800", fontFamily: FONT, marginTop: 8, marginBottom: 12 }}>Account</Text>
-        {[["💬", "Messages"], ["🔔", "Notifications"], ["🔒", "Privacy Settings"], ["❓", "Help & Support"]].map(([icon, label]) => (
-          <View key={label} style={{ borderColor: C.ink, borderWidth: 2.5, borderRadius: 12, backgroundColor: C.card, paddingHorizontal: 15, paddingVertical: 13, flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 8 }}>
+        {/* Menu */}
+        {MENU.map(({ icon, label, route }) => (
+          <Pressable
+            key={label}
+            onPress={() => route && router.push(route)}
+            style={{ borderColor: C.ink, borderWidth: 2.5, borderRadius: 12, backgroundColor: C.card, paddingHorizontal: 16, paddingVertical: 14, flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 8, opacity: route ? 1 : 0.55 }}
+          >
             <Text style={{ fontSize: 18 }}>{icon}</Text>
             <Text style={{ color: C.text, fontWeight: "700", fontSize: 14, flex: 1, fontFamily: FONT }}>{label}</Text>
-            <Text style={{ color: C.amber, fontWeight: "800" }}>→</Text>
-          </View>
+            <Text style={{ color: C.amber, fontWeight: "800", fontSize: 16 }}>→</Text>
+          </Pressable>
         ))}
 
         {/* Sign out */}
@@ -204,6 +117,7 @@ export default function Profile() {
             </View>
           </NeoBox>
         </Pressable>
+
       </ScrollView>
     </View>
   );

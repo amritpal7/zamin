@@ -55,6 +55,7 @@ export default function RootLayout() {
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="property/[id]" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
           <Stack.Screen name="chat/[id]" />
+          <Stack.Screen name="my-listings" />
         </Stack>
       </SafeAreaProvider>
     </ClerkProvider>
