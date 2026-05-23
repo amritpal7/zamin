@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { View, Text, ScrollView, Pressable } from "react-native";
+import { View, Text, ScrollView, Pressable, KeyboardAvoidingView, Platform } from "react-native";
 import { useSignIn } from "@clerk/clerk-expo";
 import { useRouter } from "expo-router";
 import { C, FONT } from "../src/theme";
@@ -140,7 +140,8 @@ export default function SignIn() {
                                     "Enter one of your backup codes.";
 
   return (
-    <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "center", padding: 20, backgroundColor: C.bg }}>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+    <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "center", padding: 20, backgroundColor: C.bg }} keyboardShouldPersistTaps="handled">
       <View style={{ alignSelf: "flex-start", marginBottom: 24, transform: [{ rotate: "-2deg" }] }}>
         <NeoBox offset={5} bg={C.amber} radius={16}>
           <View style={{ paddingHorizontal: 22, paddingVertical: 12 }}>
@@ -203,5 +204,6 @@ export default function SignIn() {
         <Text style={{ color: C.amber, fontSize: 13, fontWeight: "700", fontFamily: FONT }}>Don't have an account? Register →</Text>
       </Pressable>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
