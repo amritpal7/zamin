@@ -20,11 +20,13 @@ export default function SignIn() {
     try {
       setLoading(true);
       setError("");
-      const result = await signIn.create({ identifier: email, password });
+      const result = await signIn.create({ identifier: email, strategy: "password", password });
       if (result.status === "complete") {
         await setActive({ session: result.createdSessionId });
         router.replace("/(tabs)/discover");
       } else {
+        // Unexpected non-complete status (e.g. MFA required)
+        console.warn("sign-in status:", result.status, result);
         setError("Sign in could not be completed. Please try again.");
       }
     } catch (e) {

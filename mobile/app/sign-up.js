@@ -43,6 +43,8 @@ export default function SignUp() {
         await setActive({ session: result.createdSessionId });
         router.replace("/(tabs)/discover");
       } else {
+        // Unexpected non-complete status — log for debugging
+        console.warn("sign-up verify status:", result.status, result.missingFields);
         setError("Verification could not be completed. Please try again.");
       }
     } catch (e) {
