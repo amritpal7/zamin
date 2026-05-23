@@ -1,11 +1,12 @@
 DC        := sg docker -c "docker compose"
 MOBILE    := cd mobile &&
 HOST_IP   := $(shell hostname -I | awk '{print $$1}')
+WIN_IP    := $(shell ipconfig.exe 2>/dev/null | grep "IPv4" | awk '{print $$NF}' | tr -d '\r' | grep "^192\.168\." | head -1)
 
 .PHONY: up down restart logs status health \
         api-logs db-logs nginx-logs \
         db-shell api-shell \
-        mobile android ios \
+        mobile android ios iphone port-forward port-forward-clean \
         reset clean help
 
 # ── Primary commands ──────────────────────────────────────────
@@ -79,6 +80,46 @@ android:
 ios:
 	@$(MOBILE) npx expo start --ios
 
+## Test on a real iPhone via Expo Go (WSL2 + LAN)
+## Requires port forwarding — run `make port-forward` first (PowerShell Admin)
+iphone:
+	@echo ""
+	@echo "  Windows LAN IP : $(WIN_IP)"
+	@echo "  WSL2 IP        : $(HOST_IP)"
+	@echo ""
+	@if [ -z "$(WIN_IP)" ]; then echo "ERROR: Could not detect Windows LAN IP. Are you on WiFi?"; exit 1; fi
+	@sed -i "s|EXPO_PUBLIC_API_URL=.*|EXPO_PUBLIC_API_URL=http://$(WIN_IP)/api|" mobile/.env
+	@echo "  API URL set to : http://$(WIN_IP)/api"
+	@echo ""
+	@echo "  Scan the QR code below with Expo Go on your iPhone."
+	@echo "  (Make sure iPhone is on the same WiFi as this machine)"
+	@echo ""
+	@cd mobile && REACT_NATIVE_PACKAGER_HOSTNAME=$(WIN_IP) npx expo start --lan
+
+## Print the PowerShell (Admin) commands needed for WSL2 → Windows port forwarding
+port-forward:
+	@echo ""
+	@echo "  Run these commands in PowerShell as Administrator:"
+	@echo ""
+	@echo "  netsh interface portproxy add v4tov4 listenport=8081  listenaddr=0.0.0.0 connectport=8081  connectaddress=$(HOST_IP)"
+	@echo "  netsh interface portproxy add v4tov4 listenport=19000 listenaddr=0.0.0.0 connectport=19000 connectaddress=$(HOST_IP)"
+	@echo "  netsh interface portproxy add v4tov4 listenport=80    listenaddr=0.0.0.0 connectport=80    connectaddress=$(HOST_IP)"
+	@echo "  netsh advfirewall firewall add rule name=\"WSL2 Zamin\" dir=in action=allow protocol=TCP localport=8081,19000,80"
+	@echo ""
+	@echo "  To remove later: make port-forward-clean"
+	@echo ""
+
+## Remove the Windows port forwarding rules (PowerShell Admin)
+port-forward-clean:
+	@echo ""
+	@echo "  Run these commands in PowerShell as Administrator:"
+	@echo ""
+	@echo "  netsh interface portproxy delete v4tov4 listenport=8081  listenaddr=0.0.0.0"
+	@echo "  netsh interface portproxy delete v4tov4 listenport=19000 listenaddr=0.0.0.0"
+	@echo "  netsh interface portproxy delete v4tov4 listenport=80    listenaddr=0.0.0.0"
+	@echo "  netsh advfirewall firewall delete rule name=\"WSL2 Zamin\""
+	@echo ""
+
 # ── Full stack ────────────────────────────────────────────────
 
 ## Start backend then Expo — run `make dev` to test the full app
@@ -123,12 +164,15 @@ help:
 	@echo "    make api-shell   sh into zamin_api"
 	@echo ""
 	@echo "  Mobile"
-	@echo "    make mobile      Start Expo dev server"
-	@echo "    make android     Expo → Android"
-	@echo "    make ios         Expo → iOS"
+	@echo "    make mobile           Start Expo dev server (web)"
+	@echo "    make iphone           Expo Go on real iPhone (LAN)"
+	@echo "    make android          Expo → Android"
+	@echo "    make ios              Expo → iOS simulator"
+	@echo "    make port-forward     Print WSL2 port-forward commands"
+	@echo "    make port-forward-clean  Print cleanup commands"
 	@echo ""
 	@echo "  Full stack"
-	@echo "    make dev         up + mobile (everything)"
+	@echo "    make dev         up + mobile (web)"
 	@echo ""
 	@echo "  Database"
 	@echo "    make reset       Wipe DB volume and restart fresh"
