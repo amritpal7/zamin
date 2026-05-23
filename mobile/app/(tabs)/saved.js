@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useCallback } from "react";
 import { View, Text, ScrollView, ActivityIndicator } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { useAuth } from "@clerk/clerk-expo";
 import { C, FONT } from "../../src/theme";
 import Header from "../../src/components/Header";
@@ -15,11 +15,14 @@ export default function Saved() {
   const [saved, setSaved] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (!isSignedIn) return;
-    setLoading(true);
-    api.getSaved().then(setSaved).catch(() => {}).finally(() => setLoading(false));
-  }, [isSignedIn]);
+  // Refetch every time the tab gains focus so additions from other screens appear immediately
+  useFocusEffect(
+    useCallback(() => {
+      if (!isSignedIn) return;
+      setLoading(true);
+      api.getSaved().then(setSaved).catch(() => {}).finally(() => setLoading(false));
+    }, [isSignedIn, api])
+  );
 
   const unsave = async (p) => {
     setSaved(prev => prev.filter(x => x.id !== p.id));

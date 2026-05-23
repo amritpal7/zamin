@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { useAuth } from "@clerk/clerk-expo";
 import { C, FONT } from "../../src/theme";
 import Header from "../../src/components/Header";
@@ -51,10 +51,15 @@ export default function Discover() {
 
   useEffect(() => { load(); }, [load]);
 
-  useEffect(() => {
-    if (!isSignedIn) return;
-    api.getSaved().then(data => setSaved(data.map(p => p.id))).catch(() => {});
-  }, [isSignedIn]);
+  // Refresh saved IDs (and property list for new posts) every time this tab is focused
+  useFocusEffect(
+    useCallback(() => {
+      if (isSignedIn) {
+        api.getSaved().then(data => setSaved(data.map(p => p.id))).catch(() => {});
+      }
+      load();
+    }, [isSignedIn, api, load])
+  );
 
   const toggleSave = async (p) => {
     if (!isSignedIn) { router.push("/sign-in"); return; }
