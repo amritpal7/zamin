@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, ScrollView, Pressable, Alert } from "react-native";
+import { View, Text, ScrollView, Pressable, Alert, KeyboardAvoidingView, Platform } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "@clerk/clerk-expo";
 import { C, FONT } from "../../src/theme";
@@ -54,7 +54,8 @@ export default function Post() {
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
       <Header />
-      <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: 24 }}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+      <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: 24 }} keyboardShouldPersistTaps="handled">
         <Text style={{ fontSize: 22, fontWeight: "800", color: C.text, fontFamily: FONT }}>Post a Property</Text>
         <Text style={{ color: C.amber, fontSize: 13, fontWeight: "700", fontFamily: FONT, marginBottom: 20 }}>Free · No brokerage · Direct connect</Text>
 
@@ -165,6 +166,7 @@ export default function Post() {
           </View>
         )}
       </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 }
