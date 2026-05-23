@@ -7,30 +7,30 @@ import NeoBox from "../src/components/NeoBox";
 import NeoButton from "../src/components/NeoButton";
 import { NeoInput } from "../src/components/ui";
 
-const RESEND_COOLDOWN = 30; // seconds
-
-// Strategies that send a code and support resend
-const CODE_SENDING_STRATEGIES = ["phone_code", "email_code"];
+const RESEND_COOLDOWN = 30;
 
 export default function SignIn() {
   const { signIn, setActive, isLoaded } = useSignIn();
   const router = useRouter();
-  const [email, setEmail]           = useState("");
-  const [password, setPassword]     = useState("");
-  const [mfaCode, setMfaCode]       = useState("");
-  const [mfaStrategy, setMfaStrategy] = useState(null);
-  const [mfaHint, setMfaHint]       = useState("");   // masked email/phone shown to user
-  const [stage, setStage]           = useState("credentials"); // "credentials" | "mfa"
-  const [error, setError]           = useState("");
-  const [loading, setLoading]       = useState(false);
-  const [resendCooldown, setResendCooldown] = useState(0);
-  const cooldownRef = useRef(null);
 
-  useEffect(() => {
-    return () => { if (cooldownRef.current) clearInterval(cooldownRef.current); };
-  }, []);
+  const [email, setEmail]       = useState("");
+  const [password, setPassword] = useState("");
+  const [mfaCode, setMfaCode]   = useState("");
+  const [mfaStrategy, setMfaStrategy] = useState(null);
+  const [mfaHint, setMfaHint]   = useState("");
+  const [stage, setStage]       = useState("credentials");
+  const [error, setError]       = useState("");
+  const [loading, setLoading]   = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+
+  // Store factor config so resend doesn't need to re-read from stale signIn
+  const factorConfigRef = useRef(null);
+  const cooldownRef     = useRef(null);
+
+  useEffect(() => () => { if (cooldownRef.current) clearInterval(cooldownRef.current); }, []);
 
   const startCooldown = () => {
+    if (cooldownRef.current) clearInterval(cooldownRef.current);
     setResendCooldown(RESEND_COOLDOWN);
     cooldownRef.current = setInterval(() => {
       setResendCooldown(prev => {
@@ -40,28 +40,30 @@ export default function SignIn() {
     }, 1000);
   };
 
-  const prepareMfa = async (factors) => {
-    const email  = factors.find(f => f.strategy === "email_code");
-    const phone  = factors.find(f => f.strategy === "phone_code");
-    const totp   = factors.find(f => f.strategy === "totp");
+  // si — the SignInResource returned from the previous step (avoids stale hook ref)
+  const prepareMfa = async (si) => {
+    const factors     = si.supportedSecondFactors ?? [];
+    const emailFactor = factors.find(f => f.strategy === "email_code");
+    const phoneFactor = factors.find(f => f.strategy === "phone_code");
+    const totpFactor  = factors.find(f => f.strategy === "totp");
 
-    if (email) {
-      await signIn.prepareSecondFactor({ strategy: "email_code", emailAddressId: email.emailAddressId });
+    if (emailFactor) {
+      await si.prepareSecondFactor({ strategy: "email_code", emailAddressId: emailFactor.emailAddressId });
+      factorConfigRef.current = emailFactor;
       setMfaStrategy("email_code");
-      setMfaHint(email.safeIdentifier ?? "your email");
+      setMfaHint(emailFactor.safeIdentifier ?? "your email");
       startCooldown();
-    } else if (phone) {
-      await signIn.prepareSecondFactor({ strategy: "phone_code", phoneNumberId: phone.phoneNumberId });
+    } else if (phoneFactor) {
+      await si.prepareSecondFactor({ strategy: "phone_code", phoneNumberId: phoneFactor.phoneNumberId });
+      factorConfigRef.current = phoneFactor;
       setMfaStrategy("phone_code");
-      setMfaHint(phone.safeIdentifier ?? "your phone");
+      setMfaHint(phoneFactor.safeIdentifier ?? "your phone");
       startCooldown();
-    } else if (totp) {
+    } else if (totpFactor) {
+      factorConfigRef.current = totpFactor;
       setMfaStrategy("totp");
-      setMfaHint("");
     } else {
-      // fallback: backup code — no prepare needed
       setMfaStrategy("backup_code");
-      setMfaHint("");
     }
   };
 
@@ -70,13 +72,14 @@ export default function SignIn() {
     try {
       setLoading(true);
       setError("");
-      await signIn.create({ identifier: email });
-      const result = await signIn.attemptFirstFactor({ strategy: "password", password });
+      // Chain calls on the returned resource to avoid stale hook references
+      const created = await signIn.create({ identifier: email });
+      const result  = await created.attemptFirstFactor({ strategy: "password", password });
       if (result.status === "complete") {
         await setActive({ session: result.createdSessionId });
         router.replace("/(tabs)/discover");
       } else if (result.status === "needs_second_factor") {
-        await prepareMfa(result.supportedSecondFactors ?? []);
+        await prepareMfa(result);
         setStage("mfa");
       } else {
         setError("Sign in could not be completed. Please try again.");
@@ -93,6 +96,7 @@ export default function SignIn() {
     try {
       setLoading(true);
       setError("");
+      // signIn hook ref is current at this point (no intervening create/attempt calls)
       const result = await signIn.attemptSecondFactor({ strategy: mfaStrategy, code: mfaCode });
       if (result.status === "complete") {
         await setActive({ session: result.createdSessionId });
@@ -108,13 +112,18 @@ export default function SignIn() {
   };
 
   const resend = async () => {
-    if (!isLoaded || resendCooldown > 0) return;
+    if (!isLoaded || resendCooldown > 0 || !factorConfigRef.current) return;
     try {
       setLoading(true);
       setError("");
       setMfaCode("");
-      const factors = signIn.supportedSecondFactors ?? [];
-      await prepareMfa(factors);
+      const fc = factorConfigRef.current;
+      if (mfaStrategy === "email_code") {
+        await signIn.prepareSecondFactor({ strategy: "email_code", emailAddressId: fc.emailAddressId });
+      } else if (mfaStrategy === "phone_code") {
+        await signIn.prepareSecondFactor({ strategy: "phone_code", phoneNumberId: fc.phoneNumberId });
+      }
+      startCooldown();
     } catch (e) {
       setError(e.errors?.[0]?.message || "Failed to resend code");
     } finally {
@@ -122,19 +131,16 @@ export default function SignIn() {
     }
   };
 
-  const mfaLabel = mfaStrategy === "totp"
-    ? "Enter the 6-digit code from your authenticator app."
-    : mfaStrategy === "email_code"
-    ? `We sent a code to ${mfaHint}.`
-    : mfaStrategy === "phone_code"
-    ? `We sent a code to ${mfaHint}.`
-    : "Enter one of your backup codes.";
+  const canResend = mfaStrategy === "email_code" || mfaStrategy === "phone_code";
 
-  const canResend = CODE_SENDING_STRATEGIES.includes(mfaStrategy);
+  const mfaLabel =
+    mfaStrategy === "totp"        ? "Enter the 6-digit code from your authenticator app." :
+    mfaStrategy === "email_code"  ? `We sent a code to ${mfaHint}.` :
+    mfaStrategy === "phone_code"  ? `We sent a code to ${mfaHint}.` :
+                                    "Enter one of your backup codes.";
 
   return (
     <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "center", padding: 20, backgroundColor: C.bg }}>
-      {/* Logo */}
       <View style={{ alignSelf: "flex-start", marginBottom: 24, transform: [{ rotate: "-2deg" }] }}>
         <NeoBox offset={5} bg={C.amber} radius={16}>
           <View style={{ paddingHorizontal: 22, paddingVertical: 12 }}>
@@ -145,7 +151,6 @@ export default function SignIn() {
 
       <NeoBox offset={7} fullWidth>
         <View style={{ padding: 26 }}>
-          {/* Tab row */}
           <View style={{ flexDirection: "row", gap: 6, marginBottom: 22, backgroundColor: C.bg, padding: 5, borderRadius: 12, borderWidth: 2.5, borderColor: C.ink }}>
             <View style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: C.amber, borderWidth: 2, borderColor: C.ink, alignItems: "center" }}>
               <Text style={{ fontWeight: "700", fontSize: 14, fontFamily: FONT, color: C.ink }}>Sign In</Text>
@@ -175,22 +180,11 @@ export default function SignIn() {
                 </Text>
               </View>
 
-              <NeoInput
-                label="Verification Code"
-                value={mfaCode}
-                onChangeText={setMfaCode}
-                placeholder="123456"
-                keyboardType="numeric"
-              />
-
+              <NeoInput label="Verification Code" value={mfaCode} onChangeText={setMfaCode} placeholder="123456" keyboardType="numeric" />
               <NeoButton full title={loading ? "Verifying..." : "Verify →"} onPress={submitMfa} disabled={loading} />
 
               {canResend && (
-                <Pressable
-                  onPress={resend}
-                  disabled={resendCooldown > 0 || loading}
-                  style={{ marginTop: 12, alignItems: "center" }}
-                >
+                <Pressable onPress={resend} disabled={resendCooldown > 0 || loading} style={{ marginTop: 12, alignItems: "center" }}>
                   <Text style={{ color: resendCooldown > 0 ? C.muted : C.amber, fontSize: 13, fontFamily: FONT, fontWeight: "600" }}>
                     {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : "Didn't receive a code? Resend →"}
                   </Text>
