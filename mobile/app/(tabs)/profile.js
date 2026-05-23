@@ -1,5 +1,18 @@
 import React, { useState, useCallback, useRef } from "react";
-import { View, Text, ScrollView, Pressable, Alert, ActivityIndicator } from "react-native";
+import { View, Text, ScrollView, Pressable, Alert, ActivityIndicator, Platform } from "react-native";
+
+// Alert.alert with multiple buttons doesn't work on web (window.alert ignores callbacks).
+const confirmAction = (title, message) =>
+  new Promise(resolve => {
+    if (Platform.OS === "web") {
+      resolve(window.confirm(`${title}\n\n${message}`));
+    } else {
+      Alert.alert(title, message, [
+        { text: "Cancel", style: "cancel", onPress: () => resolve(false) },
+        { text: "Delete", style: "destructive", onPress: () => resolve(true) },
+      ]);
+    }
+  });
 import { useRouter, useFocusEffect } from "expo-router";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { C, FONT } from "../../src/theme";
@@ -75,25 +88,18 @@ export default function Profile() {
     }, [isSignedIn])
   );
 
-  const handleDelete = (p) => {
-    Alert.alert(
+  const handleDelete = async (p) => {
+    const ok = await confirmAction(
       "Delete Listing",
-      `Delete "${p.title || "this property"}"? This cannot be undone.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete", style: "destructive",
-          onPress: async () => {
-            try {
-              await api.deleteProperty(p.id);
-              setMyListings(prev => prev.filter(x => x.id !== p.id));
-            } catch (e) {
-              Alert.alert("Error", e.message);
-            }
-          },
-        },
-      ]
+      `Delete "${p.title || "this property"}"? This cannot be undone.`
     );
+    if (!ok) return;
+    try {
+      await apiRef.current.deleteProperty(p.id);
+      setMyListings(prev => prev.filter(x => x.id !== p.id));
+    } catch (e) {
+      Alert.alert("Error", e.message || "Delete failed");
+    }
   };
 
   if (!isSignedIn) {

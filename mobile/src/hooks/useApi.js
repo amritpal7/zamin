@@ -13,8 +13,14 @@ export function useApi() {
   const request = useCallback(async (path, options = {}) => {
     const token = await getToken();
     const headers = { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) };
-    const res = await fetch(`${BASE}${path}`, { ...options, headers: { ...headers, ...options.headers } });
-    if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || res.statusText); }
+    // redirect: "manual" prevents fetch from silently following 302 redirects
+    // (Clerk's requireAuth used to redirect to sign-in instead of returning 401,
+    //  which caused fetch to receive HTML and fail JSON parsing with no clear error)
+    const res = await fetch(`${BASE}${path}`, { redirect: "manual", ...options, headers: { ...headers, ...options.headers } });
+    if (!res.ok || res.type === "opaqueredirect") {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || (res.status === 401 ? "Unauthorized" : res.statusText) || "Request failed");
+    }
     return res.json();
   }, [getToken]);
 
