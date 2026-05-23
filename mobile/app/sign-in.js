@@ -21,8 +21,12 @@ export default function SignIn() {
       setLoading(true);
       setError("");
       const result = await signIn.create({ identifier: email, password });
-      await setActive({ session: result.createdSessionId });
-      router.replace("/(tabs)/discover");
+      if (result.status === "complete") {
+        await setActive({ session: result.createdSessionId });
+        router.replace("/(tabs)/discover");
+      } else {
+        setError("Sign in could not be completed. Please try again.");
+      }
     } catch (e) {
       setError(e.errors?.[0]?.message || "Sign in failed");
     } finally {
@@ -64,11 +68,6 @@ export default function SignIn() {
 
           <NeoButton full title={loading ? "Signing in..." : "Sign In →"} onPress={submit} disabled={loading} />
 
-          <Text style={{ textAlign: "center", marginVertical: 16, color: C.muted, fontSize: 13, fontFamily: FONT }}>— or —</Text>
-
-          <Pressable onPress={() => router.replace("/(tabs)/discover")} style={{ borderWidth: 2.5, borderColor: C.muted, borderStyle: "dashed", borderRadius: 12, paddingVertical: 12, alignItems: "center" }}>
-            <Text style={{ color: C.muted, fontSize: 13, fontWeight: "600", fontFamily: FONT }}>Browse as Guest (limited access)</Text>
-          </Pressable>
         </View>
       </NeoBox>
 

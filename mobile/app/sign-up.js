@@ -39,8 +39,12 @@ export default function SignUp() {
       setLoading(true);
       setError("");
       const result = await signUp.attemptEmailAddressVerification({ code });
-      await setActive({ session: result.createdSessionId });
-      router.replace("/(tabs)/discover");
+      if (result.status === "complete") {
+        await setActive({ session: result.createdSessionId });
+        router.replace("/(tabs)/discover");
+      } else {
+        setError("Verification could not be completed. Please try again.");
+      }
     } catch (e) {
       setError(e.errors?.[0]?.message || "Verification failed");
     } finally {

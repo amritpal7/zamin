@@ -1,12 +1,17 @@
 import React, { useEffect } from "react";
+import { Platform } from "react-native";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { ClerkProvider, useAuth } from "@clerk/clerk-expo";
+import { ClerkProvider as ClerkProviderNative, useAuth } from "@clerk/clerk-expo";
+import { ClerkProvider as ClerkProviderWeb } from "@clerk/clerk-react";
 import * as SecureStore from "expo-secure-store";
 import { C } from "../src/theme";
 
-// Clerk uses SecureStore on native to persist tokens safely
+// On web, use @clerk/clerk-react (standard browser cookies).
+// On native, use @clerk/clerk-expo with SecureStore token cache.
+const ClerkProvider = Platform.OS === "web" ? ClerkProviderWeb : ClerkProviderNative;
+
 const tokenCache = {
   async getToken(key) { try { return await SecureStore.getItemAsync(key); } catch { return null; } },
   async saveToken(key, value) { try { await SecureStore.setItemAsync(key, value); } catch {} },
@@ -39,8 +44,12 @@ export default function RootLayout() {
     throw new Error("Missing EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY in .env");
   }
 
+  const clerkProps = Platform.OS === "web"
+    ? { publishableKey }
+    : { publishableKey, tokenCache };
+
   return (
-    <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
+    <ClerkProvider {...clerkProps}>
       <SafeAreaProvider>
         <StatusBar style="light" />
         <AuthGuard />

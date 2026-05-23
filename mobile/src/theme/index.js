@@ -20,6 +20,7 @@ export const C = {
 export const FONT = Platform.select({
   ios: "Trebuchet MS",
   android: "sans-serif-medium",
+  web: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
   default: "System",
 });
 
