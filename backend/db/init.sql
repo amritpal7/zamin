@@ -25,6 +25,8 @@ CREATE TABLE IF NOT EXISTS properties (
   tags         TEXT[],
   img          VARCHAR(10) DEFAULT '🏠',
   color        VARCHAR(20) DEFAULT '#f0a500',
+  images       TEXT[] DEFAULT '{}',
+  thumbnails   TEXT[] DEFAULT '{}',
   verified     BOOLEAN DEFAULT false,
   created_at   TIMESTAMPTZ DEFAULT NOW(),
   updated_at   TIMESTAMPTZ DEFAULT NOW()

@@ -1,20 +1,41 @@
 import React from "react";
 import { View } from "react-native";
 import { C, R } from "../theme";
+import { useTheme } from "../context/ThemeContext";
 
-/**
- * Fakes CSS box-shadow with a solid backing View offset by `offset` px.
- * Works identically on iOS, Android, and Web.
- */
 export default function NeoBox({
-  children, offset = 5, shadowColor = C.ink,
-  borderColor = C.ink, borderWidth = 2.5,
-  radius = R, bg = C.card, style, fullWidth,
+  children,
+  shadowColor,
+  radius = R,
+  bg,
+  style,
+  fullWidth,
+  offset, borderColor, borderWidth,
 }) {
+  useTheme();
+  const sc  = shadowColor || C.shadow;
+  const bgc = bg || C.card;
+
   return (
-    <View style={[{ alignSelf: fullWidth ? "stretch" : "flex-start" }, style]}>
-      <View style={{ position: "absolute", left: offset, top: offset, right: -offset, bottom: -offset, backgroundColor: shadowColor, borderRadius: radius }} />
-      <View style={{ backgroundColor: bg, borderColor, borderWidth, borderRadius: radius, overflow: "hidden" }}>
+    <View style={[
+      {
+        alignSelf: fullWidth ? "stretch" : "flex-start",
+        borderRadius: radius,
+        shadowColor: sc,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.18,
+        shadowRadius: 22,
+        elevation: 6,
+      },
+      style,
+    ]}>
+      <View style={{
+        backgroundColor: bgc,
+        borderRadius: radius,
+        borderWidth: 1,
+        borderColor: C.glassBorder,
+        overflow: "hidden",
+      }}>
         {children}
       </View>
     </View>

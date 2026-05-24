@@ -1,38 +1,32 @@
+// mobile/app/index.js — splash. Editorial brand mark, soft gradient, no emoji shapes.
+
+import { useTheme } from "../src/context/ThemeContext";
 import React, { useEffect, useRef } from "react";
-import { View, Text, Animated, Easing } from "react-native";
+import { View, Text, Animated, Easing, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "@clerk/clerk-expo";
-import { C, FONT } from "../src/theme";
-
-function FloatShape({ emoji, color, style, delay = 0 }) {
-  const y = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    Animated.loop(Animated.sequence([
-      Animated.timing(y, { toValue: -12, duration: 2000, delay, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      Animated.timing(y, { toValue: 0, duration: 2000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-    ])).start();
-  }, []);
-  return (
-    <Animated.View style={[{ position: "absolute", transform: [{ translateY: y }] }, style]}>
-      <View style={{ position: "absolute", left: 4, top: 4, width: 56, height: 56, backgroundColor: C.ink, borderRadius: 14 }} />
-      <View style={{ width: 56, height: 56, backgroundColor: color, borderColor: C.ink, borderWidth: 2.5, borderRadius: 14, alignItems: "center", justifyContent: "center" }}>
-        <Text style={{ fontSize: 28 }}>{emoji}</Text>
-      </View>
-    </Animated.View>
-  );
-}
+import { LinearGradient } from "expo-linear-gradient";
+import Svg, { Path, Circle } from "react-native-svg";
+import { C, FONT, FONT_HEAD, FONT_HEAD_ITALIC } from "../src/theme";
 
 export default function Splash() {
+  useTheme();
   const router = useRouter();
   const { isSignedIn, isLoaded } = useAuth();
-  const scale = useRef(new Animated.Value(0.5)).current;
+
   const opacity = useRef(new Animated.Value(0)).current;
+  const lift    = useRef(new Animated.Value(20)).current;
+  const dot     = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.parallel([
-      Animated.spring(scale, { toValue: 1, friction: 5, tension: 80, useNativeDriver: true }),
-      Animated.timing(opacity, { toValue: 1, duration: 400, useNativeDriver: true }),
+      Animated.timing(opacity, { toValue: 1, duration: 700, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(lift,    { toValue: 0, duration: 700, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
     ]).start();
+    Animated.loop(Animated.sequence([
+      Animated.timing(dot, { toValue: 1, duration: 900, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      Animated.timing(dot, { toValue: 0, duration: 900, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+    ])).start();
 
     const t = setTimeout(() => {
       if (!isLoaded) return;
@@ -42,20 +36,72 @@ export default function Splash() {
   }, [isLoaded, isSignedIn]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: C.bg, alignItems: "center", justifyContent: "center" }}>
-      <FloatShape emoji="🌾" color={C.green} style={{ top: "20%", left: "12%" }} delay={0} />
-      <FloatShape emoji="🏢" color={C.blue} style={{ top: "26%", right: "14%" }} delay={500} />
-      <FloatShape emoji="📍" color={C.orange} style={{ bottom: "22%", left: "18%" }} delay={250} />
+    <View style={{ flex: 1, backgroundColor: C.bg }}>
+      {/* Soft warm ambient */}
+      <LinearGradient
+        colors={[C.amber + "26", "transparent"]}
+        start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 0.7 }}
+        style={StyleSheet.absoluteFill}
+      />
 
-      <Animated.View style={{ transform: [{ scale }, { rotate: "-2deg" }], opacity, alignItems: "center" }}>
-        <View>
-          <View style={{ position: "absolute", left: 8, top: 8, right: -8, bottom: -8, backgroundColor: C.ink, borderRadius: 22 }} />
-          <View style={{ backgroundColor: C.amber, borderColor: C.ink, borderWidth: 3, borderRadius: 22, paddingHorizontal: 38, paddingVertical: 22 }}>
-            <Text style={{ fontSize: 48, fontWeight: "900", color: C.ink, fontFamily: FONT, letterSpacing: -1 }}>Zamin.</Text>
+      {/* Dashed curve — subtle */}
+      <Svg width="100%" height="100%" style={{ position: "absolute", opacity: 0.18 }} pointerEvents="none">
+        <Path d="M-20,500 Q 150,200 420,40" stroke={C.amber} strokeWidth={1.2} strokeDasharray="2 6" fill="none" />
+        <Circle cx={420} cy={40} r={3} fill={C.amber} />
+      </Svg>
+
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 }}>
+        <Animated.View style={{ opacity, transform: [{ translateY: lift }], alignItems: "center" }}>
+          {/* Brand chip */}
+          <View style={{
+            flexDirection: "row", alignItems: "center", gap: 8,
+            paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999,
+            backgroundColor: C.glassBg,
+            borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder,
+            marginBottom: 28,
+          }}>
+            <LinearGradient
+              colors={[C.amber + "ee", "#8326b8"]}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+              style={{ width: 18, height: 18, borderRadius: 9 }}
+            />
+            <Text style={{ color: C.fg, fontFamily: FONT, fontSize: 12, letterSpacing: 0.3 }}>
+              direct · no brokerage
+            </Text>
           </View>
-        </View>
-        <Text style={{ marginTop: 24, color: C.amber, fontSize: 14, fontWeight: "700", fontFamily: FONT }}>No brokerage · Direct connect 🤝</Text>
-      </Animated.View>
+
+          {/* Wordmark */}
+          <Text style={{
+            color: C.fg, fontFamily: FONT_HEAD,
+            fontSize: 84, lineHeight: 84, letterSpacing: -2.5, fontWeight: "400",
+          }}>
+            Zamin<Text style={{ color: C.amberText }}>.</Text>
+          </Text>
+
+          {/* Tagline */}
+          <Text style={{
+            color: C.fgDim, fontFamily: FONT_HEAD_ITALIC, fontStyle: "italic",
+            fontSize: 18, marginTop: 4, letterSpacing: -0.2,
+          }}>
+            land that finds you.
+          </Text>
+        </Animated.View>
+
+        {/* Loading dot */}
+        <Animated.View style={{
+          position: "absolute", bottom: 60,
+          flexDirection: "row", alignItems: "center", gap: 8,
+          opacity,
+        }}>
+          <Animated.View style={{
+            width: 6, height: 6, borderRadius: 3, backgroundColor: C.amber,
+            opacity: dot.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }),
+          }} />
+          <Text style={{ color: C.fgFaint, fontFamily: FONT, fontSize: 11, letterSpacing: 1.2, textTransform: "uppercase" }}>
+            getting things ready
+          </Text>
+        </Animated.View>
+      </View>
     </View>
   );
 }

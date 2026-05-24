@@ -18,12 +18,83 @@ services:
       CLERK_PUBLISHABLE_KEY: ${CLERK_PUBLISHABLE_KEY}
       # Database (Postgres via Docker)
       DATABASE_URL: postgres://zamin:zamin_pass@db:5432/zamin_db
+      # Object storage (MinIO now; swap to S3/R2 later via these vars only)
+      S3_ENDPOINT: http://minio:9000
+      S3_BUCKET: zamin
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-zamin_minio}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-zamin_minio_secret}
+      S3_PUBLIC_BASE: /media
+      # Host the phone reaches — presigned upload URLs are signed for this.
+      S3_PUBLIC_ENDPOINT: http://${HOST_IP:-localhost}
+      # Redis (BullMQ job queue)
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
     depends_on:
       db:
         condition: service_healthy
+      minio:
+        condition: service_started
+      redis:
+        condition: service_started
     volumes:
       - ./backend:/app
       - /app/node_modules
+    networks:
+      - zamin_net
+
+  # ── Redis (BullMQ job queue backend) ──────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: zamin_redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    networks:
+      - zamin_net
+
+  # ── Worker (background thumbnailing via BullMQ) ───────────
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: zamin_worker
+    restart: unless-stopped
+    command: ["node", "src/worker.js"]
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgres://zamin:zamin_pass@db:5432/zamin_db
+      S3_ENDPOINT: http://minio:9000
+      S3_BUCKET: zamin
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-zamin_minio}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-zamin_minio_secret}
+      S3_PUBLIC_BASE: /media
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      minio:
+        condition: service_started
+      redis:
+        condition: service_started
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    networks:
+      - zamin_net
+
+  # ── MinIO (S3-compatible object storage) ──────────────────
+  minio:
+    image: minio/minio:latest
+    container_name: zamin_minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-zamin_minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-zamin_minio_secret}
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # Web console
+    volumes:
+      - minio_data:/data
     networks:
       - zamin_net
 
@@ -88,6 +159,8 @@ services:
 
 volumes:
   pg_data:
+  minio_data:
+  redis_data:
 
 networks:
   zamin_net:

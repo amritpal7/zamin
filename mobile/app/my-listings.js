@@ -1,92 +1,128 @@
+// mobile/app/my-listings.js — refactored to design language.
+// Editorial header, SVG icons throughout, no emoji.
+
+import { useTheme } from "../src/context/ThemeContext";
 import React, { useState, useCallback, useRef } from "react";
-import { View, Text, ScrollView, Pressable, ActivityIndicator, Alert } from "react-native";
+import { View, Text, ScrollView, Pressable, ActivityIndicator, Alert, StyleSheet } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useAuth } from "@clerk/clerk-expo";
-import { C, FONT } from "../src/theme";
-import NeoBox from "../src/components/NeoBox";
-import NeoButton from "../src/components/NeoButton";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
+import { C, FONT, FONT_MED, FONT_HEAD, FONT_HEAD_ITALIC } from "../src/theme";
+import { Icon } from "../src/components/Icon";
 import { Tag } from "../src/components/ui";
 import { useApi } from "../src/hooks/useApi";
 import ConfirmModal from "../src/components/ConfirmModal";
 
 function MyListingCard({ property: p, onEdit, onDelete }) {
+  const ambient = p.color || C.amber;
   return (
-    <View style={{ marginBottom: 14 }}>
-      <NeoBox offset={4} fullWidth>
-        <View style={{ padding: 14 }}>
-          {/* Top row */}
-          <View style={{ flexDirection: "row", gap: 10, marginBottom: 10 }}>
-            <View style={{ width: 54, height: 54, backgroundColor: (p.color || C.amber) + "22", borderRadius: 10, borderWidth: 2, borderColor: C.ink, alignItems: "center", justifyContent: "center" }}>
-              <Text style={{ fontSize: 26 }}>{p.img || "🏠"}</Text>
+    <View style={{
+      backgroundColor: C.glassBg,
+      borderRadius: 22,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: C.glassBorder,
+      marginBottom: 14,
+      overflow: "hidden",
+    }}>
+      <View style={{ padding: 16 }}>
+        <View style={{ flexDirection: "row", gap: 14, marginBottom: 14 }}>
+          {/* Tinted hero square */}
+          <View style={{
+            width: 64, height: 64, borderRadius: 16,
+            backgroundColor: ambient + "33",
+            alignItems: "center", justifyContent: "center",
+            overflow: "hidden",
+          }}>
+            <LinearGradient
+              colors={[ambient + "55", ambient + "11"]}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+              style={StyleSheet.absoluteFill}
+            />
+            <Text style={{ fontSize: 28 }}>{p.img || "🏠"}</Text>
+          </View>
+
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={{ color: C.fg, fontFamily: FONT_HEAD, fontSize: 18, letterSpacing: -0.3, lineHeight: 22 }} numberOfLines={1}>
+              {p.title || "Untitled"}
+            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 }}>
+              <Icon name="pin" size={11} color={C.fgDim} />
+              <Text style={{ color: C.fgDim, fontSize: 11, fontFamily: FONT }} numberOfLines={1}>
+                {p.location || "No location set"}
+              </Text>
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: C.text, fontWeight: "800", fontSize: 14, fontFamily: FONT }} numberOfLines={1}>
-                {p.title || "Untitled"}
-              </Text>
-              <Text style={{ color: C.muted, fontSize: 11, marginTop: 3, fontFamily: FONT }} numberOfLines={1}>
-                📍 {p.location || "No location set"}
-              </Text>
-              <View style={{ flexDirection: "row", gap: 6, marginTop: 6 }}>
-                <Tag color={p.status === "For Sale" ? C.green : C.blue} solid>{p.status}</Tag>
-                <Tag color={C.amber}>{p.type}</Tag>
-              </View>
-            </View>
-            <View style={{ alignItems: "flex-end", justifyContent: "flex-start" }}>
-              <Text style={{ color: C.amber, fontWeight: "900", fontSize: 15, fontFamily: FONT }}>
-                {p.price ? `₹${p.price}` : "—"}
-              </Text>
-              {p.area ? <Text style={{ color: C.muted, fontSize: 11, fontFamily: FONT, marginTop: 3 }}>{p.area}</Text> : null}
+            <View style={{ flexDirection: "row", gap: 6, marginTop: 8 }}>
+              <Tag color={p.status === "For Sale" ? C.green : C.blue} solid>{p.status}</Tag>
+              <Tag color={C.amber}>{p.type}</Tag>
             </View>
           </View>
 
-          {/* Amenities row */}
-          {p.tags?.length > 0 && (
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 5, marginBottom: 10 }}>
-              {p.tags.slice(0, 4).map(t => (
-                <View key={t} style={{ backgroundColor: C.amberDim, borderColor: C.amber + "55", borderWidth: 1.5, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 }}>
-                  <Text style={{ color: C.amber, fontSize: 10, fontWeight: "700", fontFamily: FONT }}>{t}</Text>
-                </View>
-              ))}
-              {p.tags.length > 4 && (
-                <Text style={{ color: C.muted, fontSize: 10, fontFamily: FONT, paddingVertical: 2 }}>+{p.tags.length - 4} more</Text>
-              )}
-            </View>
-          )}
-
-          {/* Action row */}
-          <View style={{ flexDirection: "row", gap: 8, borderTopWidth: 2, borderTopColor: C.dim, paddingTop: 10 }}>
-            <Pressable
-              onPress={onEdit}
-              style={{ flex: 1, backgroundColor: C.card, borderColor: C.ink, borderWidth: 2, borderRadius: 8, paddingVertical: 9, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 6 }}
-            >
-              <Text style={{ fontSize: 13 }}>✏️</Text>
-              <Text style={{ color: C.text, fontWeight: "700", fontSize: 12, fontFamily: FONT }}>Edit</Text>
-            </Pressable>
-            <Pressable
-              onPress={onDelete}
-              style={{ flex: 1, backgroundColor: "#ff475715", borderColor: C.red, borderWidth: 2, borderRadius: 8, paddingVertical: 9, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 6 }}
-            >
-              <Text style={{ fontSize: 13 }}>🗑️</Text>
-              <Text style={{ color: C.red, fontWeight: "700", fontSize: 12, fontFamily: FONT }}>Delete</Text>
-            </Pressable>
+          <View style={{ alignItems: "flex-end" }}>
+            <Text style={{ color: C.fg, fontFamily: FONT_MED, fontSize: 15 }}>
+              {p.price ? `₹${p.price}` : "—"}
+            </Text>
+            {p.area ? <Text style={{ color: C.fgDim, fontSize: 11, fontFamily: FONT, marginTop: 4 }}>{p.area}</Text> : null}
           </View>
         </View>
-      </NeoBox>
+
+        {p.tags?.length > 0 && (
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+            {p.tags.slice(0, 4).map(t => (
+              <View key={t} style={{ backgroundColor: C.chipBg, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder }}>
+                <Text style={{ color: C.fg, fontSize: 10, fontFamily: FONT }}>{t}</Text>
+              </View>
+            ))}
+            {p.tags.length > 4 && (
+              <Text style={{ color: C.fgDim, fontSize: 10, fontFamily: FONT, paddingVertical: 4 }}>+{p.tags.length - 4} more</Text>
+            )}
+          </View>
+        )}
+
+        <View style={{ flexDirection: "row", gap: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.line, paddingTop: 12 }}>
+          <Pressable
+            onPress={onEdit}
+            style={({ pressed }) => ({
+              flex: 1, backgroundColor: C.chipBg, borderRadius: 999, paddingVertical: 10,
+              alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 6,
+              opacity: pressed ? 0.85 : 1,
+              borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder,
+            })}
+          >
+            <Icon name="settings" size={14} color={C.fg} />
+            <Text style={{ color: C.fg, fontFamily: FONT_MED, fontSize: 12 }}>Edit</Text>
+          </Pressable>
+          <Pressable
+            onPress={onDelete}
+            style={({ pressed }) => ({
+              flex: 1, backgroundColor: C.red + "1A", borderRadius: 999, paddingVertical: 10,
+              alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 6,
+              opacity: pressed ? 0.85 : 1,
+              borderWidth: StyleSheet.hairlineWidth, borderColor: C.red + "40",
+            })}
+          >
+            <Icon name="close" size={14} color={C.red} />
+            <Text style={{ color: C.red, fontFamily: FONT_MED, fontSize: 12 }}>Delete</Text>
+          </Pressable>
+        </View>
+      </View>
     </View>
   );
 }
 
 export default function MyListings() {
+  useTheme();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { isSignedIn } = useAuth();
-  const api = useApi();
+  const api    = useApi();
   const apiRef = useRef(api);
   apiRef.current = api;
 
-  const [listings, setListings] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [listings,     setListings]     = useState([]);
+  const [loading,      setLoading]      = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const [deleting, setDeleting] = useState(false);
+  const [deleting,     setDeleting]     = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -115,31 +151,81 @@ export default function MyListings() {
 
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
-      {/* Header */}
-      <View style={{ paddingTop: 54, paddingBottom: 14, paddingHorizontal: 18, flexDirection: "row", alignItems: "center", borderBottomWidth: 2, borderBottomColor: C.dim }}>
-        <Pressable onPress={() => router.back()} style={{ marginRight: 14, padding: 4 }}>
-          <Text style={{ color: C.amber, fontSize: 22, fontWeight: "800" }}>←</Text>
-        </Pressable>
-        <Text style={{ color: C.text, fontSize: 18, fontWeight: "800", fontFamily: FONT, flex: 1 }}>My Listings</Text>
+      {/* Top nav */}
+      <View style={{ paddingTop: insets.top + 14, paddingHorizontal: 18, paddingBottom: 8, flexDirection: "row", alignItems: "center", gap: 12 }}>
         <Pressable
-          onPress={() => router.push("/(tabs)/post")}
-          style={{ backgroundColor: C.amber, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 7, borderWidth: 2, borderColor: C.ink }}
+          onPress={() => router.back()}
+          style={{
+            width: 44, height: 44, borderRadius: 22,
+            backgroundColor: C.glassBg, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder,
+            alignItems: "center", justifyContent: "center",
+          }}
         >
-          <Text style={{ color: C.ink, fontWeight: "800", fontSize: 13, fontFamily: FONT }}>+ New</Text>
+          <Icon name="back" size={18} color={C.fg} />
+        </Pressable>
+        <Text style={{ flex: 1, textAlign: "center", fontFamily: FONT_MED, fontSize: 14, color: C.fg }}>My listings</Text>
+        <Pressable
+          onPress={() => router.navigate("/(tabs)/post")}
+          style={({ pressed }) => ({
+            paddingHorizontal: 14, paddingVertical: 10, borderRadius: 999,
+            backgroundColor: C.amber,
+            flexDirection: "row", alignItems: "center", gap: 6,
+            opacity: pressed ? 0.85 : 1,
+          })}
+        >
+          <Icon name="plus" size={14} color={C.ink} strokeWidth={2} />
+          <Text style={{ color: C.ink, fontFamily: FONT_MED, fontSize: 12 }}>New</Text>
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: 48 }}>
+      <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 48 }}>
+        {/* Editorial headline */}
+        <View style={{ paddingHorizontal: 4, paddingTop: 18, paddingBottom: 20 }}>
+          <Text style={{ color: C.fgDim, fontFamily: FONT, fontSize: 11, letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 }}>
+            Your properties
+          </Text>
+          <Text style={{ color: C.fg, fontFamily: FONT_HEAD, fontSize: 38, lineHeight: 40, letterSpacing: -1 }}>
+            What you've{" "}
+            <Text style={{ color: C.fgDim, fontFamily: FONT_HEAD_ITALIC, fontStyle: "italic" }}>posted.</Text>
+          </Text>
+        </View>
+
         {loading && <ActivityIndicator color={C.amber} style={{ marginTop: 48 }} />}
 
         {!loading && listings.length === 0 && (
-          <View style={{ alignItems: "center", paddingTop: 60 }}>
-            <Text style={{ fontSize: 52, marginBottom: 16 }}>🏠</Text>
-            <Text style={{ color: C.text, fontSize: 18, fontWeight: "800", fontFamily: FONT, marginBottom: 8 }}>No listings yet</Text>
-            <Text style={{ color: C.muted, fontSize: 13, fontFamily: FONT, textAlign: "center", marginBottom: 28, lineHeight: 22 }}>
-              Post your first property for free.{"\n"}No brokerage · Direct buyer connect.
+          <View style={{ alignItems: "center", paddingTop: 40 }}>
+            <View style={{
+              width: 56, height: 56, borderRadius: 28,
+              backgroundColor: C.chipBg, alignItems: "center", justifyContent: "center",
+              borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder,
+              marginBottom: 18,
+            }}>
+              <Icon name="home" size={24} color={C.fgDim} strokeWidth={1.4} />
+            </View>
+            <Text style={{ color: C.fg, fontFamily: FONT_HEAD, fontSize: 22, letterSpacing: -0.4, marginBottom: 8 }}>No listings yet.</Text>
+            <Text style={{ color: C.fgDim, fontSize: 13, fontFamily: FONT, textAlign: "center", marginBottom: 24, lineHeight: 20, paddingHorizontal: 24 }}>
+              Post your first property — free, no brokerage, direct buyer connect.
             </Text>
-            <NeoButton title="Post a Property →" onPress={() => router.push("/(tabs)/post")} />
+            <Pressable
+              onPress={() => router.navigate("/(tabs)/post")}
+              style={({ pressed }) => ({
+                flexDirection: "row", alignItems: "center", gap: 10,
+                paddingLeft: 6, paddingRight: 18, paddingVertical: 6,
+                borderRadius: 999,
+                backgroundColor: C.glassBg,
+                borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder,
+                opacity: pressed ? 0.85 : 1,
+              })}
+            >
+              <LinearGradient
+                colors={[C.amber + "ee", "#B86A26"]}
+                start={{ x: 0.2, y: 0.2 }} end={{ x: 1, y: 1 }}
+                style={{ width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" }}
+              >
+                <Icon name="plus" size={16} color={C.ink} strokeWidth={2} />
+              </LinearGradient>
+              <Text style={{ color: C.fg, fontFamily: FONT_MED, fontSize: 14 }}>Post a property</Text>
+            </Pressable>
           </View>
         )}
 
@@ -147,7 +233,7 @@ export default function MyListings() {
           <MyListingCard
             key={p.id}
             property={p}
-            onEdit={() => router.push({ pathname: "/(tabs)/post", params: { editId: p.id } })}
+            onEdit={() => router.push(`/property/edit/${p.id}`)}
             onDelete={() => setDeleteTarget(p)}
           />
         ))}
@@ -155,7 +241,7 @@ export default function MyListings() {
 
       <ConfirmModal
         visible={!!deleteTarget}
-        title="Delete Listing"
+        title="Delete listing"
         message={`Are you sure you want to delete "${deleteTarget?.title || "this property"}"?\n\nThis action cannot be undone.`}
         confirmLabel={deleting ? "Deleting…" : "Delete"}
         confirmColor={C.red}

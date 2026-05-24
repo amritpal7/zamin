@@ -1,6 +1,7 @@
 import { useAuth } from "@clerk/clerk-expo";
 import Constants from "expo-constants";
 import { useCallback, useMemo } from "react";
+import { rememberLocal } from "../utils/imageCache";
 
 const BASE = Constants.expoConfig?.extra?.apiUrl
   || process.env.EXPO_PUBLIC_API_URL
@@ -41,9 +42,65 @@ export function useApi() {
     saveProperty: (id) => request(`/saved/${id}`, { method: "POST" }),
     unsaveProperty: (id) => request(`/saved/${id}`, { method: "DELETE" }),
 
+    // Image upload — presigned DIRECT-to-storage. Bytes never touch the API:
+    // 1) get signed URLs, 2) PUT each file straight to storage, 3) tell the API
+    // to enqueue background resize. Returns [{ url, thumb }].
+    uploadImages: async (uris) => {
+      if (!uris?.length) return [];
+      const token = await getToken();
+      const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+
+      // 1) signed upload URLs
+      const presignRes = await fetch(`${BASE}/properties/presign`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders },
+        body: JSON.stringify({ count: uris.length }),
+      });
+      if (!presignRes.ok) {
+        const e = await presignRes.json().catch(() => ({}));
+        throw new Error(e.error || "Could not start upload");
+      }
+      const { files } = await presignRes.json();
+
+      // 2) upload each file STRAIGHT to object storage
+      await Promise.all(uris.map(async (uri, i) => {
+        const blob = await (await fetch(uri)).blob();
+        const put = await fetch(files[i].uploadUrl, { method: "PUT", body: blob });
+        if (!put.ok) throw new Error("Photo upload failed");
+      }));
+
+      // 3) enqueue background resize + thumbnail
+      await fetch(`${BASE}/properties/process`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders },
+        body: JSON.stringify({ items: files.map(f => ({ base: f.base, origKey: f.origKey })) }),
+      });
+
+      // 4) final URLs + optimistic local mapping
+      const abs = (u) => (u.startsWith("http") ? u : `${BASE}${u}`);
+      return files.map((f, i) => {
+        const url = abs(f.url), thumb = abs(f.thumb);
+        rememberLocal(url, uris[i]);
+        rememberLocal(thumb, uris[i]);
+        return { url, thumb };
+      });
+    },
+
     // Messages
     getMessages: (propertyId) => request(`/messages/${propertyId}`),
     sendMessage: (propertyId, text, receiver_id) =>
       request(`/messages/${propertyId}`, { method: "POST", body: JSON.stringify({ text, receiver_id }) }),
+
+    // Auth — public, no token needed
+    resolveUsername: async (username) => {
+      const res = await fetch(`${BASE}/auth/resolve?username=${encodeURIComponent(username)}`, {
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Username not found");
+      }
+      return res.json();
+    },
   }), [request]);
 }

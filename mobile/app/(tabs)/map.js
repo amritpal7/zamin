@@ -1,10 +1,11 @@
+import { useTheme } from "../../src/context/ThemeContext";
 import React, { useState } from "react";
-import { View, Text, ScrollView, Pressable, Platform } from "react-native";
+import { View, Text, ScrollView, Pressable, Platform, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "@clerk/clerk-expo";
-import { C, FONT } from "../../src/theme";
-import Header from "../../src/components/Header";
-import NeoBox from "../../src/components/NeoBox";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { C, FONT, FONT_MED, FONT_HEAD } from "../../src/theme";
+import { Icon } from "../../src/components/Icon";
 import NeoButton from "../../src/components/NeoButton";
 import { SEED_PROPERTIES } from "../../src/data/properties";
 
@@ -12,20 +13,40 @@ let MapView, Marker;
 if (Platform.OS !== "web") {
   const Maps = require("react-native-maps");
   MapView = Maps.default;
-  Marker = Maps.Marker;
+  Marker  = Maps.Marker;
 }
 
+const glassCard = () => ({
+  backgroundColor: C.glassBg,
+  borderRadius: 20,
+  borderWidth: StyleSheet.hairlineWidth,
+  borderColor: C.glassBorder,
+  shadowColor: C.shadow,
+  shadowOffset: { width: 0, height: 6 },
+  shadowOpacity: 0.12,
+  shadowRadius: 16,
+  elevation: 4,
+});
+
 export default function MapScreen() {
-  const router = useRouter();
+  useTheme();
+  const router  = useRouter();
+  const insets  = useSafeAreaInsets();
   const { isSignedIn } = useAuth();
   const [selected, setSelected] = useState(null);
 
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
-      <Header />
-      <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: 24 }}>
+      {/* Inline header */}
+      <View style={{ paddingTop: insets.top + 20, paddingHorizontal: 24, paddingBottom: 16 }}>
+        <Text style={{ color: C.fgDim, fontSize: 13, fontFamily: FONT, letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>Explore</Text>
+        <Text style={{ color: C.fg, fontFamily: FONT_HEAD, fontSize: 38, fontWeight: "400", letterSpacing: -1, lineHeight: 40 }}>Map View.</Text>
+      </View>
+
+      <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 130 }}>
+        {/* Signed-out notice */}
         {!isSignedIn && (
-          <View style={{ borderColor: C.red, borderWidth: 2.5, borderRadius: 14, padding: 14, marginBottom: 16, flexDirection: "row", alignItems: "center", gap: 12 }}>
+          <View style={[glassCard(), { padding: 14, marginBottom: 16, flexDirection: "row", alignItems: "center", gap: 12, borderColor: C.red + "40" }]}>
             <Text style={{ fontSize: 22 }}>🔒</Text>
             <View style={{ flex: 1 }}>
               <Text style={{ color: C.text, fontWeight: "700", fontSize: 14, fontFamily: FONT }}>Sign in to view locations</Text>
@@ -35,39 +56,61 @@ export default function MapScreen() {
           </View>
         )}
 
-        <NeoBox offset={8} shadowColor={C.amber} radius={18} fullWidth>
-          <View style={{ height: 320, backgroundColor: "#0d1b14", borderRadius: 16, overflow: "hidden" }}>
-            {isSignedIn && MapView ? (
-              <MapView style={{ flex: 1 }} initialRegion={{ latitude: 16.5, longitude: 75, latitudeDelta: 9, longitudeDelta: 9 }}>
-                {SEED_PROPERTIES.map(p => (
-                  <Marker key={p.id} coordinate={{ latitude: p.lat, longitude: p.lng }} title={p.title} description={p.price} onPress={() => router.push(`/property/${p.id}`)} />
-                ))}
-              </MapView>
-            ) : (
-              <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-                <Text style={{ fontSize: 40 }}>🗺️</Text>
-                <Text style={{ color: isSignedIn ? C.amber : C.muted, fontFamily: FONT, marginTop: 12, fontWeight: "700", textAlign: "center" }}>
-                  {isSignedIn ? `${SEED_PROPERTIES.length} properties on map` : "Sign in to unlock map"}
-                </Text>
-                {Platform.OS === "web" && <Text style={{ color: C.muted, fontSize: 11, marginTop: 6, fontFamily: FONT }}>(Native map on device)</Text>}
-              </View>
-            )}
-          </View>
-        </NeoBox>
+        {/* Map card */}
+        <View style={[glassCard(), { marginBottom: 18, overflow: "hidden", height: 320 }]}>
+          {isSignedIn && MapView ? (
+            <MapView
+              style={{ flex: 1 }}
+              initialRegion={{ latitude: 16.5, longitude: 75, latitudeDelta: 9, longitudeDelta: 9 }}
+            >
+              {SEED_PROPERTIES.map(p => (
+                <Marker
+                  key={p.id}
+                  coordinate={{ latitude: p.lat, longitude: p.lng }}
+                  title={p.title}
+                  description={p.price}
+                  onPress={() => router.push(`/property/${p.id}`)}
+                />
+              ))}
+            </MapView>
+          ) : (
+            <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 12 }}>
+              <Icon name="map" size={44} color={isSignedIn ? C.amber : C.fgDim} strokeWidth={1.2} />
+              <Text style={{ color: isSignedIn ? C.amber : C.fgDim, fontFamily: FONT_MED, textAlign: "center" }}>
+                {isSignedIn ? `${SEED_PROPERTIES.length} properties on map` : "Sign in to unlock map"}
+              </Text>
+              {Platform.OS === "web" && (
+                <Text style={{ color: C.fgDim, fontSize: 11, fontFamily: FONT }}>(Native map on device)</Text>
+              )}
+            </View>
+          )}
+        </View>
 
-        {/* List below map */}
-        <View style={{ marginTop: 16, gap: 10 }}>
+        {/* Property list */}
+        <Text style={{ color: C.fg, fontSize: 22, letterSpacing: -0.4, fontFamily: FONT_HEAD, marginBottom: 12 }}>
+          {SEED_PROPERTIES.length} Properties
+        </Text>
+        <View style={{ gap: 10 }}>
           {SEED_PROPERTIES.map(p => {
             const active = selected === p.id;
             return (
-              <Pressable key={p.id} onPress={() => { setSelected(p.id); router.push(`/property/${p.id}`); }}
-                style={{ backgroundColor: active ? C.amber : C.card, borderColor: C.ink, borderWidth: 2.5, borderRadius: 12, padding: 12, flexDirection: "row", alignItems: "center", gap: 12 }}>
+              <Pressable
+                key={p.id}
+                onPress={() => { setSelected(p.id); router.push(`/property/${p.id}`); }}
+                style={[glassCard(), {
+                  padding: 14, flexDirection: "row", alignItems: "center", gap: 12,
+                  backgroundColor: active ? C.amber : C.glassBg,
+                }]}
+              >
                 <Text style={{ fontSize: 28 }}>{p.img}</Text>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontWeight: "800", fontSize: 14, color: active ? C.ink : C.text, fontFamily: FONT }}>{p.title}</Text>
-                  <Text style={{ fontSize: 12, color: active ? C.ink : C.muted, fontFamily: FONT }}>📍 {p.location}</Text>
+                  <Text style={{ fontSize: 14, color: active ? C.ink : C.fg, fontFamily: FONT_MED }}>{p.title}</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
+                    <Icon name="pin" size={11} color={active ? C.ink : C.fgDim} />
+                    <Text style={{ fontSize: 12, color: active ? C.ink : C.fgDim, fontFamily: FONT }}>{p.location}</Text>
+                  </View>
                 </View>
-                <Text style={{ fontWeight: "900", color: active ? C.ink : C.amber, fontFamily: FONT }}>{p.price}</Text>
+                <Text style={{ fontSize: 14, color: active ? C.ink : C.amber, fontFamily: FONT_MED }}>₹{p.price}</Text>
               </Pressable>
             );
           })}

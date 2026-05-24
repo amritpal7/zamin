@@ -1,35 +1,52 @@
 import React, { useRef } from "react";
-import { Pressable, Text, View, Animated } from "react-native";
+import { Pressable, Text, Animated } from "react-native";
 import { C, FONT } from "../theme";
+import { useTheme } from "../context/ThemeContext";
 
-export default function NeoButton({ title, onPress, fill = C.amber, fg = C.ink, offset = 4, small, full, disabled, style }) {
-  const translate = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
-  const shadowOp = useRef(new Animated.Value(1)).current;
+export default function NeoButton({
+  title, onPress,
+  fill, fg,
+  small, full, disabled, style,
+  offset,
+}) {
+  useTheme();
+  const activeFill = fill || C.amber;
+  const activeFg   = fg   || C.ink;
 
-  const pressIn = () => {
-    if (disabled) return;
-    Animated.parallel([
-      Animated.timing(translate, { toValue: { x: offset, y: offset }, duration: 60, useNativeDriver: true }),
-      Animated.timing(shadowOp, { toValue: 0, duration: 60, useNativeDriver: true }),
-    ]).start();
-  };
-  const pressOut = () => {
-    if (disabled) return;
-    Animated.parallel([
-      Animated.timing(translate, { toValue: { x: 0, y: 0 }, duration: 80, useNativeDriver: true }),
-      Animated.timing(shadowOp, { toValue: 1, duration: 80, useNativeDriver: true }),
-    ]).start();
-  };
+  const scale = useRef(new Animated.Value(1)).current;
+  const pressIn  = () => { if (!disabled) Animated.spring(scale, { toValue: 0.95, useNativeDriver: true, speed: 50, bounciness: 4 }).start(); };
+  const pressOut = () => { if (!disabled) Animated.spring(scale, { toValue: 1,    useNativeDriver: true, speed: 30, bounciness: 6 }).start(); };
 
   return (
-    <View style={[{ alignSelf: full ? "stretch" : "flex-start" }, style]}>
-      <Animated.View style={{ position: "absolute", left: offset, top: offset, right: -offset, bottom: -offset, backgroundColor: disabled ? "transparent" : C.ink, borderRadius: 12, opacity: shadowOp }} />
-      <Animated.View style={{ transform: [{ translateX: translate.x }, { translateY: translate.y }] }}>
-        <Pressable onPress={disabled ? null : onPress} onPressIn={pressIn} onPressOut={pressOut}
-          style={{ backgroundColor: disabled ? C.dim : fill, borderColor: C.ink, borderWidth: 2.5, borderRadius: 12, paddingVertical: small ? 8 : 13, paddingHorizontal: small ? 16 : 22, alignItems: "center", justifyContent: "center" }}>
-          <Text style={{ color: disabled ? C.muted : fg, fontSize: small ? 13 : 15, fontWeight: "700", fontFamily: FONT }}>{title}</Text>
-        </Pressable>
-      </Animated.View>
-    </View>
+    <Animated.View style={[{ alignSelf: full ? "stretch" : "flex-start", transform: [{ scale }] }, style]}>
+      <Pressable
+        onPress={disabled ? null : onPress}
+        onPressIn={pressIn}
+        onPressOut={pressOut}
+        style={{
+          backgroundColor: disabled ? C.dim : activeFill,
+          borderRadius: 100,
+          paddingVertical:   small ? 9  : 14,
+          paddingHorizontal: small ? 20 : 28,
+          alignItems: "center",
+          justifyContent: "center",
+          shadowColor: disabled ? "transparent" : activeFill,
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.35,
+          shadowRadius: 12,
+          elevation: disabled ? 0 : 6,
+        }}
+      >
+        <Text style={{
+          color:      disabled ? C.muted : activeFg,
+          fontSize:   small ? 13 : 15,
+          fontWeight: "700",
+          fontFamily: FONT,
+          letterSpacing: 0.2,
+        }}>
+          {title}
+        </Text>
+      </Pressable>
+    </Animated.View>
   );
 }
