@@ -1,5 +1,5 @@
 import { useTheme } from "../../src/context/ThemeContext";
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import {
   View, Text, ScrollView, Pressable, TextInput,
   ActivityIndicator, RefreshControl, StyleSheet,
@@ -102,7 +102,9 @@ export default function Discover() {
     } finally { setLoading(false); setRefreshing(false); }
   }, [type, status, search]);
 
-  useEffect(() => { load(); }, [load]);
+  // Reload the list on mount, when filters change, AND whenever Home regains
+  // focus (e.g. returning after editing/posting) so cards show fresh images.
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
   useFocusEffect(
     useCallback(() => {
