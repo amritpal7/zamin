@@ -1,37 +1,9 @@
 require("dotenv").config();
-const express = require("express");
-const cors = require("cors");
-const { clerkMiddleware } = require("@clerk/express");
-
+const app = require("./app");
 const pool = require("./db");
-const { UPLOAD_DIR } = require("./upload");
 const { ensureBucket } = require("./storage");
-const propertiesRouter = require("./routes/properties");
-const savedRouter = require("./routes/saved");
-const messagesRouter = require("./routes/messages");
-const authRouter = require("./routes/auth");
 
-const app = express();
 const PORT = process.env.PORT || 4000;
-
-// ── Middleware ──────────────────────────────────────────────
-app.use(cors({ origin: "*" }));
-app.use(express.json());
-
-// Clerk attaches auth state to every request.
-// Routes can then call requireAuth() to enforce login.
-app.use(clerkMiddleware());
-
-// ── Routes ──────────────────────────────────────────────────
-app.get("/health", (_, res) => res.json({ status: "ok", service: "zamin-api" }));
-
-// Uploaded property images (reached via nginx at /api/uploads/...)
-app.use("/uploads", express.static(UPLOAD_DIR));
-
-app.use("/properties", propertiesRouter);
-app.use("/saved", savedRouter);
-app.use("/messages", messagesRouter);
-app.use("/auth", authRouter);
 
 // ── One-time idempotent migration (handles existing DBs) ─────
 async function migrate() {
@@ -70,13 +42,6 @@ async function migrate() {
   }
   console.log("✅ DB migration complete (images column ready)");
 }
-
-// ── 404 / error handlers ────────────────────────────────────
-app.use((_, res) => res.status(404).json({ error: "Not found" }));
-app.use((err, _req, res, _next) => {
-  console.error(err);
-  res.status(500).json({ error: err.message || "Internal server error" });
-});
 
 app.listen(PORT, () => {
   console.log(`🚀 Zamin API running on port ${PORT}`);
