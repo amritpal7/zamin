@@ -13,15 +13,24 @@ Zero-brokerage property marketplace. Expo/React Native (iOS/Android/web) + Expre
 Postgres + Clerk auth + MinIO object storage + Redis/BullMQ image worker, all via Docker Compose.
 
 ## Working agreement (do this every change)
-1. **Track everything.** After any feature/fix, add a dated entry to `CHANGELOG.md` (file + why).
+1. **Trace the ripple — every change.** Before calling a change done, find EVERY other place
+   the touched thing is used and update/verify each, so a fix here doesn't leave a bug there.
+   Ask: other screens/components reading the same field? API routes + DB columns (incl.
+   **denormalized/stored** copies)? Shared utils/hooks? Both create *and* edit paths? web + native?
+   - How: `grep -rn "<symbol/field>" mobile/app mobile/src backend/src` and read each hit.
+   - Write the impact list in the CHANGELOG entry (which places were checked/updated).
+   - Real example: the username-first change rippled to `profile.js`, `settings.js`, `post.js`,
+     `PropertyCard`, property detail, chat, *and* denormalized `owner_name` rows in Postgres.
+2. **Track everything.** After any feature/fix, add a dated entry to `CHANGELOG.md` (file + why).
    A change isn't done until it's built/validated **and** logged.
-2. **Keep the docs true.** If you change architecture, endpoints, auth, or data model,
+3. **Keep the docs true.** If you change architecture, endpoints, auth, or data model,
    update `docs/ARCHITECTURE.md` in the *same* change. Tick/adjust `docs/ROADMAP.md`.
-3. **Validate before claiming done.** Compile the bundle (below) and/or hit the API. Report
+4. **Validate before claiming done.** Compile the bundle (below) and/or hit the API. Report
    real results — if something failed or was skipped, say so.
-4. **Security is a pillar, not a phase.** Check the ROADMAP security backlog; consider
+5. **Security is a pillar, not a phase.** Check the ROADMAP security backlog; consider
    `/security-review` for anything touching auth, input, or data exposure.
-5. **Prefer simple.** This project's guiding preference is minimal, obvious UX.
+6. **Prefer simple.** This project's guiding preference is minimal, obvious UX.
+7. **Commit messages:** plain and simple, NO `Co-Authored-By` / Claude signature.
 
 ## Architecture guardrails (don't break these)
 - Clerk `clerkMiddleware()` is **global** → invalid keys 500 even public routes. Keep keys valid.
