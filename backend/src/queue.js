@@ -8,7 +8,9 @@ const connection = {
 };
 
 const THUMBNAIL_QUEUE = "thumbnail";
+const MAINTENANCE_QUEUE = "maintenance";
 
-const thumbnailQueue = new Queue(THUMBNAIL_QUEUE, { connection });
+const thumbnailQueue   = new Queue(THUMBNAIL_QUEUE, { connection });
+const maintenanceQueue = new Queue(MAINTENANCE_QUEUE, { connection });
 
-module.exports = { thumbnailQueue, connection, THUMBNAIL_QUEUE };
+module.exports = { thumbnailQueue, maintenanceQueue, connection, THUMBNAIL_QUEUE, MAINTENANCE_QUEUE };

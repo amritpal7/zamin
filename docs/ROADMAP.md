@@ -27,10 +27,13 @@ Three pillars we judge every change against:
       can't work until accounts have a verified contact method.
 - [ ] **Password reset — DEFERRED (UI already built):** turn it on once add-email/phone lands.
       Enable "reset password" + a contact method in Clerk. Tracked here so we don't lose it.
-- [~] **Owner liveness / flag deleted accounts:** DONE — `owner_active` flag on properties,
+- [x] **Owner liveness / flag deleted accounts:** DONE — `owner_active` flag on properties,
       reconciled against Clerk (deleted account → 404 → flagged), surfaced in listings, detail,
-      chat, and inbox. Next: **automate** via a Clerk `user.deleted` webhook or a scheduled
-      reconcile (currently run on demand via `POST /properties/reconcile-owners`).
+      chat, and inbox. **Now automated**: the worker runs a scheduled reconcile every
+      `RECONCILE_INTERVAL_MS` (default 6h) + on boot; `POST /properties/reconcile-owners` still
+      available for on-demand. Optional future: Clerk `user.deleted` webhook for instant flags.
+- [x] **Profile pictures** — users can set a Clerk profile photo from Settings; shown in
+      Profile + Settings. (Needs on-device verification of the upload.)
 - [ ] **Confirm authorization on `saved`/`messages` routes** — ensure every handler enforces
       the Clerk user and ownership (audit `getAuth` usage).
 

@@ -8,6 +8,8 @@ import { useRouter } from "expo-router";
 import { useUser, useClerk } from "@clerk/clerk-expo";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
+import { Image } from "expo-image";
+import * as ImagePicker from "expo-image-picker";
 import { C, FONT, FONT_MED, FONT_HEAD, FONT_HEAD_ITALIC } from "../src/theme";
 import { Icon } from "../src/components/Icon";
 import { useTheme } from "../src/context/ThemeContext";
@@ -121,7 +123,16 @@ function PillBtn({ title, onPress, primary, secondary, disabled, loading, danger
   );
 }
 
-function AccentDisc({ initials }) {
+function AccentDisc({ initials, imageUrl }) {
+  if (imageUrl) {
+    return (
+      <Image
+        source={{ uri: imageUrl }}
+        style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: C.chipBg }}
+        contentFit="cover"
+      />
+    );
+  }
   return (
     <LinearGradient
       colors={[C.amber + "cc", "#B86A26"]}
@@ -148,6 +159,7 @@ export default function Settings() {
   const { signOut } = useClerk();
 
   const [editing,   setEditing]   = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [saving,    setSaving]    = useState(false);
   const [firstName, setFirstName] = useState("");
   const [lastName,  setLastName]  = useState("");
@@ -173,6 +185,26 @@ export default function Settings() {
     setLastName(user?.lastName  || "");
     setUsername(user?.username ?? user?.unsafeMetadata?.username ?? "");
     setEditing(true);
+  };
+
+  // Pick an image and set it as the Clerk profile picture.
+  const changePhoto = async () => {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) { Alert.alert("Permission needed", "Allow photo access to set a profile picture."); return; }
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"], allowsEditing: true, aspect: [1, 1], quality: 0.6,
+      });
+      if (res.canceled) return;
+      setUploadingPhoto(true);
+      const blob = await (await fetch(res.assets[0].uri)).blob();
+      await user.setProfileImage({ file: blob });
+      await user.reload();
+    } catch (e) {
+      Alert.alert("Error", e.errors?.[0]?.message || e.message || "Could not update photo.");
+    } finally {
+      setUploadingPhoto(false);
+    }
   };
 
   const saveProfile = async () => {
@@ -358,7 +390,17 @@ export default function Settings() {
           ) : (
             <GlassCard>
               <View style={{ padding: 18, flexDirection: "row", alignItems: "center", gap: 14 }}>
-                <AccentDisc initials={initials} />
+                <Pressable onPress={changePhoto} disabled={uploadingPhoto}>
+                  <AccentDisc initials={initials} imageUrl={user?.hasImage ? user.imageUrl : null} />
+                  <View style={{ position: "absolute", right: -2, bottom: -2, width: 20, height: 20, borderRadius: 10, backgroundColor: C.amber, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: C.bg }}>
+                    <Icon name="image" size={10} color={C.ink} strokeWidth={2} />
+                  </View>
+                  {uploadingPhoto && (
+                    <View style={{ position: "absolute", top: 0, left: 0, width: 52, height: 52, borderRadius: 26, backgroundColor: "rgba(0,0,0,0.4)", alignItems: "center", justifyContent: "center" }}>
+                      <ActivityIndicator size="small" color="#fff" />
+                    </View>
+                  )}
+                </Pressable>
                 <View style={{ flex: 1 }}>
                   <Text style={{ color: C.fg, fontFamily: FONT_HEAD, fontSize: 18, letterSpacing: -0.3 }}>{fullName}</Text>
                   {uname && <Text style={{ color: C.amberText, fontFamily: FONT, fontSize: 12, marginTop: 2 }}>@{uname}</Text>}

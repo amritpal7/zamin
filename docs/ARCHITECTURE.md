@@ -74,7 +74,7 @@ as a foreign-key-like reference on every row.
 | Container | Service | Port(s) | Role |
 |-----------|---------|---------|------|
 | `zamin_api` | api | 4000 | Express REST API; runs idempotent migrations + ensures storage bucket on boot |
-| `zamin_worker` | worker | — | BullMQ consumer; resizes images + builds thumbnails with sharp |
+| `zamin_worker` | worker | — | BullMQ consumer; image resize/thumbnails (sharp) + scheduled owner-liveness reconcile (needs `CLERK_SECRET_KEY`) |
 | `zamin_redis` | redis | 6379 (internal) | BullMQ job queue backend |
 | `zamin_minio` | minio | 9000 (S3 API), 9001 (console) | Object storage for images |
 | `zamin_db` | db | 5432 | PostgreSQL; auto-runs `backend/db/init.sql` on first boot |

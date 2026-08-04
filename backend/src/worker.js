@@ -2,8 +2,10 @@ require("dotenv").config();
 const { Worker } = require("bullmq");
 const sharp = require("sharp");
 const { GetObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3");
-const { connection, THUMBNAIL_QUEUE } = require("./queue");
+const { connection, THUMBNAIL_QUEUE, MAINTENANCE_QUEUE, maintenanceQueue } = require("./queue");
 const { s3, putObject, BUCKET } = require("./storage");
+const pool = require("./db");
+const { reconcileOwners } = require("./clerkUsers");
 
 async function streamToBuffer(stream) {
   const chunks = [];
@@ -45,3 +47,33 @@ worker.on("completed", (job) => console.log(`✅ thumbnail job ${job.id} done ($
 worker.on("failed", (job, err) => console.error(`❌ thumbnail job ${job?.id} failed:`, err?.message));
 
 console.log("🖼️  Thumbnail worker started, waiting for jobs…");
+
+// ── Maintenance: periodically reconcile owner liveness against Clerk ──────────
+const RECONCILE_EVERY_MS = Number(process.env.RECONCILE_INTERVAL_MS || 6 * 60 * 60 * 1000);
+
+const maintenanceWorker = new Worker(
+  MAINTENANCE_QUEUE,
+  async (job) => {
+    if (job.name === "reconcile-owners") {
+      const result = await reconcileOwners(pool);
+      console.log("🧹 owner reconcile:", JSON.stringify(result));
+      return result;
+    }
+  },
+  { connection }
+);
+maintenanceWorker.on("failed", (job, err) => console.error(`❌ maintenance job ${job?.id} failed:`, err?.message));
+
+// Register the repeatable schedule (idempotent by repeat key) + run once on boot.
+(async () => {
+  try {
+    await maintenanceQueue.add(
+      "reconcile-owners", {},
+      { repeat: { every: RECONCILE_EVERY_MS }, removeOnComplete: true, removeOnFail: 20 }
+    );
+    await maintenanceQueue.add("reconcile-owners", {}, { removeOnComplete: true });
+    console.log(`🗓️  Owner reconcile scheduled every ${Math.round(RECONCILE_EVERY_MS / 60000)}m`);
+  } catch (e) {
+    console.error("Failed to schedule owner reconcile:", e.message);
+  }
+})();

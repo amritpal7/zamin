@@ -12,6 +12,21 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-08-05 (scheduled reconcile + profile pictures)
+- **Added (worker):** Scheduled owner-liveness reconcile — a `maintenance` BullMQ queue +
+  a second Worker in `worker.js` run `reconcileOwners` on a repeat schedule
+  (`RECONCILE_INTERVAL_MS`, default 6h) and once on boot. Verified: `checked 3, inactive 2`.
+- **Ripple (ops):** `docker-compose.yml` worker was missing `CLERK_SECRET_KEY` (only `api`
+  had it) — reconcile would have silently no-op'd. Added it + `RECONCILE_INTERVAL_MS`.
+- **Added (profile picture):** Users can set a profile photo (Clerk `setProfileImage`) —
+  `settings.js` tap-avatar → pick image (expo-image-picker) → upload → shows a camera badge
+  + spinner. `AccentDisc` renders `user.imageUrl` when set.
+- **Ripple (avatar display):** `profile.js` now shows `user.imageUrl` (tap → Settings) when
+  the user has a photo, else the initials gradient. (Owner avatars on listings are separate —
+  they use the denormalized `owner_avatar` initials, not the Clerk image.)
+- Backend tests still 23/23; iOS + web bundles compile. Profile-image upload needs
+  on-device verification (can't exercise the picker from CI).
+
 ### 2026-08-05 (flag owners whose account no longer exists)
 - **Added (backend):** `owner_active` boolean on `properties` (migration, default true) +
   `src/clerkUsers.js` (`userExists` via Clerk Backend API, `reconcileOwners`) +

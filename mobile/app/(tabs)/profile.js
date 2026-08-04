@@ -2,6 +2,7 @@ import { useTheme } from "../../src/context/ThemeContext";
 import React, { useState, useCallback, useRef } from "react";
 import { View, Text, ScrollView, Pressable, StyleSheet } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { Image } from "expo-image";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -135,17 +136,27 @@ export default function Profile() {
 
         {/* ── Avatar + name row ── */}
         <View style={{ paddingHorizontal: 22, paddingTop: 8, paddingBottom: 28, flexDirection: "row", alignItems: "center", gap: 18 }}>
-          <LinearGradient
-            colors={[C.amber + "cc", "#B86A26"]}
-            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-            style={{
-              width: 80, height: 80, borderRadius: 40,
-              alignItems: "center", justifyContent: "center",
-              shadowColor: C.amber, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.25, shadowRadius: 24, elevation: 8,
-            }}
-          >
-            <Text style={{ fontFamily: FONT_HEAD, fontSize: 34, color: "#1A0A00" }}>{initials}</Text>
-          </LinearGradient>
+          <Pressable onPress={() => router.push("/settings")}>
+            {user?.hasImage ? (
+              <Image
+                source={{ uri: user.imageUrl }}
+                style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: C.chipBg }}
+                contentFit="cover"
+              />
+            ) : (
+              <LinearGradient
+                colors={[C.amber + "cc", "#B86A26"]}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                style={{
+                  width: 80, height: 80, borderRadius: 40,
+                  alignItems: "center", justifyContent: "center",
+                  shadowColor: C.amber, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.25, shadowRadius: 24, elevation: 8,
+                }}
+              >
+                <Text style={{ fontFamily: FONT_HEAD, fontSize: 34, color: "#1A0A00" }}>{initials}</Text>
+              </LinearGradient>
+            )}
+          </Pressable>
           <View style={{ flex: 1 }}>
             <Text style={{ fontFamily: FONT_HEAD, fontSize: 30, lineHeight: 32, letterSpacing: -0.6, fontWeight: "400", color: C.fg }}>
               {fullName}
