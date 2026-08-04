@@ -196,6 +196,9 @@ export default function SignIn() {
                 </View>
                 <NeoInput label="Password" value={password} onChangeText={setPassword} placeholder="Your password" secureTextEntry />
                 <NeoButton full title={loading ? "Please wait…" : "Sign In →"} fill={C.amber} fg={C.ink} onPress={submitUsername} disabled={loading} />
+                <Pressable onPress={() => router.push("/forgot-password")} style={{ marginTop: 14, alignItems: "center" }}>
+                  <Text style={{ color: C.amberText, fontSize: 13, fontFamily: FONT, fontWeight: "600" }}>Forgot password?</Text>
+                </Pressable>
               </>
             ) : (
               <>

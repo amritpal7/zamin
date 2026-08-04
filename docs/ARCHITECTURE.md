@@ -151,6 +151,10 @@ Bookmarks. `UNIQUE(clerk_user_id, property_id)`, `property_id` FK → properties
   - Phone: passwordless — number → SMS OTP (`prepareFirstFactor`/`attemptFirstFactor`).
 - Email removed from auth entirely (planned to move to profile settings later).
 - Phone numbers normalized to **E.164**, defaulting to **+91 (India)**.
+- **Password reset** (`app/forgot-password.js`, linked from sign-in): sends a reset code to
+  the account's verified email/phone, then sets a new password. ⚠️ Only works if the account
+  has a verified email or phone and "reset password" is enabled in Clerk — username-only
+  accounts with no contact method can't reset until they add one.
 
 ### ⚠️ Clerk Dashboard config this design REQUIRES
 In dashboard.clerk.com → **User & Authentication → Email, Phone, Username**:

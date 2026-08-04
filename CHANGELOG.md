@@ -12,6 +12,19 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-08-05 (password reset)
+- **Added (auth):** Password reset flow — new `app/forgot-password.js`. Enter
+  username/email/phone → Clerk sends a reset code to the account's verified email or phone
+  (`prepareFirstFactor` with `reset_password_email_code`/`reset_password_phone_code`) →
+  enter code + new password (`attemptFirstFactor` → `resetPassword`) → signed in.
+- **Changed (ripple):** `sign-in.js` — added a "Forgot password?" link on the username tab
+  → `/forgot-password`.
+- **Ripple/impact checked:** `forgot-password.js` (new), `sign-in.js` (link); verified
+  `_layout.js` AuthGuard treats only `(tabs)` as protected, so signed-out users can reach
+  the reset screen. **Requires** the account to have a verified email or phone AND "reset
+  password" enabled in Clerk — username-only accounts with no contact can't reset until they
+  add one (Settings). Documented in ARCHITECTURE.
+
 ### 2026-08-05 (replace mock data with a real conversations backbone)
 - **Added (backend):** `GET /messages` — lists the current user's conversations (one row
   per property, newest first) with property + last-message info. Registered before
