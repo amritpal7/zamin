@@ -12,6 +12,18 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-08-04 (later)
+- **Added (tests):** First automated API test suite — `backend/tests/api.test.js`
+  (Jest + Supertest, 13 tests): health, public reads + filtering, 404s, all auth guards
+  (401 when signed out), and property CRUD + ownership (create 201, `/mine`, non-owner
+  PUT/DELETE → 404, owner delete → 200 then gone). Clerk is mocked via an `x-test-user`
+  header; tests run against the real Postgres inside the container: `docker exec zamin_api npm test`.
+- **Changed (refactor):** Split `backend/src/index.js` → exportable `backend/src/app.js`
+  (Express app) + thin `index.js` (listen + migrate + bucket). Enables importing the app in
+  tests without starting a server. `ROADMAP` "automated tests" item now in progress.
+- **Docs:** Removed a stray `</content>` line accidentally introduced at the end of the
+  new doc/code files during authoring.
+
 ### 2026-08-04
 - **Docs:** Added full documentation system — `docs/ARCHITECTURE.md` (A–Z system
   reference), `CHANGELOG.md` (this file), `docs/ROADMAP.md` (goals + backlog), and root
@@ -49,4 +61,3 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 - `a7ebac3` Overhaul post form UX + clean profile + in-app delete confirm modal
 - `7b83957` Fix delete not working: 401 auth + web-safe confirmation
 - `cdfface` Add full CRUD for property listings + fix Clerk web AuthContext error
-</content>

@@ -81,4 +81,3 @@ signup returns `missing_requirements`, an identifier is wrongly marked *required
 
 ## Existing test account
 `@zamintest01` / `River-Trail-9284` (created 2026-08-04 to verify profile username display).
-</content>

@@ -28,8 +28,9 @@ Three pillars we judge every change against:
 
 ## Near term (weeks)
 
-- [ ] **Automated tests.** Jest + Supertest for API (auth guards, ownership, CRUD).
-      Even a thin smoke suite. *This is the biggest current risk.*
+- [~] **Automated tests.** ✅ API smoke suite done (`backend/tests/api.test.js`, Jest +
+      Supertest: auth guards, ownership, CRUD). Next: validation/edge cases, `saved`/`messages`
+      happy-path, and CI to run it automatically. No client/mobile tests yet.
 - [ ] **Input validation** on all write endpoints (types, lengths, enums for `type`/`status`).
 - [ ] **Pagination + server-side search** on `GET /properties` (before the table grows).
 - [ ] **Real-time chat** (Socket.io / Supabase Realtime) + unread badges + conversations inbox.
@@ -73,4 +74,3 @@ Three pillars we judge every change against:
 - **Presigned direct-to-storage uploads + BullMQ worker** — keep API stateless/fast, storage swappable.
 - **MinIO in dev** — S3-compatible, swap to S3/R2 in prod via env only.
 - **nginx single entry** — one origin for `/api` and `/media`.
-</content>

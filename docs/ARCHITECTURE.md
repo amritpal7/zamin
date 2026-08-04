@@ -300,7 +300,8 @@ inspection, creating test users via the Backend API, etc.).
 - **`requireAuth` must 401, not 302** — a redirect makes `fetch` receive HTML. Don't swap it for Clerk's redirecting guard.
 - **`redirect: "manual"` in `useApi`** exists for the same reason — don't remove.
 - **Native-only maps**: `react-native-maps` is stubbed on web; guard native map code.
-- **No automated tests yet** — validate via bundle compile + manual/API checks (see ROADMAP).
+- **API tests:** `backend/tests/api.test.js` (Jest + Supertest) covers auth guards + CRUD +
+  ownership. Run with `docker exec zamin_api npm test`. Clerk is mocked via `x-test-user`
+  header; the app is imported from `src/app.js` (server-less). No client/mobile tests yet.
 - **Docker build npm flakiness**: first `--build` can fail on a transient npm network error; retry usually succeeds.
 - **Profile name for username-only accounts**: no first/last name, so display falls back to `@username` (see `profile.js`).
-</content>
