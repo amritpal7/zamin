@@ -331,7 +331,7 @@ export default function PropertyDetail() {
           {/* Owner */}
           <GlassCard>
             <View style={{ padding: 16, flexDirection: "row", alignItems: "center", gap: 14 }}>
-              <Avatar initials={isOwn ? "ME" : (p.owner_avatar || "??")} size={50} color={color} />
+              <Avatar initials={isOwn ? "ME" : (p.owner_avatar || "??")} size={50} color={color} imageUrl={p.owner_image} />
               <View style={{ flex: 1 }}>
                 <Text style={{ color: C.text, fontWeight: "800", fontSize: 15, fontFamily: FONT }}>
                   {isOwn ? "Me" : (p.owner_name + (p.verified ? "  ✓" : ""))}

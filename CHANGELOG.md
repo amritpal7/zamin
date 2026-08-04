@@ -12,6 +12,22 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-08-05 (bugfix: owner profile photo not visible on listings / to others)
+- **Fixed:** profile photos showed only on the owner's own Profile/Settings, never on their
+  listings or to other users, because owner display data is **denormalized** onto each
+  property and the image was never propagated.
+- **Backend:** added `owner_image TEXT` (migration); `POST /properties` now accepts+stores it;
+  conversations query returns it; `reconcileOwners` now also **syncs `owner_image`** from Clerk
+  (and skips rows on transient errors so nothing gets wiped).
+- **Ripple (all owner-avatar spots):** `Avatar` (`ui.js`) gained an `imageUrl` prop; passed it
+  in `PropertyCard`, `property/[id].js`, `chat/[id].js`, `messages.js`; `post.js` sends the
+  owner's `imageUrl` on create.
+- **Verified cross-user:** public `GET /properties` returns `owner_image` for the active owner
+  (`img.clerk.com/…`) — i.e. what *other* users see. Reconcile backfilled existing listings.
+- **Lesson:** denormalized/copied data must be propagated to every copy, and features must be
+  tested from the *consumer's* (other user's) perspective — the public API — not just the
+  author's screen. Reinforced in CLAUDE.md rule #1.
+
 ### 2026-08-05 (scheduled reconcile + profile pictures)
 - **Added (worker):** Scheduled owner-liveness reconcile — a `maintenance` BullMQ queue +
   a second Worker in `worker.js` run `reconcileOwners` on a repeat schedule
@@ -24,8 +40,9 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 - **Ripple (avatar display):** `profile.js` now shows `user.imageUrl` (tap → Settings) when
   the user has a photo, else the initials gradient. (Owner avatars on listings are separate —
   they use the denormalized `owner_avatar` initials, not the Clerk image.)
-- Backend tests still 23/23; iOS + web bundles compile. Profile-image upload needs
-  on-device verification (can't exercise the picker from CI).
+- Backend tests still 23/23; iOS + web bundles compile. Profile-image upload **verified on
+  web (2026-08-05)**; ⏳ still needs verification on the **mobile/native** app (RN Blob may
+  need to become a `{ uri, name, type }` / FormData upload).
 
 ### 2026-08-05 (flag owners whose account no longer exists)
 - **Added (backend):** `owner_active` boolean on `properties` (migration, default true) +

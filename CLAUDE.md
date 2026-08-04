@@ -21,6 +21,11 @@ Postgres + Clerk auth + MinIO object storage + Redis/BullMQ image worker, all vi
    - Write the impact list in the CHANGELOG entry (which places were checked/updated).
    - Real example: the username-first change rippled to `profile.js`, `settings.js`, `post.js`,
      `PropertyCard`, property detail, chat, *and* denormalized `owner_name` rows in Postgres.
+   - **Denormalized data must be propagated to every copy** (owner_name/avatar/**image** are
+     copied onto each property — updating the Clerk user alone is not enough).
+   - **Test from the CONSUMER's perspective**, not just the author's screen: e.g. check the
+     public `GET /properties` to see what *other* users get. (Profile photo bug: it showed on
+     the owner's own screen but was never on listings/for other users.)
 2. **Track everything.** After any feature/fix, add a dated entry to `CHANGELOG.md` (file + why).
    A change isn't done until it's built/validated **and** logged.
 3. **Keep the docs true.** If you change architecture, endpoints, auth, or data model,

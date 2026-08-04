@@ -93,7 +93,7 @@ export default function Messages() {
                 opacity: pressed ? 0.7 : 1,
               })}
             >
-              <Avatar initials={chat.owner_avatar || "??"} size={48} color={chat.color || C.amber} />
+              <Avatar initials={chat.owner_avatar || "??"} size={48} color={chat.color || C.amber} imageUrl={chat.owner_image} />
               <View style={{ flex: 1 }}>
                 <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 3, gap: 8 }}>
                   <Text style={{ color: C.fg, fontFamily: FONT_MED, fontSize: 14, flex: 1 }} numberOfLines={1}>{chat.title}</Text>

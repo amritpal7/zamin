@@ -537,6 +537,7 @@ export default function Post() {
           ...payload,
           owner_name:   ownerName,
           owner_avatar: ownerAvatar,
+          owner_image:  user?.hasImage ? user.imageUrl : null,
           owner_phone:  form.contactPhone || null,
           verified:     isVerified,
           img:          "🏠",

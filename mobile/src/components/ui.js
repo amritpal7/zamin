@@ -1,5 +1,6 @@
 import React from "react";
 import { View, Text, TextInput } from "react-native";
+import { Image } from "expo-image";
 import { C, FONT, FONT_HEAD } from "../theme";
 import { useTheme } from "../context/ThemeContext";
 
@@ -23,9 +24,18 @@ export const Tag = ({ children, color, solid }) => {
   );
 };
 
-export const Avatar = ({ initials, size = 38, color }) => {
+export const Avatar = ({ initials, size = 38, color, imageUrl }) => {
   useTheme();
   const c = color || C.amber;
+  if (imageUrl) {
+    return (
+      <Image
+        source={{ uri: imageUrl }}
+        style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: C.chipBg }}
+        contentFit="cover"
+      />
+    );
+  }
   return (
     <View style={{
       width: size, height: size,

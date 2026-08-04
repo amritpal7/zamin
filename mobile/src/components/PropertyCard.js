@@ -124,7 +124,7 @@ export default function PropertyCard({ property: p, onPress, onSave, saved, isOw
             {p.baths && <Text style={{ color: C.fgDim, fontSize: 12, fontFamily: FONT }}>🚿 {p.baths}</Text>}
           </View>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <Avatar initials={isOwn ? "ME" : (p.owner_avatar || "??")} size={26} color={color} />
+            <Avatar initials={isOwn ? "ME" : (p.owner_avatar || "??")} size={26} color={color} imageUrl={p.owner_image} />
             <Text style={{ color: !isOwn && p.owner_active === false ? C.red : C.fgDim, fontSize: 11, fontFamily: FONT }}>
               {isOwn ? "Me" : p.owner_name}{p.verified && !isOwn ? " ✓" : ""}
             </Text>

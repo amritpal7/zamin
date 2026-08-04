@@ -93,7 +93,7 @@ export default function Chat() {
           <Icon name="back" size={17} color={C.fg} />
         </Pressable>
 
-        <Avatar initials={p?.owner_avatar || "??"} size={40} color={p?.color || C.amber} />
+        <Avatar initials={p?.owner_avatar || "??"} size={40} color={p?.color || C.amber} imageUrl={p?.owner_image} />
 
         <View style={{ flex: 1 }}>
           <Text style={{ color: C.fg, fontFamily: FONT_MED, fontSize: 14 }}>{p?.owner_name || "Owner"}</Text>
