@@ -7,6 +7,7 @@ const { upload } = require("../upload");
 const { putObject, presignPut } = require("../storage");
 const { thumbnailQueue } = require("../queue");
 const { validateProperty, isUuid } = require("../validation");
+const { reconcileOwners } = require("../clerkUsers");
 
 const MAX_IMAGES = 8;
 const MAX_IMAGE_MB = 8;
@@ -86,6 +87,19 @@ router.post("/upload", requireAuth, (req, res) => {
       res.status(500).json({ error: "Upload failed. Please try again." });
     }
   });
+});
+
+// POST /properties/reconcile-owners — check each owner against Clerk and update
+// owner_active so the app can flag listings whose owner no longer exists.
+// NOTE: for production this should be admin-only and/or run on a schedule or a
+// Clerk `user.deleted` webhook rather than on demand.
+router.post("/reconcile-owners", requireAuth, async (req, res) => {
+  try {
+    const result = await reconcileOwners(pool);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // GET /properties — list all (public)

@@ -98,8 +98,10 @@ export default function Chat() {
         <View style={{ flex: 1 }}>
           <Text style={{ color: C.fg, fontFamily: FONT_MED, fontSize: 14 }}>{p?.owner_name || "Owner"}</Text>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginTop: 1 }}>
-            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: C.green }} />
-            <Text style={{ color: C.fgDim, fontSize: 11, fontFamily: FONT }}>Online</Text>
+            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: p?.owner_active === false ? C.red : C.green }} />
+            <Text style={{ color: p?.owner_active === false ? C.red : C.fgDim, fontSize: 11, fontFamily: FONT }}>
+              {p?.owner_active === false ? "No longer available" : "Online"}
+            </Text>
           </View>
         </View>
 
@@ -114,6 +116,14 @@ export default function Chat() {
           <Icon name="bell" size={16} color={C.fg} />
         </Pressable>
       </View>
+
+      {p?.owner_active === false && (
+        <View style={{ backgroundColor: C.red + "18", paddingHorizontal: 16, paddingVertical: 10 }}>
+          <Text style={{ color: C.red, fontSize: 12, fontFamily: FONT, textAlign: "center" }}>
+            ⚠ This owner's account no longer exists. They won't receive new messages.
+          </Text>
+        </View>
+      )}
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <ScrollView ref={scrollRef} contentContainerStyle={{ padding: 16, gap: 10 }}>

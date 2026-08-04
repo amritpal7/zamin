@@ -99,9 +99,15 @@ export default function Messages() {
                   <Text style={{ color: C.fg, fontFamily: FONT_MED, fontSize: 14, flex: 1 }} numberOfLines={1}>{chat.title}</Text>
                   <Text style={{ color: C.fgDim, fontSize: 11, fontFamily: FONT }}>{timeAgo(chat.last_time)}</Text>
                 </View>
-                <Text style={{ color: C.fgDim, fontSize: 12, fontFamily: FONT }} numberOfLines={1}>
-                  {chat.last_text}
-                </Text>
+                {chat.owner_active === false ? (
+                  <Text style={{ color: C.red, fontSize: 12, fontFamily: FONT, fontWeight: "700" }} numberOfLines={1}>
+                    ⚠ Owner no longer available
+                  </Text>
+                ) : (
+                  <Text style={{ color: C.fgDim, fontSize: 12, fontFamily: FONT }} numberOfLines={1}>
+                    {chat.last_text}
+                  </Text>
+                )}
               </View>
               <Icon name="chevR" size={14} color={C.fgDim} />
             </Pressable>

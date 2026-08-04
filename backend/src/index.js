@@ -9,6 +9,7 @@ const PORT = process.env.PORT || 4000;
 async function migrate() {
   await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS images TEXT[] DEFAULT '{}'`);
   await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS thumbnails TEXT[] DEFAULT '{}'`);
+  await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS owner_active BOOLEAN DEFAULT true`);
   // Backfill stock photos on the seed rows so the home screen has imagery
   const stock = {
     "Modern Villa with Pool": [

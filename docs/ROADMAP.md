@@ -22,7 +22,15 @@ Three pillars we judge every change against:
 
 - [ ] **Auth polish (username-first).** Done: username/phone toggle, profile username fix.
       Next: decide final Clerk password policy (relax zxcvbn + HIBP for dev; re-tighten for prod).
-- [ ] **Email verification in Profile settings** (moved out of signup by design).
+- [ ] **Add + verify email/phone in Profile settings** (moved out of signup by design).
+      **Unblocks password reset** — the reset flow (`forgot-password.js`) already exists but
+      can't work until accounts have a verified contact method.
+- [ ] **Password reset — DEFERRED (UI already built):** turn it on once add-email/phone lands.
+      Enable "reset password" + a contact method in Clerk. Tracked here so we don't lose it.
+- [~] **Owner liveness / flag deleted accounts:** DONE — `owner_active` flag on properties,
+      reconciled against Clerk (deleted account → 404 → flagged), surfaced in listings, detail,
+      chat, and inbox. Next: **automate** via a Clerk `user.deleted` webhook or a scheduled
+      reconcile (currently run on demand via `POST /properties/reconcile-owners`).
 - [ ] **Confirm authorization on `saved`/`messages` routes** — ensure every handler enforces
       the Clerk user and ownership (audit `getAuth` usage).
 

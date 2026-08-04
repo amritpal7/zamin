@@ -108,6 +108,7 @@ Three tables. Clerk owns identity; we key everything by `clerk_user_id VARCHAR(2
 | img, color | VARCHAR | emoji + accent color fallback |
 | images, thumbnails | TEXT[] | object-storage URLs (added via migration) |
 | verified | BOOLEAN | owner/listing verification badge |
+| owner_active | BOOLEAN | false = owner's Clerk account no longer exists (reconciled) |
 | created_at, updated_at | TIMESTAMPTZ | |
 
 Indexes: `type`, `status`, `clerk_user_id`.
@@ -190,6 +191,7 @@ Base path through nginx: `/api`. Direct: `http://localhost:4000`.
 | POST | `/properties/presign` | 🔒 | Get presigned upload URLs (direct-to-storage) |
 | POST | `/properties/process` | 🔒 | Enqueue resize/thumbnail job for uploaded originals |
 | POST | `/properties/upload` | 🔒 | (legacy/alt) multipart upload path |
+| POST | `/properties/reconcile-owners` | 🔒 | Check each owner against Clerk, set `owner_active` (should be admin/scheduled/webhook in prod) |
 
 ### Saved (`routes/saved.js`)
 | Method | Path | Purpose |

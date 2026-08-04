@@ -125,9 +125,14 @@ export default function PropertyCard({ property: p, onPress, onSave, saved, isOw
           </View>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             <Avatar initials={isOwn ? "ME" : (p.owner_avatar || "??")} size={26} color={color} />
-            <Text style={{ color: C.fgDim, fontSize: 11, fontFamily: FONT }}>
+            <Text style={{ color: !isOwn && p.owner_active === false ? C.red : C.fgDim, fontSize: 11, fontFamily: FONT }}>
               {isOwn ? "Me" : p.owner_name}{p.verified && !isOwn ? " ✓" : ""}
             </Text>
+            {!isOwn && p.owner_active === false && (
+              <View style={{ backgroundColor: C.red + "18", borderRadius: 100, paddingHorizontal: 7, paddingVertical: 2 }}>
+                <Text style={{ color: C.red, fontSize: 9, fontFamily: FONT, fontWeight: "700" }}>Unavailable</Text>
+              </View>
+            )}
           </View>
         </View>
 

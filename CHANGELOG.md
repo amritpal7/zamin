@@ -12,6 +12,26 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-08-05 (flag owners whose account no longer exists)
+- **Added (backend):** `owner_active` boolean on `properties` (migration, default true) +
+  `src/clerkUsers.js` (`userExists` via Clerk Backend API, `reconcileOwners`) +
+  `POST /properties/reconcile-owners` to flag listings whose owner's Clerk account is gone
+  (404). Seed/demo owners are always treated as active. `owner_active` flows through
+  `SELECT *` responses and was added to the conversations query.
+- **Changed (ripple — flag unavailable owners everywhere they appear):**
+  - `PropertyCard.js`: red "Unavailable" tag on the owner row.
+  - `property/[id].js`: owner card shows "⚠ No longer available"; contact panel replaced with
+    a disabled "Owner no longer available" state (no chat/call/whatsapp).
+  - `chat/[id].js`: header status shows "No longer available" + a banner; (also fixed the
+    header to reflect this instead of always-"Online").
+  - `messages.js` inbox: conversations with a gone owner show "⚠ Owner no longer available".
+- **Ops:** Ran reconcile — flagged 2 deleted/fake owners (`@deeep0202`, `Amrit Singh`),
+  1 active (`@amrit5377`).
+- **Test:** created listings assert `owner_active === true` (23 total, all passing).
+- **Deferred:** password reset parked in ROADMAP until add-email/phone lands.
+- **Future:** automate reconcile via a Clerk `user.deleted` webhook or a scheduled job
+  (currently on-demand).
+
 ### 2026-08-05 (password reset)
 - **Added (auth):** Password reset flow — new `app/forgot-password.js`. Enter
   username/email/phone → Clerk sends a reset code to the account's verified email or phone

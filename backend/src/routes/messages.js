@@ -15,6 +15,7 @@ router.get("/", async (req, res) => {
       `SELECT DISTINCT ON (m.property_id)
          m.property_id,
          p.title, p.owner_name, p.owner_avatar, p.color, p.img,
+         p.owner_active,
          p.clerk_user_id AS owner_id,
          m.text       AS last_text,
          m.created_at AS last_time,

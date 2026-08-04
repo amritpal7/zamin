@@ -108,6 +108,7 @@ describe("property CRUD + ownership", () => {
     expect(res.status).toBe(201);
     expect(res.body.id).toBeDefined();
     expect(res.body.clerk_user_id).toBe(USER_A);
+    expect(res.body.owner_active).toBe(true); // owners are active by default
     createdId = res.body.id;
   });
 

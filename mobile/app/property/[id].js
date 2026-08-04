@@ -336,8 +336,8 @@ export default function PropertyDetail() {
                 <Text style={{ color: C.text, fontWeight: "800", fontSize: 15, fontFamily: FONT }}>
                   {isOwn ? "Me" : (p.owner_name + (p.verified ? "  ✓" : ""))}
                 </Text>
-                <Text style={{ color: C.muted, fontSize: 12, marginTop: 2, fontFamily: FONT }}>
-                  {isOwn ? "Your listing" : "Property Owner"}
+                <Text style={{ color: (!isOwn && p.owner_active === false) ? C.red : C.muted, fontSize: 12, marginTop: 2, fontFamily: FONT }}>
+                  {isOwn ? "Your listing" : (p.owner_active === false ? "⚠ No longer available" : "Property Owner")}
                 </Text>
               </View>
               {isOwn && (
@@ -382,6 +382,13 @@ export default function PropertyDetail() {
             <Pressable onPress={share} style={styles.iconAction}>
               <Icon name="send" size={18} color="#fff" strokeWidth={1.7} />
             </Pressable>
+          </View>
+        ) : p.owner_active === false ? (
+          <View style={{ alignItems: "center", paddingVertical: 6, gap: 4 }}>
+            <Text style={{ color: "#fff", fontSize: 14, fontFamily: FONT_MED }}>Owner no longer available</Text>
+            <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 12, fontFamily: FONT, textAlign: "center" }}>
+              This account has been removed. You can't contact this owner.
+            </Text>
           </View>
         ) : (
           <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
