@@ -2,6 +2,7 @@ const router = require("express").Router();
 const pool = require("../db");
 const { requireAuth } = require("../middleware/auth");
 const { getAuth } = require("@clerk/express");
+const { isUuid } = require("../validation");
 
 // All saved routes require auth
 router.use(requireAuth);
@@ -26,6 +27,7 @@ router.get("/", async (req, res) => {
 // POST /saved/:propertyId — save a property
 router.post("/:propertyId", async (req, res) => {
   try {
+    if (!isUuid(req.params.propertyId)) return res.status(400).json({ error: "Invalid property id" });
     const { userId } = getAuth(req);
     await pool.query(
       "INSERT INTO saved_properties (clerk_user_id, property_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
@@ -40,6 +42,7 @@ router.post("/:propertyId", async (req, res) => {
 // DELETE /saved/:propertyId — unsave
 router.delete("/:propertyId", async (req, res) => {
   try {
+    if (!isUuid(req.params.propertyId)) return res.status(400).json({ error: "Invalid property id" });
     const { userId } = getAuth(req);
     await pool.query(
       "DELETE FROM saved_properties WHERE clerk_user_id = $1 AND property_id = $2",

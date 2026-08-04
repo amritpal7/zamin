@@ -31,7 +31,8 @@ Three pillars we judge every change against:
 - [~] **Automated tests.** ✅ API smoke suite done (`backend/tests/api.test.js`, Jest +
       Supertest: auth guards, ownership, CRUD). Next: validation/edge cases, `saved`/`messages`
       happy-path, and CI to run it automatically. No client/mobile tests yet.
-- [ ] **Input validation** on all write endpoints (types, lengths, enums for `type`/`status`).
+- [x] **Input validation** on write endpoints (required fields, enums, lengths, ranges,
+      UUID params) → 400 with `errors[]`. `backend/src/validation.js` + 8 tests. *(2026-08-04)*
 - [ ] **Pagination + server-side search** on `GET /properties` (before the table grows).
 - [ ] **Real-time chat** (Socket.io / Supabase Realtime) + unread badges + conversations inbox.
 - [ ] **Push notifications** (Expo + FCM/APNs) for new messages & saved-listing price drops.

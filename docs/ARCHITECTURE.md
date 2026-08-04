@@ -209,6 +209,16 @@ Base path through nginx: `/api`. Direct: `http://localhost:4000`.
 - `GET /health` → `{ status: "ok" }`
 - `GET /uploads/*` → static files (legacy local upload dir)
 
+### Input validation (`backend/src/validation.js`)
+Write endpoints validate their payloads **after** auth and return **400** with an `errors[]`
+list on failure:
+- `validateProperty` — required fields (title/price/location, +owner_name on create),
+  `type`/`status` enums, string length caps, integer ranges (beds/baths 0–100), coordinate
+  ranges, string-array checks (tags/images/thumbnails). Used by `POST` + `PUT /properties`.
+- `validateMessage` — non-empty `text` (≤2000) + `receiver_id`. Used by `POST /messages`.
+- `isUuid` — guards `:id`/`:propertyId` params on property/saved/message writes, returning
+  400 instead of letting a malformed UUID hit Postgres as a 500.
+
 ---
 
 ## 8. Image pipeline (scalable, bytes never touch the API)

@@ -12,6 +12,18 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-08-04 (input validation)
+- **Added (security/validation):** Dependency-free request validation for write endpoints
+  — `backend/src/validation.js` (`validateProperty`, `validateMessage`, `isUuid`).
+  - `POST /properties` + `PUT /properties/:id`: required fields, `type`/`status` enums,
+    string length caps, integer ranges (beds/baths), coordinate ranges, string-array checks.
+    Invalid → **400** with an `errors[]` list.
+  - `:id`/`:propertyId` params validated as UUIDs on `PUT`/`DELETE /properties`,
+    `POST/DELETE /saved`, `POST /messages` → **400** instead of a Postgres 500.
+  - `POST /messages/:propertyId`: requires non-empty `text` (≤2000) + `receiver_id`.
+  - Validation runs **after** `requireAuth`, so unauthenticated still returns 401.
+- **Added (tests):** 8 validation tests (suite now **21** total, all passing).
+
 ### 2026-08-04 (later)
 - **Added (tests):** First automated API test suite — `backend/tests/api.test.js`
   (Jest + Supertest, 13 tests): health, public reads + filtering, 404s, all auth guards

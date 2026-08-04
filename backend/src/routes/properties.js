@@ -6,6 +6,7 @@ const crypto = require("crypto");
 const { upload } = require("../upload");
 const { putObject, presignPut } = require("../storage");
 const { thumbnailQueue } = require("../queue");
+const { validateProperty, isUuid } = require("../validation");
 
 const MAX_IMAGES = 8;
 const MAX_IMAGE_MB = 8;
@@ -133,6 +134,9 @@ router.get("/mine", requireAuth, async (req, res) => {
 // PUT /properties/:id — update listing (owner only)
 router.put("/:id", requireAuth, async (req, res) => {
   try {
+    if (!isUuid(req.params.id)) return res.status(400).json({ error: "Invalid property id" });
+    const errors = validateProperty(req.body, { forUpdate: true });
+    if (errors.length) return res.status(400).json({ error: errors.join("; "), errors });
     const { userId } = getAuth(req);
     const { title, description, type, status, price, area, beds, baths, location, tags, img, color, owner_phone, images, thumbnails } = req.body;
     const { rows } = await pool.query(
@@ -168,6 +172,8 @@ router.get("/:id", async (req, res) => {
 // POST /properties — create listing (auth required)
 router.post("/", requireAuth, async (req, res) => {
   try {
+    const errors = validateProperty(req.body);
+    if (errors.length) return res.status(400).json({ error: errors.join("; "), errors });
     const { userId } = getAuth(req);
     const { title, description, type, status, price, area, beds, baths, location, latitude, longitude, tags, img, color, owner_name, owner_phone, owner_avatar, images, thumbnails } = req.body;
 
@@ -187,6 +193,7 @@ router.post("/", requireAuth, async (req, res) => {
 // DELETE /properties/:id — only owner can delete
 router.delete("/:id", requireAuth, async (req, res) => {
   try {
+    if (!isUuid(req.params.id)) return res.status(400).json({ error: "Invalid property id" });
     const { userId } = getAuth(req);
     const { rowCount } = await pool.query(
       "DELETE FROM properties WHERE id = $1 AND clerk_user_id = $2",

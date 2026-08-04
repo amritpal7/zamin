@@ -2,6 +2,7 @@ const router = require("express").Router();
 const pool = require("../db");
 const { requireAuth } = require("../middleware/auth");
 const { getAuth } = require("@clerk/express");
+const { validateMessage, isUuid } = require("../validation");
 
 router.use(requireAuth);
 
@@ -25,6 +26,9 @@ router.get("/:propertyId", async (req, res) => {
 // POST /messages/:propertyId — send a message
 router.post("/:propertyId", async (req, res) => {
   try {
+    if (!isUuid(req.params.propertyId)) return res.status(400).json({ error: "Invalid property id" });
+    const errors = validateMessage(req.body);
+    if (errors.length) return res.status(400).json({ error: errors.join("; "), errors });
     const { userId } = getAuth(req);
     const { text, receiver_id } = req.body;
 

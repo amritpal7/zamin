@@ -128,3 +128,51 @@ describe("property CRUD + ownership", () => {
     expect(gone.status).toBe(404);
   });
 });
+
+describe("input validation (400)", () => {
+  const auth = (r) => r.set("x-test-user", USER_A);
+
+  test("create missing required fields → 400", async () => {
+    const res = await auth(request(app).post("/properties")).send({ description: "no title/type/etc" });
+    expect(res.status).toBe(400);
+    expect(Array.isArray(res.body.errors)).toBe(true);
+  });
+
+  test("create with invalid type/status → 400", async () => {
+    const res = await auth(request(app).post("/properties")).send({
+      ...sampleListing, type: "Spaceship", status: "For Barter",
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/type|status/i);
+  });
+
+  test("create with out-of-range beds → 400", async () => {
+    const res = await auth(request(app).post("/properties")).send({ ...sampleListing, beds: 9999 });
+    expect(res.status).toBe(400);
+  });
+
+  test("PUT with malformed uuid → 400", async () => {
+    const res = await auth(request(app).put("/properties/not-a-uuid")).send(sampleListing);
+    expect(res.status).toBe(400);
+  });
+
+  test("DELETE with malformed uuid → 400", async () => {
+    const res = await auth(request(app).delete("/properties/not-a-uuid"));
+    expect(res.status).toBe(400);
+  });
+
+  test("POST /saved with malformed uuid → 400", async () => {
+    const res = await auth(request(app).post("/saved/not-a-uuid"));
+    expect(res.status).toBe(400);
+  });
+
+  test("POST message with empty text → 400", async () => {
+    const res = await auth(request(app).post("/messages/00000000-0000-0000-0000-000000000000")).send({ text: "  ", receiver_id: "someone" });
+    expect(res.status).toBe(400);
+  });
+
+  test("POST message with malformed property uuid → 400", async () => {
+    const res = await auth(request(app).post("/messages/not-a-uuid")).send({ text: "hi", receiver_id: "someone" });
+    expect(res.status).toBe(400);
+  });
+});
