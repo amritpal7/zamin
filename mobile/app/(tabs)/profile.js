@@ -103,9 +103,11 @@ export default function Profile() {
     );
   }
 
-  const initials   = `${user?.firstName?.[0] || ""}${user?.lastName?.[0] || ""}`.toUpperCase() || "ME";
-  const fullName   = [user?.firstName, user?.lastName].filter(Boolean).join(" ") || "User";
-  const username   = user?.unsafeMetadata?.username;
+  // Prefer Clerk's native username; fall back to older accounts that stored it in metadata.
+  const username   = user?.username ?? user?.unsafeMetadata?.username ?? null;
+  const initials   = `${user?.firstName?.[0] || ""}${user?.lastName?.[0] || ""}`.toUpperCase()
+                     || username?.[0]?.toUpperCase() || "ME";
+  const fullName   = [user?.firstName, user?.lastName].filter(Boolean).join(" ") || username || "User";
   const isVerified = user?.primaryEmailAddress?.verification?.status === "verified";
 
   const stats = [

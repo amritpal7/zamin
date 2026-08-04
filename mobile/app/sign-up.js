@@ -11,104 +11,66 @@ import { C, FONT, FONT_HEAD } from "../src/theme";
 import NeoButton from "../src/components/NeoButton";
 import { NeoInput } from "../src/components/ui";
 
-function StageIndicator({ current }) {
-  const stages = ["Account", "Email", "Verify"];
-  return (
-    <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 24 }}>
-      {stages.map((s, i) => {
-        const done    = i + 1 < current;
-        const active  = i + 1 === current;
-        const pending = i + 1 > current;
-        return (
-          <React.Fragment key={s}>
-            <View style={{ alignItems: "center", gap: 4 }}>
-              <View style={{
-                width: 30, height: 30, borderRadius: 15,
-                backgroundColor: done ? C.green : active ? C.amber : C.cardAlt,
-                alignItems: "center", justifyContent: "center",
-                shadowColor: active ? C.amber : done ? C.green : "#000",
-                shadowOffset: { width: 0, height: 2 }, shadowOpacity: active || done ? 0.35 : 0.05, shadowRadius: 6, elevation: active || done ? 4 : 1,
-              }}>
-                <Text style={{ fontSize: 12, fontWeight: "900", color: done || active ? C.ink : C.muted }}>
-                  {done ? "✓" : i + 1}
-                </Text>
-              </View>
-              <Text style={{ color: active ? C.amber : done ? C.green : C.muted, fontSize: 9, fontWeight: "700", fontFamily: FONT }}>{s}</Text>
-            </View>
-            {i < stages.length - 1 && (
-              <View style={{ flex: 1, height: 2.5, backgroundColor: done ? C.green : C.dim, marginBottom: 16, marginHorizontal: 4 }} />
-            )}
-          </React.Fragment>
-        );
-      })}
-    </View>
-  );
-}
-
 export default function SignUp() {
   useTheme();
   const { signUp, setActive, isLoaded } = useSignUp();
   const router = useRouter();
 
-  const [firstName, setFirstName] = useState("");
-  const [lastName,  setLastName]  = useState("");
-  const [username,  setUsername]  = useState("");
-  const [password,  setPassword]  = useState("");
-  const [email,     setEmail]     = useState("");
-  const [code,      setCode]      = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [phone,    setPhone]    = useState("");
+  const [code,     setCode]     = useState("");
 
-  // stage: "details" | "email" | "verify"
+  // How the user registers: "username" (username + password, instant) | "phone" (phone + SMS)
+  const [method,  setMethod]  = useState("username");
+  // stage: "details" | "verify" (verify only used by the phone method)
   const [stage,   setStage]   = useState("details");
   const [error,   setError]   = useState("");
   const [loading, setLoading] = useState(false);
 
   const clean = (v) => v.replace(/^@/, "").replace(/[^a-z0-9_.]/gi, "").toLowerCase();
 
+  // Normalise to E.164 (Clerk requires it). Defaults to +91 (India).
+  const normalizePhone = (v) => {
+    let d = v.replace(/[^\d+]/g, "");
+    if (!d.startsWith("+")) d = "+91" + d.replace(/^0+/, "");
+    return d;
+  };
+
   const submitDetails = async () => {
     if (!isLoaded) return;
-    if (!firstName.trim()) { setError("First name is required."); return; }
     if (!password.trim() || password.length < 8) { setError("Password must be at least 8 characters."); return; }
     setLoading(true);
     setError("");
     try {
-      // Never pass `username` as a Clerk native field — it's only supported when
-      // the instance has the Username attribute enabled. We store it exclusively
-      // in unsafeMetadata so it works on every Clerk configuration.
-      const result = await signUp.create({
-        firstName:      firstName.trim(),
-        lastName:       lastName.trim(),
-        password,
-        unsafeMetadata: { username: clean(username) },
-      });
-      if (result.status === "complete") {
-        await setActive({ session: result.createdSessionId });
-        router.replace("/(tabs)/discover");
+      if (method === "username") {
+        if (!clean(username)) { setError("Username is required."); setLoading(false); return; }
+        const result = await signUp.create({ username: clean(username), password });
+        if (result.status === "complete") {
+          await setActive({ session: result.createdSessionId });
+          router.replace("/(tabs)/discover");
+        } else {
+          const missing = [...(result.missingFields || []), ...(result.unverifiedFields || [])];
+          console.log("[sign-up] incomplete:", result.status, "missing:", missing);
+          setError(
+            missing.length
+              ? `Clerk still requires: ${missing.join(", ")}. In Clerk → User & Authentication, set those to optional (or off).`
+              : "Couldn't finish sign up. Check your Clerk identifier settings."
+          );
+        }
       } else {
-        // status === "missing_requirements" — Clerk requires email verification
-        setStage("email");
+        if (!phone.trim()) { setError("Phone number is required."); setLoading(false); return; }
+        const result = await signUp.create({ phoneNumber: normalizePhone(phone), password });
+        if (result.status === "complete") {
+          await setActive({ session: result.createdSessionId });
+          router.replace("/(tabs)/discover");
+        } else {
+          await signUp.preparePhoneNumberVerification({ strategy: "phone_code" });
+          setStage("verify");
+        }
       }
     } catch (e) {
-      const msg = e.errors?.[0]?.message || "";
-      // Email-related errors → collect email in next stage
-      msg.toLowerCase().includes("email")
-        ? setStage("email")
-        : setError(msg || "Registration failed");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const submitEmail = async () => {
-    if (!isLoaded) return;
-    if (!email.trim()) { setError("Please enter your email address."); return; }
-    setLoading(true);
-    setError("");
-    try {
-      await signUp.update({ emailAddress: email.trim() });
-      await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
-      setStage("verify");
-    } catch (e) {
-      setError(e.errors?.[0]?.message || "Invalid email address");
+      setError(e.errors?.[0]?.message || "Registration failed");
     } finally {
       setLoading(false);
     }
@@ -119,7 +81,7 @@ export default function SignUp() {
     setLoading(true);
     setError("");
     try {
-      const result = await signUp.attemptEmailAddressVerification({ code });
+      const result = await signUp.attemptPhoneNumberVerification({ code });
       if (result.status === "complete") {
         await setActive({ session: result.createdSessionId });
         router.replace("/(tabs)/discover");
@@ -133,7 +95,17 @@ export default function SignUp() {
     }
   };
 
-  const stageNum = { details: 1, email: 2, verify: 3 }[stage];
+  const resend = async () => {
+    if (!isLoaded) return;
+    setLoading(true); setError(""); setCode("");
+    try {
+      await signUp.preparePhoneNumberVerification({ strategy: "phone_code" });
+    } catch (e) {
+      setError(e.errors?.[0]?.message || "Failed to resend code");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: C.bg }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
@@ -157,105 +129,78 @@ export default function SignUp() {
         Free listings · Zero brokerage
       </Text>
 
-      <View style={{}}>
-        <View style={{ padding: 0 }}>
+      {/* Error */}
+      {!!error && (
+        <View style={{ backgroundColor: C.red + "18", borderRadius: 12, padding: 12, marginBottom: 16 }}>
+          <Text style={{ color: C.red, fontSize: 13, fontFamily: FONT }}>⚠️ {error}</Text>
+        </View>
+      )}
 
-          {/* Tab row */}
-          <View style={{ flexDirection: "row", gap: 5, marginBottom: 22, backgroundColor: C.cardAlt, padding: 4, borderRadius: 100 }}>
-            <Pressable onPress={() => router.push("/sign-in")} style={{ flex: 1, paddingVertical: 10, borderRadius: 100, alignItems: "center" }}>
-              <Text style={{ fontWeight: "700", fontSize: 14, fontFamily: FONT, color: C.muted }}>Sign In</Text>
-            </Pressable>
-            <View style={{ flex: 1, paddingVertical: 10, borderRadius: 100, backgroundColor: C.amber, alignItems: "center", shadowColor: C.amber, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 4 }}>
-              <Text style={{ fontWeight: "800", fontSize: 14, fontFamily: FONT, color: C.ink }}>Register</Text>
-            </View>
+      {/* ─ Stage 1: Details ─ */}
+      {stage === "details" && (
+        <>
+          {/* Username / Phone method toggle */}
+          <View style={{ flexDirection: "row", gap: 5, marginBottom: 20, backgroundColor: C.cardAlt, padding: 4, borderRadius: 100 }}>
+            {[["username", "👤 Username"], ["phone", "📱 Phone"]].map(([key, lbl]) => {
+              const active = method === key;
+              return (
+                <Pressable key={key} onPress={() => { setMethod(key); setError(""); }} style={{ flex: 1, paddingVertical: 10, borderRadius: 100, alignItems: "center", backgroundColor: active ? C.amber : "transparent", shadowColor: active ? C.amber : "transparent", shadowOffset: { width: 0, height: 3 }, shadowOpacity: active ? 0.4 : 0, shadowRadius: 8, elevation: active ? 4 : 0 }}>
+                  <Text style={{ fontWeight: active ? "800" : "700", fontSize: 13, fontFamily: FONT, color: active ? C.ink : C.muted }}>{lbl}</Text>
+                </Pressable>
+              );
+            })}
           </View>
 
-          <StageIndicator current={stageNum} />
-
-          {/* Error */}
-          {!!error && (
-            <View style={{ backgroundColor: C.red + "18", borderRadius: 12, padding: 12, marginBottom: 16 }}>
-              <Text style={{ color: C.red, fontSize: 13, fontFamily: FONT }}>⚠️ {error}</Text>
+          {method === "username" ? (
+            /* Username with @ prefix */
+            <View style={{ marginBottom: 14 }}>
+              <Text style={{ color: C.amberText, fontSize: 12, fontWeight: "700", marginBottom: 6, fontFamily: FONT }}>Username *</Text>
+              <View style={{ flexDirection: "row", alignItems: "stretch", backgroundColor: C.card, borderRadius: 14, overflow: "hidden", shadowColor: C.shadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 }}>
+                <View style={{ paddingHorizontal: 13, paddingVertical: 12, backgroundColor: C.cardAlt, justifyContent: "center" }}>
+                  <Text style={{ color: C.amberText, fontWeight: "900", fontSize: 15, fontFamily: FONT }}>@</Text>
+                </View>
+                <NeoInput value={username} onChangeText={v => setUsername(clean(v))} placeholder="yourhandle" style={{ flex: 1, marginBottom: 0 }} />
+              </View>
+              <Text style={{ color: C.muted, fontSize: 10, marginTop: 4, fontFamily: FONT }}>Lowercase letters, numbers, _ and . only</Text>
             </View>
-          )}
-
-          {/* ─ Stage 1: Details ─ */}
-          {stage === "details" && (
+          ) : (
             <>
-              <View style={{ flexDirection: "row", gap: 10 }}>
-                <View style={{ flex: 1 }}>
-                  <NeoInput label="First Name *" value={firstName} onChangeText={setFirstName} placeholder="Arjun" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <NeoInput label="Last Name" value={lastName} onChangeText={setLastName} placeholder="Sharma" />
-                </View>
-              </View>
-
-              {/* Username with @ prefix */}
-              <View style={{ marginBottom: 14 }}>
-                <Text style={{ color: C.amberText, fontSize: 12, fontWeight: "700", marginBottom: 6, fontFamily: FONT }}>Username</Text>
-                <View style={{ flexDirection: "row", alignItems: "stretch", backgroundColor: C.card, borderRadius: 14, overflow: "hidden", shadowColor: C.shadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 }}>
-                  <View style={{ paddingHorizontal: 13, paddingVertical: 12, backgroundColor: C.cardAlt, justifyContent: "center" }}>
-                    <Text style={{ color: C.amberText, fontWeight: "900", fontSize: 15, fontFamily: FONT }}>@</Text>
-                  </View>
-                  <NeoInput
-                    value={username}
-                    onChangeText={v => setUsername(clean(v))}
-                    placeholder="yourhandle"
-                    style={{ flex: 1, marginBottom: 0 }}
-                  />
-                </View>
-                <Text style={{ color: C.muted, fontSize: 10, marginTop: 4, fontFamily: FONT }}>Lowercase letters, numbers, _ and . only</Text>
-              </View>
-
-              <NeoInput label="Password *" value={password} onChangeText={setPassword} placeholder="Min. 8 characters" secureTextEntry />
-
-              <NeoButton full title={loading ? "Creating account…" : "Continue →"} onPress={submitDetails} disabled={loading} />
-
-              {/* Value props */}
-              <View style={{ flexDirection: "row", justifyContent: "center", gap: 16, marginTop: 18 }}>
-                {["🏠 Free listing", "0% Brokerage", "🔒 Secure"].map(item => (
-                  <Text key={item} style={{ color: C.muted, fontSize: 10, fontFamily: FONT, fontWeight: "600" }}>{item}</Text>
-                ))}
-              </View>
+              <NeoInput label="Phone Number *" value={phone} onChangeText={setPhone} placeholder="+91 98765 43210" keyboardType="phone-pad" />
+              <Text style={{ color: C.muted, fontSize: 10, marginTop: -8, marginBottom: 14, fontFamily: FONT }}>Include country code. Defaults to +91 (India). We'll text you a 6-digit code.</Text>
             </>
           )}
 
-          {/* ─ Stage 2: Email ─ */}
-          {stage === "email" && (
-            <>
-              <View style={{ backgroundColor: C.amberDim, borderRadius: 16, padding: 14, marginBottom: 18 }}>
-                <Text style={{ color: C.amberText, fontSize: 13, fontFamily: FONT, fontWeight: "700", marginBottom: 4 }}>📧 One more step</Text>
-                <Text style={{ color: C.muted, fontSize: 12, fontFamily: FONT, lineHeight: 18 }}>
-                  Add your email for account recovery and to get a ✓ Verified badge on your listings.
-                </Text>
-              </View>
-              <NeoInput label="Email Address" value={email} onChangeText={setEmail} placeholder="you@example.com" keyboardType="email-address" />
-              <NeoButton full title={loading ? "Sending code…" : "Send Verification Code →"} onPress={submitEmail} disabled={loading} />
-              <Pressable onPress={() => setStage("details")} style={{ marginTop: 12, alignItems: "center" }}>
-                <Text style={{ color: C.muted, fontSize: 12, fontFamily: FONT }}>← Back</Text>
-              </Pressable>
-            </>
-          )}
+          <NeoInput label="Password *" value={password} onChangeText={setPassword} placeholder="Min. 8 characters" secureTextEntry />
 
-          {/* ─ Stage 3: Verify ─ */}
-          {stage === "verify" && (
-            <>
-              <View style={{ backgroundColor: C.amberDim, borderRadius: 16, padding: 14, marginBottom: 18 }}>
-                <Text style={{ color: C.amberText, fontSize: 13, fontFamily: FONT, fontWeight: "600" }}>
-                  📬 Code sent to {email}
-                </Text>
-              </View>
-              <NeoInput label="6-Digit Code" value={code} onChangeText={setCode} placeholder="123456" keyboardType="numeric" />
-              <NeoButton full title={loading ? "Verifying…" : "Verify & Enter Zamin →"} onPress={verify} disabled={loading} />
-              <Pressable onPress={() => setStage("email")} style={{ marginTop: 12, alignItems: "center" }}>
-                <Text style={{ color: C.muted, fontSize: 12, fontFamily: FONT }}>← Wrong email?</Text>
-              </Pressable>
-            </>
-          )}
+          <NeoButton full title={loading ? "Please wait…" : (method === "phone" ? "Send code →" : "Create account →")} onPress={submitDetails} disabled={loading} />
 
-        </View>
-      </View>
+          {/* Value props */}
+          <View style={{ flexDirection: "row", justifyContent: "center", gap: 16, marginTop: 18 }}>
+            {["🏠 Free listing", "0% Brokerage", "🔒 Secure"].map(item => (
+              <Text key={item} style={{ color: C.muted, fontSize: 10, fontFamily: FONT, fontWeight: "600" }}>{item}</Text>
+            ))}
+          </View>
+        </>
+      )}
+
+      {/* ─ Stage 2: Verify (phone SMS only) ─ */}
+      {stage === "verify" && (
+        <>
+          <View style={{ backgroundColor: C.amberDim, borderRadius: 16, padding: 14, marginBottom: 18 }}>
+            <Text style={{ color: C.amberText, fontSize: 13, fontFamily: FONT, fontWeight: "600" }}>
+              📬 Code sent to {normalizePhone(phone)}
+            </Text>
+          </View>
+          <NeoInput label="6-Digit Code" value={code} onChangeText={setCode} placeholder="123456" keyboardType="numeric" />
+          <NeoButton full title={loading ? "Verifying…" : "Verify & Enter Zamin →"} onPress={verify} disabled={loading} />
+          <Pressable onPress={resend} disabled={loading} style={{ marginTop: 14, alignItems: "center" }}>
+            <Text style={{ color: C.amber, fontSize: 13, fontFamily: FONT, fontWeight: "600" }}>Resend code →</Text>
+          </Pressable>
+          <Pressable onPress={() => { setStage("details"); setError(""); setCode(""); }} style={{ marginTop: 12, alignItems: "center" }}>
+            <Text style={{ color: C.muted, fontSize: 12, fontFamily: FONT }}>← Wrong number?</Text>
+          </Pressable>
+        </>
+      )}
 
       <Pressable onPress={() => router.push("/sign-in")} style={{ marginTop: 20, alignItems: "center" }}>
         <Text style={{ color: C.amberText, fontSize: 14, fontWeight: "700", fontFamily: FONT }}>Already have an account? Sign In →</Text>

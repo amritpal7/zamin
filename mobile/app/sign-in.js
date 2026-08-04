@@ -11,7 +11,6 @@ import { LinearGradient } from "expo-linear-gradient";
 import { C, FONT, FONT_HEAD } from "../src/theme";
 import NeoButton from "../src/components/NeoButton";
 import { NeoInput } from "../src/components/ui";
-import { useApi } from "../src/hooks/useApi";
 
 const RESEND_COOLDOWN = 30;
 
@@ -20,22 +19,33 @@ export default function SignIn() {
   const { signIn, setActive, isLoaded } = useSignIn();
   const router  = useRouter();
   const insets  = useSafeAreaInsets();
-  const api     = useApi();
 
-  const [identifier,   setIdentifier]   = useState("");
+  const [username,     setUsername]     = useState("");
   const [password,     setPassword]     = useState("");
-  const [mfaCode,      setMfaCode]      = useState("");
-  const [mfaStrategy,  setMfaStrategy]  = useState(null);
-  const [mfaHint,      setMfaHint]      = useState("");
+  const [phone,        setPhone]        = useState("");
+  // How the user signs in: "username" (username + password) | "phone" (SMS code)
+  const [method,       setMethod]       = useState("username");
+  const [code,         setCode]         = useState("");
+  const [phoneHint,    setPhoneHint]    = useState("");
+  // stage: "credentials" | "phoneCode"
   const [stage,        setStage]        = useState("credentials");
   const [error,        setError]        = useState("");
   const [loading,      setLoading]      = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
 
-  const factorConfigRef = useRef(null);
-  const cooldownRef     = useRef(null);
+  const factorRef   = useRef(null);
+  const cooldownRef = useRef(null);
 
   useEffect(() => () => { if (cooldownRef.current) clearInterval(cooldownRef.current); }, []);
+
+  const clean = (v) => v.replace(/^@/, "").replace(/[^a-z0-9_.]/gi, "").toLowerCase();
+
+  // Normalise to E.164 (Clerk requires it). Defaults to +91 (India).
+  const normalizePhone = (v) => {
+    let d = v.replace(/[^\d+]/g, "");
+    if (!d.startsWith("+")) d = "+91" + d.replace(/^0+/, "");
+    return d;
+  };
 
   const startCooldown = () => {
     if (cooldownRef.current) clearInterval(cooldownRef.current);
@@ -48,57 +58,18 @@ export default function SignIn() {
     }, 1000);
   };
 
-  const prepareMfa = async (si) => {
-    const factors     = si.supportedSecondFactors ?? [];
-    const emailFactor = factors.find(f => f.strategy === "email_code");
-    const phoneFactor = factors.find(f => f.strategy === "phone_code");
-    const totpFactor  = factors.find(f => f.strategy === "totp");
-
-    if (emailFactor) {
-      await si.prepareSecondFactor({ strategy: "email_code", emailAddressId: emailFactor.emailAddressId });
-      factorConfigRef.current = emailFactor;
-      setMfaStrategy("email_code");
-      setMfaHint(emailFactor.safeIdentifier ?? "your email");
-      startCooldown();
-    } else if (phoneFactor) {
-      await si.prepareSecondFactor({ strategy: "phone_code", phoneNumberId: phoneFactor.phoneNumberId });
-      factorConfigRef.current = phoneFactor;
-      setMfaStrategy("phone_code");
-      setMfaHint(phoneFactor.safeIdentifier ?? "your phone");
-      startCooldown();
-    } else if (totpFactor) {
-      factorConfigRef.current = totpFactor;
-      setMfaStrategy("totp");
-    } else {
-      setMfaStrategy("backup_code");
-    }
-  };
-
-  const submit = async () => {
+  // ── Username + password sign-in ──
+  const submitUsername = async () => {
     if (!isLoaded) return;
+    if (!clean(username)) { setError("Please enter your username."); return; }
     try {
       setLoading(true);
       setError("");
-      let id = identifier.trim();
-      const isUsername = id.startsWith("@") || !id.includes("@");
-      if (isUsername) {
-        const handle = id.replace(/^@/, "");
-        try {
-          const { email } = await api.resolveUsername(handle);
-          id = email;
-        } catch {
-          setError("Username not found. Try signing in with your email.");
-          return;
-        }
-      }
-      const created = await signIn.create({ identifier: id });
+      const created = await signIn.create({ identifier: clean(username) });
       const result  = await created.attemptFirstFactor({ strategy: "password", password });
       if (result.status === "complete") {
         await setActive({ session: result.createdSessionId });
         router.replace("/(tabs)/discover");
-      } else if (result.status === "needs_second_factor") {
-        await prepareMfa(result);
-        setStage("mfa");
       } else {
         setError("Sign in could not be completed. Please try again.");
       }
@@ -109,12 +80,35 @@ export default function SignIn() {
     }
   };
 
-  const submitMfa = async () => {
+  // ── Passwordless phone sign-in (SMS code) ──
+  const startPhoneSignIn = async () => {
+    if (!isLoaded) return;
+    if (!phone.trim()) { setError("Please enter your phone number."); return; }
+    try {
+      setLoading(true);
+      setError("");
+      const created = await signIn.create({ identifier: normalizePhone(phone) });
+      const factor  = (created.supportedFirstFactors ?? []).find(f => f.strategy === "phone_code");
+      if (!factor) { setError("No account uses this number for SMS sign-in."); return; }
+      await created.prepareFirstFactor({ strategy: "phone_code", phoneNumberId: factor.phoneNumberId });
+      factorRef.current = factor;
+      setPhoneHint(factor.safeIdentifier ?? normalizePhone(phone));
+      setCode("");
+      startCooldown();
+      setStage("phoneCode");
+    } catch (e) {
+      setError(e.errors?.[0]?.message || "Could not start phone sign-in");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const submitPhoneCode = async () => {
     if (!isLoaded) return;
     try {
       setLoading(true);
       setError("");
-      const result = await signIn.attemptSecondFactor({ strategy: mfaStrategy, code: mfaCode });
+      const result = await signIn.attemptFirstFactor({ strategy: "phone_code", code });
       if (result.status === "complete") {
         await setActive({ session: result.createdSessionId });
         router.replace("/(tabs)/discover");
@@ -128,15 +122,11 @@ export default function SignIn() {
     }
   };
 
-  const resend = async () => {
-    if (!isLoaded || resendCooldown > 0 || !factorConfigRef.current) return;
+  const resendPhoneCode = async () => {
+    if (!isLoaded || resendCooldown > 0 || !factorRef.current) return;
     try {
-      setLoading(true); setError(""); setMfaCode("");
-      const fc = factorConfigRef.current;
-      if (mfaStrategy === "email_code")
-        await signIn.prepareSecondFactor({ strategy: "email_code", emailAddressId: fc.emailAddressId });
-      else if (mfaStrategy === "phone_code")
-        await signIn.prepareSecondFactor({ strategy: "phone_code", phoneNumberId: fc.phoneNumberId });
+      setLoading(true); setError(""); setCode("");
+      await signIn.prepareFirstFactor({ strategy: "phone_code", phoneNumberId: factorRef.current.phoneNumberId });
       startCooldown();
     } catch (e) {
       setError(e.errors?.[0]?.message || "Failed to resend code");
@@ -144,13 +134,6 @@ export default function SignIn() {
       setLoading(false);
     }
   };
-
-  const canResend = mfaStrategy === "email_code" || mfaStrategy === "phone_code";
-  const mfaLabel  =
-    mfaStrategy === "totp"       ? "Enter the 6-digit code from your authenticator app." :
-    mfaStrategy === "email_code" ? `We sent a code to ${mfaHint}.` :
-    mfaStrategy === "phone_code" ? `We sent a code to ${mfaHint}.` :
-                                   "Enter one of your backup codes.";
 
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: C.bg }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
@@ -178,16 +161,6 @@ export default function SignIn() {
           Sign in to browse and list properties
         </Text>
 
-        {/* Tab switcher */}
-        <View style={{ flexDirection: "row", gap: 5, backgroundColor: C.cardAlt, padding: 4, borderRadius: 100, marginBottom: 28 }}>
-          <View style={{ flex: 1, paddingVertical: 11, borderRadius: 100, backgroundColor: C.amber, alignItems: "center", shadowColor: C.amber, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 4 }}>
-            <Text style={{ fontWeight: "800", fontSize: 14, fontFamily: FONT, color: C.ink }}>Sign In</Text>
-          </View>
-          <Pressable onPress={() => router.push("/sign-up")} style={{ flex: 1, paddingVertical: 11, borderRadius: 100, alignItems: "center" }}>
-            <Text style={{ fontWeight: "700", fontSize: 14, fontFamily: FONT, color: C.muted }}>Register</Text>
-          </Pressable>
-        </View>
-
         {/* Error */}
         {!!error && (
           <View style={{ backgroundColor: C.red + "18", borderRadius: 16, padding: 14, marginBottom: 20 }}>
@@ -195,42 +168,61 @@ export default function SignIn() {
           </View>
         )}
 
-        {stage === "credentials" ? (
+        {stage === "credentials" && (
           <>
-            <NeoInput
-              label="Email or @Username"
-              value={identifier}
-              onChangeText={setIdentifier}
-              placeholder="you@email.com or @handle"
-              keyboardType={identifier.includes("@") && !identifier.startsWith("@") ? "email-address" : "default"}
-            />
-            <NeoInput
-              label="Password"
-              value={password}
-              onChangeText={setPassword}
-              placeholder="Your password"
-              secureTextEntry
-            />
-            <NeoButton full title={loading ? "Please wait…" : "Sign In →"} fill={C.amber} fg={C.ink} onPress={submit} disabled={loading} />
+            {/* Username / Phone method toggle */}
+            <View style={{ flexDirection: "row", gap: 5, marginBottom: 20, backgroundColor: C.cardAlt, padding: 4, borderRadius: 100 }}>
+              {[["username", "👤 Username"], ["phone", "📱 Phone"]].map(([key, lbl]) => {
+                const active = method === key;
+                return (
+                  <Pressable key={key} onPress={() => { setMethod(key); setError(""); }} style={{ flex: 1, paddingVertical: 10, borderRadius: 100, alignItems: "center", backgroundColor: active ? C.amber : "transparent", shadowColor: active ? C.amber : "transparent", shadowOffset: { width: 0, height: 3 }, shadowOpacity: active ? 0.4 : 0, shadowRadius: 8, elevation: active ? 4 : 0 }}>
+                    <Text style={{ fontWeight: active ? "800" : "700", fontSize: 13, fontFamily: FONT, color: active ? C.ink : C.muted }}>{lbl}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {method === "username" ? (
+              <>
+                {/* Username with @ prefix */}
+                <View style={{ marginBottom: 14 }}>
+                  <Text style={{ color: C.fgDim, fontSize: 11, fontWeight: "600", marginBottom: 6, fontFamily: FONT, letterSpacing: 0.8, textTransform: "uppercase" }}>Username</Text>
+                  <View style={{ flexDirection: "row", alignItems: "stretch", backgroundColor: C.card, borderRadius: 14, overflow: "hidden", shadowColor: C.shadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 }}>
+                    <View style={{ paddingHorizontal: 13, paddingVertical: 12, backgroundColor: C.cardAlt, justifyContent: "center" }}>
+                      <Text style={{ color: C.amberText, fontWeight: "900", fontSize: 15, fontFamily: FONT }}>@</Text>
+                    </View>
+                    <NeoInput value={username} onChangeText={v => setUsername(clean(v))} placeholder="yourhandle" style={{ flex: 1, marginBottom: 0 }} />
+                  </View>
+                </View>
+                <NeoInput label="Password" value={password} onChangeText={setPassword} placeholder="Your password" secureTextEntry />
+                <NeoButton full title={loading ? "Please wait…" : "Sign In →"} fill={C.amber} fg={C.ink} onPress={submitUsername} disabled={loading} />
+              </>
+            ) : (
+              <>
+                <NeoInput label="Phone Number" value={phone} onChangeText={setPhone} placeholder="+91 98765 43210" keyboardType="phone-pad" />
+                <Text style={{ color: C.muted, fontSize: 10, marginTop: -8, marginBottom: 14, fontFamily: FONT }}>Include country code. Defaults to +91 (India). We'll text you a 6-digit code.</Text>
+                <NeoButton full title={loading ? "Sending code…" : "Send Code →"} fill={C.amber} fg={C.ink} onPress={startPhoneSignIn} disabled={loading} />
+              </>
+            )}
           </>
-        ) : (
+        )}
+
+        {stage === "phoneCode" && (
           <>
             <View style={{ backgroundColor: C.amber + "18", borderRadius: 16, padding: 16, marginBottom: 20 }}>
               <Text style={{ color: C.amberText, fontSize: 13, fontFamily: FONT, fontWeight: "600" }}>
-                🔐 Two-factor authentication{"\n"}{mfaLabel}
+                📬 We sent a code to {phoneHint}
               </Text>
             </View>
-            <NeoInput label="Verification Code" value={mfaCode} onChangeText={setMfaCode} placeholder="123456" keyboardType="numeric" />
-            <NeoButton full title={loading ? "Verifying…" : "Verify →"} fill={C.amber} fg={C.ink} onPress={submitMfa} disabled={loading} />
-            {canResend && (
-              <Pressable onPress={resend} disabled={resendCooldown > 0 || loading} style={{ marginTop: 14, alignItems: "center" }}>
-                <Text style={{ color: resendCooldown > 0 ? C.muted : C.amber, fontSize: 13, fontFamily: FONT, fontWeight: "600" }}>
-                  {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend code →"}
-                </Text>
-              </Pressable>
-            )}
-            <Pressable onPress={() => { setStage("credentials"); setError(""); setMfaCode(""); }} style={{ marginTop: 12, alignItems: "center" }}>
-              <Text style={{ color: C.muted, fontSize: 13, fontFamily: FONT }}>← Back</Text>
+            <NeoInput label="Verification Code" value={code} onChangeText={setCode} placeholder="123456" keyboardType="numeric" />
+            <NeoButton full title={loading ? "Verifying…" : "Verify →"} fill={C.amber} fg={C.ink} onPress={submitPhoneCode} disabled={loading} />
+            <Pressable onPress={resendPhoneCode} disabled={resendCooldown > 0 || loading} style={{ marginTop: 14, alignItems: "center" }}>
+              <Text style={{ color: resendCooldown > 0 ? C.muted : C.amber, fontSize: 13, fontFamily: FONT, fontWeight: "600" }}>
+                {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend code →"}
+              </Text>
+            </Pressable>
+            <Pressable onPress={() => { setStage("credentials"); setError(""); setCode(""); }} style={{ marginTop: 12, alignItems: "center" }}>
+              <Text style={{ color: C.muted, fontSize: 13, fontFamily: FONT }}>← Wrong number?</Text>
             </Pressable>
           </>
         )}
