@@ -34,7 +34,9 @@ Three pillars we judge every change against:
 - [x] **Input validation** on write endpoints (required fields, enums, lengths, ranges,
       UUID params) → 400 with `errors[]`. `backend/src/validation.js` + 8 tests. *(2026-08-04)*
 - [ ] **Pagination + server-side search** on `GET /properties` (before the table grows).
-- [ ] **Real-time chat** (Socket.io / Supabase Realtime) + unread badges + conversations inbox.
+- [~] **Chat**: real conversations inbox + notifications + Inquiries stat now live (`GET /messages`).
+      Next: real-time delivery (Socket.io / Supabase Realtime) + **unread badges** (needs a
+      `read_at`/`last_read` column — none exists yet).
 - [ ] **Push notifications** (Expo + FCM/APNs) for new messages & saved-listing price drops.
 - [ ] **Migration tooling** — replace the hand-rolled `migrate()` with a real tool
       (node-pg-migrate / drizzle / prisma-migrate).

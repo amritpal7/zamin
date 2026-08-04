@@ -84,6 +84,17 @@ describe("auth guards (401 when signed out)", () => {
   test("GET /messages/:id → 401", async () => {
     expect((await request(app).get("/messages/00000000-0000-0000-0000-000000000000")).status).toBe(401);
   });
+  test("GET /messages (conversations) → 401", async () => {
+    expect((await request(app).get("/messages")).status).toBe(401);
+  });
+});
+
+describe("conversations", () => {
+  test("GET /messages (authed) → 200 array", async () => {
+    const res = await request(app).get("/messages").set("x-test-user", USER_A);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+  });
 });
 
 describe("property CRUD + ownership", () => {

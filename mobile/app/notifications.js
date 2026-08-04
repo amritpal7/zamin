@@ -1,30 +1,57 @@
-// mobile/app/notifications.js — refactored to design language.
-// Editorial header, SVG icons (no emoji), hairline row separators, accent dot for unread.
+// mobile/app/notifications.js — real activity derived from conversations.
+// Shows inbound messages (someone messaged you about a listing). Read state is
+// tracked locally for the session until a full notifications backend exists.
 
-import React, { useState } from "react";
-import { View, Text, ScrollView, Pressable, StyleSheet } from "react-native";
-import { useRouter } from "expo-router";
+import React, { useState, useCallback } from "react";
+import { View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator } from "react-native";
+import { useRouter, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useAuth, useUser } from "@clerk/clerk-expo";
 import { C, FONT, FONT_MED, FONT_HEAD, FONT_HEAD_ITALIC } from "../src/theme";
 import { useTheme } from "../src/context/ThemeContext";
 import { Icon } from "../src/components/Icon";
-
-const FAKE_NOTIFS = [
-  { id: 1, icon: "heart",    title: "New save on your listing",       body: "3BHK Flat in Bandra West got a new save",  time: "5m ago",    read: false },
-  { id: 2, icon: "send",     title: "Message from Rahul Mehta",       body: '"Is the property still available?"',       time: "2h ago",    read: false },
-  { id: 3, icon: "compass",  title: "10 people viewed your listing",  body: "Your Andheri listing got 10 views today",  time: "Yesterday", read: true  },
-  { id: 4, icon: "sparkle",  title: "Listing published",              body: "Your property is now live on Zamin",       time: "3d ago",    read: true  },
-  { id: 5, icon: "arrow",    title: "Price drop alert",               body: "A saved property dropped ₹2L in price",    time: "5d ago",    read: true  },
-];
+import { useApi } from "../src/hooks/useApi";
+import { timeAgo } from "../src/utils/time";
 
 export default function Notifications() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { isSignedIn } = useAuth();
+  const { user } = useUser();
+  const api = useApi();
   useTheme();
+
+  const [notifs, setNotifs]   = useState([]);
+  const [loading, setLoading] = useState(true);
   const [readIds, setReadIds] = useState(new Set());
 
-  const markAllRead = () => setReadIds(new Set(FAKE_NOTIFS.map(n => n.id)));
-  const unread = FAKE_NOTIFS.filter(n => !n.read && !readIds.has(n.id)).length;
+  useFocusEffect(
+    useCallback(() => {
+      if (!isSignedIn) { setLoading(false); return; }
+      let active = true;
+      setLoading(true);
+      api.getConversations()
+        .then((rows) => {
+          if (!active) return;
+          // Inbound = the last message was sent by someone else (not me).
+          const items = rows
+            .filter((c) => c.last_sender_id && c.last_sender_id !== user?.id)
+            .map((c) => ({
+              id: c.property_id,
+              title: `New message · ${c.title}`,
+              body: c.last_text,
+              time: c.last_time,
+            }));
+          setNotifs(items);
+        })
+        .catch(() => { if (active) setNotifs([]); })
+        .finally(() => { if (active) setLoading(false); });
+      return () => { active = false; };
+    }, [isSignedIn, user?.id])
+  );
+
+  const markAllRead = () => setReadIds(new Set(notifs.map((n) => n.id)));
+  const unread = notifs.filter((n) => !readIds.has(n.id)).length;
 
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
@@ -60,50 +87,53 @@ export default function Notifications() {
           </Text>
         </View>
 
-        {FAKE_NOTIFS.map((n, i) => {
-          const isRead = n.read || readIds.has(n.id);
-          return (
-            <Pressable
-              key={n.id}
-              onPress={() => setReadIds(prev => new Set([...prev, n.id]))}
-              style={({ pressed }) => ({
-                flexDirection: "row", alignItems: "flex-start", gap: 14,
-                paddingHorizontal: 22, paddingVertical: 16,
-                borderBottomWidth: i < FAKE_NOTIFS.length - 1 ? StyleSheet.hairlineWidth : 0,
-                borderBottomColor: C.line,
-                opacity: pressed ? 0.7 : 1,
-              })}
-            >
-              <View style={{
-                width: 40, height: 40, borderRadius: 12,
-                backgroundColor: isRead ? C.chipBg : C.amberDim,
-                alignItems: "center", justifyContent: "center", flexShrink: 0,
-              }}>
-                <Icon name={n.icon} size={18} color={isRead ? C.fg : C.amber} strokeWidth={1.6} />
-              </View>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 3, gap: 8 }}>
-                  <Text style={{ color: C.fg, fontFamily: isRead ? FONT : FONT_MED, fontSize: 13, flex: 1 }}>{n.title}</Text>
-                  <Text style={{ color: C.fgDim, fontSize: 10, fontFamily: FONT }}>{n.time}</Text>
-                </View>
-                <Text style={{ color: C.fgDim, fontSize: 12, fontFamily: FONT, lineHeight: 18 }}>{n.body}</Text>
-              </View>
-              {!isRead && (
-                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: C.amber, marginTop: 8, flexShrink: 0 }} />
-              )}
-            </Pressable>
-          );
-        })}
-
-        <View style={{ alignItems: "center", paddingTop: 48, gap: 8 }}>
-          <View style={{
-            width: 48, height: 48, borderRadius: 24,
-            backgroundColor: C.chipBg, alignItems: "center", justifyContent: "center",
-          }}>
-            <Icon name="bell" size={20} color={C.fgDim} strokeWidth={1.4} />
+        {loading ? (
+          <View style={{ paddingTop: 60, alignItems: "center" }}>
+            <ActivityIndicator color={C.amber} />
           </View>
-          <Text style={{ color: C.fgDim, fontSize: 12, fontFamily: FONT, marginTop: 4 }}>You're all caught up.</Text>
-        </View>
+        ) : notifs.length === 0 ? (
+          <View style={{ alignItems: "center", paddingTop: 60, gap: 8 }}>
+            <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: C.chipBg, alignItems: "center", justifyContent: "center" }}>
+              <Icon name="bell" size={20} color={C.fgDim} strokeWidth={1.4} />
+            </View>
+            <Text style={{ color: C.fgDim, fontSize: 12, fontFamily: FONT, marginTop: 4 }}>You're all caught up.</Text>
+          </View>
+        ) : (
+          notifs.map((n, i) => {
+            const isRead = readIds.has(n.id);
+            return (
+              <Pressable
+                key={n.id}
+                onPress={() => { setReadIds((prev) => new Set([...prev, n.id])); router.push(`/chat/${n.id}`); }}
+                style={({ pressed }) => ({
+                  flexDirection: "row", alignItems: "flex-start", gap: 14,
+                  paddingHorizontal: 22, paddingVertical: 16,
+                  borderBottomWidth: i < notifs.length - 1 ? StyleSheet.hairlineWidth : 0,
+                  borderBottomColor: C.line,
+                  opacity: pressed ? 0.7 : 1,
+                })}
+              >
+                <View style={{
+                  width: 40, height: 40, borderRadius: 12,
+                  backgroundColor: isRead ? C.chipBg : C.amberDim,
+                  alignItems: "center", justifyContent: "center", flexShrink: 0,
+                }}>
+                  <Icon name="send" size={18} color={isRead ? C.fg : C.amber} strokeWidth={1.6} />
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 3, gap: 8 }}>
+                    <Text style={{ color: C.fg, fontFamily: isRead ? FONT : FONT_MED, fontSize: 13, flex: 1 }} numberOfLines={1}>{n.title}</Text>
+                    <Text style={{ color: C.fgDim, fontSize: 10, fontFamily: FONT }}>{timeAgo(n.time)}</Text>
+                  </View>
+                  <Text style={{ color: C.fgDim, fontSize: 12, fontFamily: FONT, lineHeight: 18 }} numberOfLines={1}>{n.body}</Text>
+                </View>
+                {!isRead && (
+                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: C.amber, marginTop: 8, flexShrink: 0 }} />
+                )}
+              </Pressable>
+            );
+          })
+        )}
       </ScrollView>
     </View>
   );

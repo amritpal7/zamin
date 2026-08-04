@@ -87,6 +87,7 @@ export function useApi() {
     },
 
     // Messages
+    getConversations: () => request("/messages"),
     getMessages: (propertyId) => request(`/messages/${propertyId}`),
     sendMessage: (propertyId, text, receiver_id) =>
       request(`/messages/${propertyId}`, { method: "POST", body: JSON.stringify({ text, receiver_id }) }),

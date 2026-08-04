@@ -171,18 +171,20 @@ export default function Settings() {
   const startEdit = () => {
     setFirstName(user?.firstName || "");
     setLastName(user?.lastName  || "");
-    setUsername(user?.unsafeMetadata?.username || "");
+    setUsername(user?.username ?? user?.unsafeMetadata?.username ?? "");
     setEditing(true);
   };
 
   const saveProfile = async () => {
-    if (!firstName.trim()) { Alert.alert("Required", "First name cannot be empty."); return; }
+    const handle = username.replace(/^@/, "").toLowerCase();
+    if (!handle) { Alert.alert("Required", "Username cannot be empty."); return; }
     try {
       setSaving(true);
+      // Username is a native Clerk field now (not metadata). Name is optional.
       await user.update({
         firstName: firstName.trim(),
         lastName:  lastName.trim(),
-        unsafeMetadata: { username: username.replace(/^@/, "").toLowerCase() },
+        username:  handle,
       });
       setEditing(false);
     } catch (e) {
@@ -270,9 +272,9 @@ export default function Settings() {
     }
   };
 
-  const initials     = user ? (`${user.firstName?.[0] || ""}${user.lastName?.[0] || ""}`).toUpperCase() || "ME" : "??";
-  const fullName     = [user?.firstName, user?.lastName].filter(Boolean).join(" ") || "User";
-  const uname        = user?.unsafeMetadata?.username;
+  const uname        = user?.username ?? user?.unsafeMetadata?.username ?? null;
+  const initials     = user ? ((`${user.firstName?.[0] || ""}${user.lastName?.[0] || ""}`).toUpperCase() || uname?.[0]?.toUpperCase() || "ME") : "??";
+  const fullName     = [user?.firstName, user?.lastName].filter(Boolean).join(" ") || uname || "User";
   const primaryEmail = user?.primaryEmailAddress?.emailAddress;
   const isVerified   = user?.primaryEmailAddress?.verification?.status === "verified";
 

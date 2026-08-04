@@ -22,12 +22,18 @@ export default function Chat() {
   const { user } = useUser();
   const api = useApi();
 
-  const p = SEED_PROPERTIES.find(x => String(x.id) === String(id));
+  // Load the REAL property so the header + receiver_id are correct for live
+  // listings (UUID ids). Fall back to seed data for the demo listings.
+  const [p, setP]               = useState(() => SEED_PROPERTIES.find(x => String(x.id) === String(id)) || null);
   const [messages, setMessages] = useState([]);
   const [msg, setMsg]           = useState("");
   const [loading, setLoading]   = useState(true);
   const [sending, setSending]   = useState(false);
   const scrollRef = useRef(null);
+
+  useEffect(() => {
+    api.getProperty(id).then(setP).catch(() => {});
+  }, [id]);
 
   useEffect(() => {
     api.getMessages(id)
@@ -52,7 +58,7 @@ export default function Chat() {
     const optimistic = { id: `tmp-${Date.now()}`, sender_id: user?.id, text, created_at: new Date().toISOString() };
     setMessages(prev => [...prev, optimistic]);
     try {
-      const sent = await api.sendMessage(id, text, p?.owner_id || "seed_user_1");
+      const sent = await api.sendMessage(id, text, p?.clerk_user_id || p?.owner_id || "seed_user_1");
       setMessages(prev => prev.map(m => m.id === optimistic.id ? sent : m));
     } catch {
       /* keep optimistic on failure */

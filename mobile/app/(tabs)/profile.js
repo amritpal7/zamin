@@ -54,19 +54,25 @@ export default function Profile() {
   const apiRef  = useRef(api);
   apiRef.current = api;
 
-  const [listedCount,  setListedCount]  = useState(0);
-  const [savedCount,   setSavedCount]   = useState(0);
-  const [statsLoading, setStatsLoading] = useState(false);
+  const [listedCount,    setListedCount]    = useState(0);
+  const [savedCount,     setSavedCount]     = useState(0);
+  const [inquiriesCount, setInquiriesCount] = useState(0);
+  const [statsLoading,   setStatsLoading]   = useState(false);
 
   useFocusEffect(
     useCallback(() => {
       if (!isSignedIn) return;
       setStatsLoading(true);
-      Promise.all([apiRef.current.getMyProperties(), apiRef.current.getSaved()])
-        .then(([mine, saved]) => { setListedCount(mine.length); setSavedCount(saved.length); })
+      Promise.all([apiRef.current.getMyProperties(), apiRef.current.getSaved(), apiRef.current.getConversations()])
+        .then(([mine, saved, convos]) => {
+          setListedCount(mine.length);
+          setSavedCount(saved.length);
+          // Inquiries = conversations on listings I own.
+          setInquiriesCount(convos.filter(c => c.owner_id === user?.id).length);
+        })
         .catch(() => {})
         .finally(() => setStatsLoading(false));
-    }, [isSignedIn])
+    }, [isSignedIn, user?.id])
   );
 
   if (!isSignedIn) {
@@ -113,7 +119,7 @@ export default function Profile() {
   const stats = [
     { v: statsLoading ? "…" : listedCount, l: "Listed"    },
     { v: statsLoading ? "…" : savedCount,  l: "Saved"     },
-    { v: 0,                                l: "Inquiries" },
+    { v: statsLoading ? "…" : inquiriesCount, l: "Inquiries" },
   ];
 
   return (

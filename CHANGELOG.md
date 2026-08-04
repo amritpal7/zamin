@@ -12,6 +12,40 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-08-05 (replace mock data with a real conversations backbone)
+- **Added (backend):** `GET /messages` — lists the current user's conversations (one row
+  per property, newest first) with property + last-message info. Registered before
+  `/:propertyId`. Auth-guarded; +2 tests (suite now 23).
+- **Changed (removed mocks):**
+  - `messages.js`: `FAKE_CHATS` → real inbox from `getConversations()`, with loading +
+    empty states; tapping opens `/chat/{property_id}`.
+  - `notifications.js`: `FAKE_NOTIFS` → real inbound-message activity derived from
+    conversations; tap opens the chat. (Read state still local for the session.)
+  - `profile.js`: "Inquiries" stat was hardcoded `0` → real count of conversations on
+    listings the user owns.
+- **Fixed (ripple):** `chat/[id].js` looked up the property from SEED data only, so real
+  (UUID) listings had no header and `receiver_id` fell back to `seed_user_1`. Now fetches
+  the real property via `getProperty(id)` and uses its `clerk_user_id` as the receiver.
+- **Added:** shared `src/utils/time.js#timeAgo` (used by inbox + notifications).
+- **Ripple/impact checked:** `messages.js`, `notifications.js`, `profile.js` (Inquiries),
+  `chat/[id].js` (receiver + header), `useApi.js` (`getConversations`), backend
+  `routes/messages.js`. Verified `chat/[id].js` still works for seed listings (fallback kept).
+  Note: unread badges intentionally dropped — no read-tracking column exists yet (future work).
+
+### 2026-08-04 (owner username on listings — bugfix)
+- **Fixed (UI):** Property owner's username wasn't shown on listings. Username-first
+  accounts have no first/last name, so `post.js` stored a generic `"Owner"` / `"ZM"` as
+  `owner_name`/`owner_avatar`. Now falls back to `@username` (and username initial).
+- **Fixed (UI):** `settings.js` had the same bug — read username from the old
+  `unsafeMetadata.username`; now reads native `user.username`. Also its "Save profile"
+  required a first name (impossible for username-only users) and saved username to the
+  wrong place — now saves native `username` and treats name as optional.
+- **Ops (data backfill):** Updated existing listings whose `owner_name` was still `"Owner"`
+  — looked up each owner's Clerk username via the Backend API and set `@username` +
+  avatar initial (`@amrit5377`, `@deeep0202`).
+- Note: `profile.js` was already fixed earlier this day; this extends the same fix to
+  listing creation + settings.
+
 ### 2026-08-04 (input validation)
 - **Added (security/validation):** Dependency-free request validation for write endpoints
   — `backend/src/validation.js` (`validateProperty`, `validateMessage`, `isUuid`).

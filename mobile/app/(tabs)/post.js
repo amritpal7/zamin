@@ -525,8 +525,13 @@ export default function Post() {
         router.back();
         return;
       } else {
-        const ownerName   = [user?.firstName, user?.lastName].filter(Boolean).join(" ") || "Owner";
-        const ownerAvatar = `${user?.firstName?.[0] || ""}${user?.lastName?.[0] || ""}`.toUpperCase() || "ZM";
+        // Username-first accounts have no first/last name — fall back to @username
+        // so the listing shows the owner's handle instead of a generic "Owner".
+        const username    = user?.username ?? user?.unsafeMetadata?.username ?? null;
+        const ownerName   = [user?.firstName, user?.lastName].filter(Boolean).join(" ")
+                            || (username ? `@${username}` : "Owner");
+        const ownerAvatar = (`${user?.firstName?.[0] || ""}${user?.lastName?.[0] || ""}`.toUpperCase())
+                            || username?.[0]?.toUpperCase() || "ZM";
         const isVerified  = user?.primaryEmailAddress?.verification?.status === "verified";
         await api.createProperty({
           ...payload,

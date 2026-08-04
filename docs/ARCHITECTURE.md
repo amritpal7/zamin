@@ -197,6 +197,7 @@ Base path through nginx: `/api`. Direct: `http://localhost:4000`.
 ### Messages (`routes/messages.js`)
 | Method | Path | Purpose |
 |--------|------|---------|
+| GET | `/messages` | List the user's conversations (one row per property, newest first) |
 | GET | `/messages/:propertyId` | Conversation for a property |
 | POST | `/messages/:propertyId` | Send message (`{ text, receiver_id }`) |
 
@@ -314,4 +315,7 @@ inspection, creating test users via the Backend API, etc.).
   ownership. Run with `docker exec zamin_api npm test`. Clerk is mocked via `x-test-user`
   header; the app is imported from `src/app.js` (server-less). No client/mobile tests yet.
 - **Docker build npm flakiness**: first `--build` can fail on a transient npm network error; retry usually succeeds.
+- **Messages/notifications are real** (backed by the `messages` table via `GET /messages`),
+  but there is **no read-tracking column**, so unread badges are intentionally absent. Adding
+  a `read_at`/`last_read` mechanism is future work (see ROADMAP real-time chat).
 - **Profile name for username-only accounts**: no first/last name, so display falls back to `@username` (see `profile.js`).
