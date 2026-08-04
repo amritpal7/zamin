@@ -9,3 +9,5 @@ ios/
 android/
 pg_data/
 backend/uploads/
+.idea/
+docker-compose.override.yml
