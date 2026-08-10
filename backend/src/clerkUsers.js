@@ -60,11 +60,23 @@ async function reconcileOwners(pool) {
   for (const { clerk_user_id } of rows) {
     const u = await getUser(clerk_user_id);
     if (!u.reliable) { skipped++; continue; }
-    await pool.query(
-      "UPDATE properties SET owner_active = $1, owner_image = $2 WHERE clerk_user_id = $3",
-      [u.exists, u.imageUrl, clerk_user_id]
-    );
-    u.exists ? active++ : inactive++;
+    if (u.exists) {
+      // Keep the denormalized owner display in sync with Clerk. u.name already
+      // prefers the full name and falls back to @username.
+      await pool.query(
+        `UPDATE properties
+           SET owner_active = true,
+               owner_image  = $1,
+               owner_name   = COALESCE($2, owner_name),
+               owner_avatar = COALESCE($3, owner_avatar)
+         WHERE clerk_user_id = $4`,
+        [u.imageUrl, u.name, u.avatar, clerk_user_id]
+      );
+      active++;
+    } else {
+      await pool.query("UPDATE properties SET owner_active = false WHERE clerk_user_id = $1", [clerk_user_id]);
+      inactive++;
+    }
   }
   return { checked: rows.length, active, inactive, skipped };
 }

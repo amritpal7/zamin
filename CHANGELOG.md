@@ -60,6 +60,14 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 - **Test:** +1 — a flagged owner's listing disappears from the list but is still reachable by id
   (24 total). Live-verified: 2 flagged rows retained in DB, 0 shown by the public API.
 
+### 2026-08-11 (prefer full name over username, consistently)
+- **Changed:** show a user's **full name** to others when they've set one, else fall back to
+  `@username`. This was already the rule for chat/new listings; the reconcile now also **syncs
+  the denormalized listing `owner_name`/`owner_avatar`/`owner_image` from Clerk**, so existing
+  listings match (previously backfilled to `@username`). Ran it: the active owner's listings now
+  show "Amrit pal Singh" instead of "@amrit5377".
+- Consistent across listings, chat header, inbox, and message sender identity.
+
 ### 2026-08-11 (bugfix: owner couldn't see the buyer's name in chat)
 - **Root cause:** the owner reads the buyer's name from the `sender_name` stamped on the buyer's
   messages, but messages sent **before** the sender-identity feature had `sender_name = NULL`, so
