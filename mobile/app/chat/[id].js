@@ -78,8 +78,9 @@ export default function Chat() {
   // Who I'm talking to (the peer): the owner if peer is the owner, otherwise the
   // buyer whose identity we stamped onto their messages.
   const peerIsOwner = !!(peer && p?.clerk_user_id && String(peer) === String(p.clerk_user_id));
-  const peerMsg     = messages.find(m => String(m.sender_id) === String(peer));
-  const peerName    = peerIsOwner ? (p?.owner_name || "Owner") : (peerMsg?.sender_name || "Chat");
+  const peerMsg     = messages.find(m => String(m.sender_id) === String(peer) && m.sender_name)
+                   || messages.find(m => String(m.sender_id) === String(peer));
+  const peerName    = peerIsOwner ? (p?.owner_name || "Owner") : (peerMsg?.sender_name || "Buyer");
   const peerAvatar  = peerIsOwner ? (p?.owner_avatar || "??")  : (peerMsg?.sender_avatar || "??");
   const peerImage   = peerIsOwner ? (p?.owner_image || null)   : (peerMsg?.sender_image || null);
   const peerGone    = peerIsOwner && p?.owner_active === false;

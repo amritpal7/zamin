@@ -5,7 +5,7 @@ const { GetObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3");
 const { connection, THUMBNAIL_QUEUE, MAINTENANCE_QUEUE, maintenanceQueue } = require("./queue");
 const { s3, putObject, BUCKET } = require("./storage");
 const pool = require("./db");
-const { reconcileOwners } = require("./clerkUsers");
+const { reconcileOwners, backfillMessageSenders } = require("./clerkUsers");
 
 async function streamToBuffer(stream) {
   const chunks = [];
@@ -55,9 +55,10 @@ const maintenanceWorker = new Worker(
   MAINTENANCE_QUEUE,
   async (job) => {
     if (job.name === "reconcile-owners") {
-      const result = await reconcileOwners(pool);
-      console.log("🧹 owner reconcile:", JSON.stringify(result));
-      return result;
+      const owners  = await reconcileOwners(pool);
+      const senders = await backfillMessageSenders(pool);
+      console.log("🧹 reconcile:", JSON.stringify({ owners, senders }));
+      return { owners, senders };
     }
   },
   { connection }

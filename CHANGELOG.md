@@ -60,6 +60,17 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 - **Test:** +1 — a flagged owner's listing disappears from the list but is still reachable by id
   (24 total). Live-verified: 2 flagged rows retained in DB, 0 shown by the public API.
 
+### 2026-08-11 (bugfix: owner couldn't see the buyer's name in chat)
+- **Root cause:** the owner reads the buyer's name from the `sender_name` stamped on the buyer's
+  messages, but messages sent **before** the sender-identity feature had `sender_name = NULL`, so
+  the owner's header/inbox fell back to "Chat"/"User". (The buyer always saw the owner because
+  owner identity is denormalized on the property.)
+- **Fix:** `backfillMessageSenders` (in `clerkUsers.js`) fills `sender_name`/`sender_avatar`/
+  `sender_image` on NULL messages from Clerk; the worker's scheduled reconcile now runs it too, so
+  it self-heals. Ran once — ram123's messages now resolve to "Ram Tirath".
+- **Robustness:** chat header prefers a peer message that actually carries a name and falls back
+  to "Buyer" instead of "Chat".
+
 ### 2026-08-11 (cosmetic: punctuation overlap while typing)
 - **Fixed (UI, chat):** repeated narrow punctuation (`?` `.` `-`) visually overlapped in the
   chat input + message bubbles. **Not a data bug** — stored text is intact (verified

@@ -9,22 +9,45 @@ const SECRET = process.env.CLERK_SECRET_KEY;
 // - reliable=false on a transient error → callers should NOT overwrite stored data.
 // - demo/seed owners are treated as always active with no image.
 async function getUser(id) {
-  if (!id || id.startsWith("seed_user_")) return { reliable: true, exists: true, imageUrl: null };
+  const empty = { reliable: true, exists: true, imageUrl: null, name: null, avatar: null };
+  if (!id || id.startsWith("seed_user_")) return empty;
   try {
     const res = await fetch(`https://api.clerk.com/v1/users/${id}`, {
       headers: { Authorization: `Bearer ${SECRET}` },
     });
-    if (res.status === 404) return { reliable: true, exists: false, imageUrl: null };
-    if (!res.ok) return { reliable: false, exists: true, imageUrl: null };
+    if (res.status === 404) return { reliable: true, exists: false, imageUrl: null, name: null, avatar: null };
+    if (!res.ok) return { reliable: false, exists: true, imageUrl: null, name: null, avatar: null };
     const u = await res.json();
-    return { reliable: true, exists: true, imageUrl: u.has_image ? u.image_url : null };
+    const first = u.first_name || "", last = u.last_name || "", uname = u.username || "";
+    const name = [first, last].filter(Boolean).join(" ") || (uname ? `@${uname}` : "User");
+    const avatar = (`${first[0] || ""}${last[0] || ""}`).toUpperCase() || (uname[0] || "").toUpperCase() || "U";
+    return { reliable: true, exists: true, imageUrl: u.has_image ? u.image_url : null, name, avatar };
   } catch {
-    return { reliable: false, exists: true, imageUrl: null };
+    return { reliable: false, exists: true, imageUrl: null, name: null, avatar: null };
   }
 }
 
 async function userExists(id) {
   return (await getUser(id)).exists;
+}
+
+// Backfill denormalized sender identity on messages that predate the feature
+// (sender_name IS NULL). New messages already carry it; this heals old ones from Clerk.
+async function backfillMessageSenders(pool) {
+  const { rows } = await pool.query(
+    "SELECT DISTINCT sender_id FROM messages WHERE sender_name IS NULL AND sender_id NOT LIKE 'seed_user_%'"
+  );
+  let filled = 0;
+  for (const { sender_id } of rows) {
+    const u = await getUser(sender_id);
+    if (!u.reliable || !u.exists || !u.name) continue;
+    await pool.query(
+      "UPDATE messages SET sender_name = $1, sender_avatar = $2, sender_image = $3 WHERE sender_id = $4 AND sender_name IS NULL",
+      [u.name, u.avatar, u.imageUrl, sender_id]
+    );
+    filled++;
+  }
+  return { senders: rows.length, filled };
 }
 
 // Reconcile every distinct real owner: update owner_active + owner_image from Clerk.
@@ -46,4 +69,4 @@ async function reconcileOwners(pool) {
   return { checked: rows.length, active, inactive, skipped };
 }
 
-module.exports = { getUser, userExists, reconcileOwners };
+module.exports = { getUser, userExists, reconcileOwners, backfillMessageSenders };
