@@ -31,6 +31,11 @@ export default function Chat() {
   const [sending, setSending]   = useState(false);
   const scrollRef = useRef(null);
 
+  // My identity, stamped on each message I send so the other side sees who wrote it.
+  const myName   = user ? ([user.firstName, user.lastName].filter(Boolean).join(" ") || (user.username ? `@${user.username}` : "User")) : "User";
+  const myAvatar = user ? (`${user.firstName?.[0] || ""}${user.lastName?.[0] || ""}`.toUpperCase() || user.username?.[0]?.toUpperCase() || "U") : "U";
+  const myImage  = user?.hasImage ? user.imageUrl : null;
+
   useEffect(() => {
     api.getProperty(id).then(setP).catch(() => {});
   }, [id]);
@@ -52,15 +57,16 @@ export default function Chat() {
 
   const send = async () => {
     if (!msg.trim() || sending) return;
+    // Message the OTHER person (peer). Never address it to yourself.
+    const receiver = peer || p?.clerk_user_id || p?.owner_id;
+    if (!receiver || String(receiver) === String(user?.id)) return;
     const text = msg.trim();
     setMsg("");
     setSending(true);
-    const optimistic = { id: `tmp-${Date.now()}`, sender_id: user?.id, text, created_at: new Date().toISOString() };
+    const optimistic = { id: `tmp-${Date.now()}`, sender_id: user?.id, text, created_at: new Date().toISOString(), sender_name: myName, sender_avatar: myAvatar, sender_image: myImage };
     setMessages(prev => [...prev, optimistic]);
     try {
-      // Reply goes to the OTHER person in the thread (peer), not always the owner.
-      const receiver = peer || p?.clerk_user_id || p?.owner_id || "seed_user_1";
-      const sent = await api.sendMessage(id, text, receiver);
+      const sent = await api.sendMessage(id, text, receiver, { sender_name: myName, sender_avatar: myAvatar, sender_image: myImage });
       setMessages(prev => prev.map(m => m.id === optimistic.id ? sent : m));
     } catch {
       /* keep optimistic on failure */
@@ -68,6 +74,15 @@ export default function Chat() {
       setSending(false);
     }
   };
+
+  // Who I'm talking to (the peer): the owner if peer is the owner, otherwise the
+  // buyer whose identity we stamped onto their messages.
+  const peerIsOwner = !!(peer && p?.clerk_user_id && String(peer) === String(p.clerk_user_id));
+  const peerMsg     = messages.find(m => String(m.sender_id) === String(peer));
+  const peerName    = peerIsOwner ? (p?.owner_name || "Owner") : (peerMsg?.sender_name || "Chat");
+  const peerAvatar  = peerIsOwner ? (p?.owner_avatar || "??")  : (peerMsg?.sender_avatar || "??");
+  const peerImage   = peerIsOwner ? (p?.owner_image || null)   : (peerMsg?.sender_image || null);
+  const peerGone    = peerIsOwner && p?.owner_active === false;
 
   const fmt = (iso) => {
     const d = new Date(iso);
@@ -95,17 +110,14 @@ export default function Chat() {
           <Icon name="back" size={17} color={C.fg} />
         </Pressable>
 
-        <Avatar initials={p?.owner_avatar || "??"} size={40} color={p?.color || C.amber} imageUrl={p?.owner_image} />
+        <Avatar initials={peerAvatar} size={40} color={p?.color || C.amber} imageUrl={peerImage} />
 
         <View style={{ flex: 1 }}>
-          <Text style={{ color: C.fg, fontFamily: FONT_MED, fontSize: 14 }} numberOfLines={1}>
-            {/* Owner viewing a buyer's thread: show the property (we don't store buyer names). */}
-            {p && user?.id === p.clerk_user_id ? (p.title || "Inquiry") : (p?.owner_name || "Owner")}
-          </Text>
+          <Text style={{ color: C.fg, fontFamily: FONT_MED, fontSize: 14 }} numberOfLines={1}>{peerName}</Text>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginTop: 1 }}>
-            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: p?.owner_active === false ? C.red : C.green }} />
-            <Text style={{ color: p?.owner_active === false ? C.red : C.fgDim, fontSize: 11, fontFamily: FONT }}>
-              {p?.owner_active === false ? "No longer available" : "Online"}
+            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: peerGone ? C.red : C.green }} />
+            <Text style={{ color: peerGone ? C.red : C.fgDim, fontSize: 11, fontFamily: FONT }}>
+              {peerGone ? "No longer available" : "Online"}
             </Text>
           </View>
         </View>
@@ -122,7 +134,7 @@ export default function Chat() {
         </Pressable>
       </View>
 
-      {p?.owner_active === false && (
+      {peerGone && (
         <View style={{ backgroundColor: C.red + "18", paddingHorizontal: 16, paddingVertical: 10 }}>
           <Text style={{ color: C.red, fontSize: 12, fontFamily: FONT, textAlign: "center" }}>
             ⚠ This owner's account no longer exists. They won't receive new messages.

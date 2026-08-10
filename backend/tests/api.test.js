@@ -222,8 +222,9 @@ describe("messaging: two-way delivery", () => {
     const create = await request(app).post("/properties").set("x-test-user", USER_A).send({ ...sampleListing, title: "Chat Listing" });
     pid = create.body.id;
 
-    // buyer (USER_B) messages the owner (USER_A)
-    const m1 = await request(app).post(`/messages/${pid}`).set("x-test-user", USER_B).send({ text: "Is this available?", receiver_id: USER_A });
+    // buyer (USER_B) messages the owner (USER_A), stamping their identity
+    const m1 = await request(app).post(`/messages/${pid}`).set("x-test-user", USER_B)
+      .send({ text: "Is this available?", receiver_id: USER_A, sender_name: "Ram Buyer", sender_avatar: "RB" });
     expect(m1.status).toBe(201);
 
     // owner (USER_A) replies to the buyer (USER_B) — must be addressed to the buyer, not self
@@ -239,10 +240,16 @@ describe("messaging: two-way delivery", () => {
     expect(ownerThread.body.length).toBe(2);
   });
 
-  test("conversation list carries the peer id", async () => {
-    const convos = await request(app).get("/messages").set("x-test-user", USER_B);
-    const row = convos.body.find((c) => c.property_id === pid);
-    expect(row).toBeDefined();
-    expect(row.peer_id).toBe(USER_A);
+  test("owner cannot message themselves (400)", async () => {
+    const res = await request(app).post(`/messages/${pid}`).set("x-test-user", USER_A).send({ text: "hi me", receiver_id: USER_A });
+    expect(res.status).toBe(400);
+  });
+
+  test("owner's conversation shows ONE thread with the buyer's name", async () => {
+    const convos = await request(app).get("/messages").set("x-test-user", USER_A);
+    const rows = convos.body.filter((c) => c.property_id === pid);
+    expect(rows.length).toBe(1);              // one thread, not two
+    expect(rows[0].peer_id).toBe(USER_B);
+    expect(rows[0].peer_name).toBe("Ram Buyer");
   });
 });

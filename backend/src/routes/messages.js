@@ -28,7 +28,16 @@ router.get("/", async (req, res) => {
          c.property_id, c.peer_id, c.last_text, c.last_time, c.last_sender_id,
          p.title, p.owner_name, p.owner_avatar, p.color, p.img,
          p.owner_active, p.owner_image,
-         p.clerk_user_id AS owner_id
+         p.clerk_user_id AS owner_id,
+         -- The person I'm chatting with: owner info if the peer is the owner,
+         -- otherwise the buyer's identity stamped on their messages.
+         COALESCE(CASE WHEN c.peer_id = p.clerk_user_id THEN p.owner_name END,
+                  (SELECT mm.sender_name  FROM messages mm WHERE mm.property_id = c.property_id AND mm.sender_id = c.peer_id AND mm.sender_name  IS NOT NULL ORDER BY mm.created_at DESC LIMIT 1),
+                  'User') AS peer_name,
+         COALESCE(CASE WHEN c.peer_id = p.clerk_user_id THEN p.owner_avatar END,
+                  (SELECT mm.sender_avatar FROM messages mm WHERE mm.property_id = c.property_id AND mm.sender_id = c.peer_id AND mm.sender_avatar IS NOT NULL ORDER BY mm.created_at DESC LIMIT 1)) AS peer_avatar,
+         COALESCE(CASE WHEN c.peer_id = p.clerk_user_id THEN p.owner_image END,
+                  (SELECT mm.sender_image FROM messages mm WHERE mm.property_id = c.property_id AND mm.sender_id = c.peer_id AND mm.sender_image IS NOT NULL ORDER BY mm.created_at DESC LIMIT 1)) AS peer_image
        FROM convo c
        JOIN properties p ON p.id = c.property_id
        ORDER BY c.property_id, c.peer_id, c.last_time DESC`,
@@ -75,12 +84,16 @@ router.post("/:propertyId", async (req, res) => {
     const errors = validateMessage(req.body);
     if (errors.length) return res.status(400).json({ error: errors.join("; "), errors });
     const { userId } = getAuth(req);
-    const { text, receiver_id } = req.body;
+    const { text, receiver_id, sender_name, sender_avatar, sender_image } = req.body;
+    // Never let a message be addressed to its own sender (the old delivery bug).
+    if (String(receiver_id) === String(userId)) {
+      return res.status(400).json({ error: "You can't message yourself." });
+    }
 
     const { rows } = await pool.query(
-      `INSERT INTO messages (property_id, sender_id, receiver_id, text)
-       VALUES ($1, $2, $3, $4) RETURNING *`,
-      [req.params.propertyId, userId, receiver_id, text]
+      `INSERT INTO messages (property_id, sender_id, receiver_id, text, sender_name, sender_avatar, sender_image)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [req.params.propertyId, userId, receiver_id, text, sender_name || null, sender_avatar || null, sender_image || null]
     );
     res.status(201).json(rows[0]);
   } catch (err) {

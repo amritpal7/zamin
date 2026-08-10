@@ -11,6 +11,32 @@ async function migrate() {
   await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS thumbnails TEXT[] DEFAULT '{}'`);
   await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS owner_active BOOLEAN DEFAULT true`);
   await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS owner_image TEXT`);
+
+  // messages: denormalized sender identity so the inbox/chat can show who wrote.
+  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS sender_name VARCHAR(255)`);
+  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS sender_avatar VARCHAR(10)`);
+  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS sender_image TEXT`);
+
+  // One-time repair of the old "reply addressed to self" bug: re-address any
+  // self-message (sender = receiver) to the other participant on that property,
+  // so the history is preserved AND finally delivered. No-ops once clean.
+  await pool.query(`
+    WITH parties AS (
+      SELECT property_id, sender_id AS uid FROM messages
+      UNION
+      SELECT property_id, receiver_id AS uid FROM messages
+    ),
+    fix AS (
+      SELECT m.id,
+             (SELECT pa.uid FROM parties pa
+              WHERE pa.property_id = m.property_id AND pa.uid <> m.sender_id
+              LIMIT 1) AS peer
+      FROM messages m
+      WHERE m.sender_id = m.receiver_id
+    )
+    UPDATE messages m SET receiver_id = fix.peer
+    FROM fix WHERE m.id = fix.id AND fix.peer IS NOT NULL
+  `);
   // Backfill stock photos on the seed rows so the home screen has imagery
   const stock = {
     "Modern Villa with Pool": [

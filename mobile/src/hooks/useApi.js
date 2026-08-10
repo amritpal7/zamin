@@ -89,8 +89,8 @@ export function useApi() {
     // Messages
     getConversations: () => request("/messages"),
     getMessages: (propertyId, peer) => request(`/messages/${propertyId}${peer ? `?peer=${encodeURIComponent(peer)}` : ""}`),
-    sendMessage: (propertyId, text, receiver_id) =>
-      request(`/messages/${propertyId}`, { method: "POST", body: JSON.stringify({ text, receiver_id }) }),
+    sendMessage: (propertyId, text, receiver_id, sender = {}) =>
+      request(`/messages/${propertyId}`, { method: "POST", body: JSON.stringify({ text, receiver_id, ...sender }) }),
 
     // Auth — public, no token needed
     resolveUsername: async (username) => {

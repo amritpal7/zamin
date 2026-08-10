@@ -12,6 +12,25 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-08-11 (messaging fixed properly: one thread, two-way, with sender identity)
+- **Root cause (found by inspecting the DB):** the old "receiver = owner always" bug had
+  written **10 self-addressed messages** (sender = receiver = owner) for the amrit5377↔ram123
+  thread. These created a phantom **second thread** (peer = self) and were never delivered to
+  the buyer. The prior peer fix didn't clean this legacy data.
+- **Data repair (migration):** re-address every self-message (sender = receiver) to the other
+  participant on that property — preserving history AND finally delivering it. Verified: 0
+  self-messages remain; amrit5377 now has **one** thread with ram123 (18 msgs merged); ram123's
+  view now includes amrit's 10 replies.
+- **Prevention:** `POST /messages` rejects self-addressed messages (400); the chat screen refuses
+  to send to yourself. So the bug class can't recur.
+- **Sender identity stored (requested):** `messages` gains `sender_name` / `sender_avatar` /
+  `sender_image`; each send stamps the sender's identity. Conversations resolve the **peer's**
+  name/avatar/image (owner info if the peer is the owner, else the buyer's stamped identity).
+- **Ripple:** inbox and chat header now show **who you're chatting with** (peer), not the owner;
+  `useApi.sendMessage` forwards sender identity; chat send guards self + stamps identity.
+- **Tests:** +2 (27 total) — self-message rejected (400); owner sees exactly ONE thread with the
+  buyer's name. Two-way delivery + per-buyer threads still pass.
+
 ### 2026-08-11 (bugfix: messages not delivered both ways)
 - **Fixed (messaging):** replies never reached the other person. `chat/[id].js` always set the
   receiver to the **property owner**, so when the owner replied it was addressed to *themselves*

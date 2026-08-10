@@ -118,7 +118,12 @@ Indexes: `type`, `status`, `clerk_user_id`.
 Bookmarks. `UNIQUE(clerk_user_id, property_id)`, `property_id` FK → properties (ON DELETE CASCADE). Index on `clerk_user_id`.
 
 ### `messages`
-1:1 chat per property. `property_id` FK (CASCADE), `sender_id`, `receiver_id` (both Clerk ids), `text`, `created_at`. Index on `property_id`.
+1:1 chat between two users about a property. `property_id` FK (CASCADE), `sender_id`,
+`receiver_id` (both Clerk ids), `text`, `created_at`, plus denormalized sender identity
+`sender_name` / `sender_avatar` / `sender_image` (so the inbox/chat can show who wrote).
+Index on `property_id`. **Invariant:** `sender_id <> receiver_id` (enforced in the route;
+legacy self-messages repaired by migration). A conversation = (property, peer) where peer is
+"the other person"; the receiver is always the peer, never yourself.
 
 > **Migrations today:** there is no migration framework. `backend/src/index.js` runs a
 > hand-written idempotent `migrate()` on boot (`ALTER TABLE ... ADD COLUMN IF NOT EXISTS`)
