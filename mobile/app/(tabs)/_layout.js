@@ -69,52 +69,51 @@ function TabBar({ state, navigation }) {
           if (!tab) return null;
           const isPost = tab.name === "post";
           const active = state.index === i;
+          const a      = anims[i]; // 0 = inactive, 1 = active (spring)
 
-          // Post is a persistent amber CTA. Regular tabs get a soft warm pill when active (app2 style).
-          const pillBg = isPost
-            ? C.amber
-            : active ? C.chipBg : "transparent";
-          const pillBorder = isPost
-            ? "transparent"
-            : active ? C.glassBorder : "transparent";
-          const tint = isPost
-            ? C.ink
-            : active ? C.fg : C.fgDim;
+          const tint = isPost ? C.ink : active ? C.fg : C.fgDim;
 
           return (
             <Pressable
               key={route.key}
               onPress={() => navigation.navigate(route.name)}
-              style={[
-                styles.tab,
-                {
-                  backgroundColor: pillBg,
-                  borderColor: pillBorder,
-                  borderWidth: (isPost || active) ? StyleSheet.hairlineWidth : 0,
-                },
-                isPost && {
-                  shadowColor: C.amber,
-                  shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: 0.35,
-                  shadowRadius: 10,
-                  elevation: 6,
-                },
-              ]}
+              style={styles.tab}
             >
-              <Icon
-                name={tab.icon}
-                size={20}
-                color={tint}
-                strokeWidth={active ? 1.9 : 1.5}
-              />
+              {/* Highlight pill. Post is a persistent amber CTA; other tabs fade + scale
+                  their soft warm pill in/out as focus transitions between screens. */}
+              {isPost ? (
+                <View style={[StyleSheet.absoluteFill, styles.pill, {
+                  backgroundColor: C.amber,
+                  shadowColor: C.amber, shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.35, shadowRadius: 10, elevation: 6,
+                }]} />
+              ) : (
+                <Animated.View style={[StyleSheet.absoluteFill, styles.pill, {
+                  backgroundColor: C.chipBg,
+                  borderColor: C.glassBorder,
+                  borderWidth: StyleSheet.hairlineWidth,
+                  opacity: a,
+                  transform: [{ scale: a.interpolate({ inputRange: [0, 1], outputRange: [0.82, 1] }) }],
+                }]} />
+              )}
+
+              {/* Icon gives a small lift + scale as its tab becomes active. */}
+              <Animated.View style={{
+                transform: [
+                  { scale: isPost ? 1 : a.interpolate({ inputRange: [0, 1], outputRange: [1, 1.12] }) },
+                  { translateY: isPost ? 0 : a.interpolate({ inputRange: [0, 1], outputRange: [0, -2] }) },
+                ],
+              }}>
+                <Icon name={tab.icon} size={20} color={tint} strokeWidth={active ? 1.9 : 1.5} />
+              </Animated.View>
+
               <Animated.Text
                 style={[
                   styles.label,
                   {
                     color: tint,
                     fontFamily: FONT_MED,
-                    // Keep inactive labels visible (active = full, inactive = slightly dimmed).
-                    opacity: isPost ? 1 : anims[i].interpolate({ inputRange: [0, 1], outputRange: [0.8, 1] }),
+                    opacity: isPost ? 1 : a.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1] }),
                   },
                 ]}
               >
@@ -143,6 +142,9 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 26,
     gap: 3,
+  },
+  pill: {
+    borderRadius: 26,
   },
   label: {
     fontSize: 10.5,

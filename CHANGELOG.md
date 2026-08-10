@@ -12,6 +12,12 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-08-11 (tab bar transition animation)
+- **Changed (UI polish):** Bottom tab bar now animates on screen switch — the active
+  highlight pill **fades + scales** in/out between tabs (via the existing per-tab spring),
+  and the newly-active **icon lifts + scales** slightly at the same time. Post stays a
+  persistent amber CTA. Driven natively (opacity/transform), single file `_layout.js`.
+
 ### 2026-08-11 (UI bugfixes: tab labels + home header identity)
 - **Fixed (tab bar):** inactive tab labels were invisible in both themes — `_layout.js` set
   label `opacity` to the per-tab anim value (0 when inactive). Now interpolates to 0.8–1 so
