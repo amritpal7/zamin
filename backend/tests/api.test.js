@@ -213,3 +213,36 @@ describe("visibility: soft-hide flagged owners", () => {
     expect(detail.body.owner_active).toBe(false);
   });
 });
+
+describe("messaging: two-way delivery", () => {
+  let pid;
+
+  test("owner + buyer both see the full thread (peer-scoped)", async () => {
+    // USER_A owns a listing
+    const create = await request(app).post("/properties").set("x-test-user", USER_A).send({ ...sampleListing, title: "Chat Listing" });
+    pid = create.body.id;
+
+    // buyer (USER_B) messages the owner (USER_A)
+    const m1 = await request(app).post(`/messages/${pid}`).set("x-test-user", USER_B).send({ text: "Is this available?", receiver_id: USER_A });
+    expect(m1.status).toBe(201);
+
+    // owner (USER_A) replies to the buyer (USER_B) — must be addressed to the buyer, not self
+    const m2 = await request(app).post(`/messages/${pid}`).set("x-test-user", USER_A).send({ text: "Yes it is!", receiver_id: USER_B });
+    expect(m2.status).toBe(201);
+
+    // buyer sees BOTH messages (previously the owner's reply never arrived)
+    const buyerThread = await request(app).get(`/messages/${pid}?peer=${USER_A}`).set("x-test-user", USER_B);
+    expect(buyerThread.body.length).toBe(2);
+
+    // owner sees BOTH messages
+    const ownerThread = await request(app).get(`/messages/${pid}?peer=${USER_B}`).set("x-test-user", USER_A);
+    expect(ownerThread.body.length).toBe(2);
+  });
+
+  test("conversation list carries the peer id", async () => {
+    const convos = await request(app).get("/messages").set("x-test-user", USER_B);
+    const row = convos.body.find((c) => c.property_id === pid);
+    expect(row).toBeDefined();
+    expect(row.peer_id).toBe(USER_A);
+  });
+});

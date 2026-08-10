@@ -393,7 +393,7 @@ export default function PropertyDetail() {
         ) : (
           <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
             <Pressable
-              onPress={() => { if (!isSignedIn) { router.push("/sign-in"); return; } router.push(`/chat/${p.id}`); }}
+              onPress={() => { if (!isSignedIn) { router.push("/sign-in"); return; } router.push(`/chat/${p.id}?peer=${p.clerk_user_id}`); }}
               style={[styles.primaryAction, { backgroundColor: C.amber }]}
             >
               <Icon name="chat" size={18} color={C.ink} strokeWidth={1.7} />

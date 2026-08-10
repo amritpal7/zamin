@@ -16,7 +16,7 @@ import { useApi } from "../../src/hooks/useApi";
 
 export default function Chat() {
   useTheme();
-  const { id } = useLocalSearchParams();
+  const { id, peer } = useLocalSearchParams();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user } = useUser();
@@ -36,7 +36,7 @@ export default function Chat() {
   }, [id]);
 
   useEffect(() => {
-    api.getMessages(id)
+    api.getMessages(id, peer)
       .then(setMessages)
       .catch(() => setMessages([{
         id: "seed", sender_id: "owner",
@@ -44,7 +44,7 @@ export default function Chat() {
         created_at: new Date().toISOString(),
       }]))
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [id, peer]);
 
   useEffect(() => {
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
@@ -58,7 +58,9 @@ export default function Chat() {
     const optimistic = { id: `tmp-${Date.now()}`, sender_id: user?.id, text, created_at: new Date().toISOString() };
     setMessages(prev => [...prev, optimistic]);
     try {
-      const sent = await api.sendMessage(id, text, p?.clerk_user_id || p?.owner_id || "seed_user_1");
+      // Reply goes to the OTHER person in the thread (peer), not always the owner.
+      const receiver = peer || p?.clerk_user_id || p?.owner_id || "seed_user_1";
+      const sent = await api.sendMessage(id, text, receiver);
       setMessages(prev => prev.map(m => m.id === optimistic.id ? sent : m));
     } catch {
       /* keep optimistic on failure */
@@ -96,7 +98,10 @@ export default function Chat() {
         <Avatar initials={p?.owner_avatar || "??"} size={40} color={p?.color || C.amber} imageUrl={p?.owner_image} />
 
         <View style={{ flex: 1 }}>
-          <Text style={{ color: C.fg, fontFamily: FONT_MED, fontSize: 14 }}>{p?.owner_name || "Owner"}</Text>
+          <Text style={{ color: C.fg, fontFamily: FONT_MED, fontSize: 14 }} numberOfLines={1}>
+            {/* Owner viewing a buyer's thread: show the property (we don't store buyer names). */}
+            {p && user?.id === p.clerk_user_id ? (p.title || "Inquiry") : (p?.owner_name || "Owner")}
+          </Text>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginTop: 1 }}>
             <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: p?.owner_active === false ? C.red : C.green }} />
             <Text style={{ color: p?.owner_active === false ? C.red : C.fgDim, fontSize: 11, fontFamily: FONT }}>

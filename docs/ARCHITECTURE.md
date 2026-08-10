@@ -204,9 +204,9 @@ Base path through nginx: `/api`. Direct: `http://localhost:4000`.
 ### Messages (`routes/messages.js`)
 | Method | Path | Purpose |
 |--------|------|---------|
-| GET | `/messages` | List the user's conversations (one row per property, newest first) |
-| GET | `/messages/:propertyId` | Conversation for a property |
-| POST | `/messages/:propertyId` | Send message (`{ text, receiver_id }`) |
+| GET | `/messages` | List conversations, grouped by (property, **peer**); returns `peer_id` per row |
+| GET | `/messages/:propertyId?peer=<id>` | The two-person thread (me ↔ peer); without `peer`, all my messages on the property |
+| POST | `/messages/:propertyId` | Send message (`{ text, receiver_id }`) — receiver is the **peer**, not always the owner |
 
 ### Auth (`routes/auth.js`)
 | Method | Path | Purpose |

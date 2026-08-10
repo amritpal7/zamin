@@ -37,7 +37,9 @@ export default function Notifications() {
           const items = rows
             .filter((c) => c.last_sender_id && c.last_sender_id !== user?.id)
             .map((c) => ({
-              id: c.property_id,
+              id: `${c.property_id}:${c.peer_id}`,
+              propertyId: c.property_id,
+              peer: c.peer_id,
               title: `New message · ${c.title}`,
               body: c.last_text,
               time: c.last_time,
@@ -104,7 +106,7 @@ export default function Notifications() {
             return (
               <Pressable
                 key={n.id}
-                onPress={() => { setReadIds((prev) => new Set([...prev, n.id])); router.push(`/chat/${n.id}`); }}
+                onPress={() => { setReadIds((prev) => new Set([...prev, n.id])); router.push(`/chat/${n.propertyId}?peer=${n.peer}`); }}
                 style={({ pressed }) => ({
                   flexDirection: "row", alignItems: "flex-start", gap: 14,
                   paddingHorizontal: 22, paddingVertical: 16,

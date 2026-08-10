@@ -12,6 +12,24 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-08-11 (bugfix: messages not delivered both ways)
+- **Fixed (messaging):** replies never reached the other person. `chat/[id].js` always set the
+  receiver to the **property owner**, so when the owner replied it was addressed to *themselves*
+  and the buyer never received it (and vice-versa). Root cause: conversations weren't scoped to
+  the two participants.
+- **Peer-aware conversations (the real fix):**
+  - `chat/[id].js` now takes a `peer` param and sends to the **peer** (the other person), not
+    always the owner; loads the peer-scoped thread.
+  - Backend `GET /messages/:propertyId?peer=<id>` returns the exact two-person thread; `POST`
+    unchanged (receiver from body).
+  - `GET /messages` (conversations) now groups by **(property, peer)** and returns `peer_id`, so
+    an owner gets a separate thread per buyer.
+- **Ripple (open a chat with the right peer):** property detail passes `peer=<owner>`; inbox and
+  notifications pass `peer=<peer_id>`; chat header shows the property title when the owner views a
+  buyer's thread (buyer names aren't stored).
+- **Tests:** +2 (26 total) — owner & buyer both see the full thread; conversation list carries
+  `peer_id`. Live-verified two-way delivery + per-buyer threads.
+
 ### 2026-08-11 (soft-hide listings from flagged/deleted owners)
 - **Changed (visibility / industry-standard soft-delete):** Listings whose owner is flagged
   `owner_active = false` are now **hidden** from the app, not shown with an "Unavailable" badge.

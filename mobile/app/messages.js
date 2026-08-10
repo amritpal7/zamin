@@ -83,8 +83,8 @@ export default function Messages() {
         ) : (
           chats.map((chat, i) => (
             <Pressable
-              key={chat.property_id}
-              onPress={() => router.push(`/chat/${chat.property_id}`)}
+              key={`${chat.property_id}:${chat.peer_id}`}
+              onPress={() => router.push(`/chat/${chat.property_id}?peer=${chat.peer_id}`)}
               style={({ pressed }) => ({
                 flexDirection: "row", alignItems: "center", gap: 14,
                 paddingHorizontal: 22, paddingVertical: 16,
