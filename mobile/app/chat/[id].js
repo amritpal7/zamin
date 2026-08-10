@@ -189,7 +189,7 @@ export default function Chat() {
                   borderBottomRightRadius: own ? 4 : 18,
                   paddingHorizontal: 14, paddingVertical: 10,
                 }}>
-                  <Text style={{ color: own ? C.ink : C.fg, fontFamily: FONT, fontSize: 14, lineHeight: 20 }}>{m.text}</Text>
+                  <Text style={{ color: own ? C.ink : C.fg, fontFamily: FONT, fontSize: 14, lineHeight: 20, letterSpacing: 0.3 }}>{m.text}</Text>
                 </View>
                 <Text style={{ color: C.fgDim, fontSize: 10, marginTop: 4, marginHorizontal: 6, textAlign: own ? "right" : "left", fontFamily: FONT }}>
                   {fmt(m.created_at)}
@@ -217,7 +217,7 @@ export default function Chat() {
             <TextInput
               value={msg} onChangeText={setMsg} onSubmitEditing={send}
               placeholder="Type a message…" placeholderTextColor={C.fgDim}
-              style={{ flex: 1, paddingVertical: 10, color: C.fg, fontFamily: FONT, fontSize: 14 }}
+              style={{ flex: 1, paddingVertical: 10, color: C.fg, fontFamily: FONT, fontSize: 14, letterSpacing: 0.3 }}
             />
           </View>
           <Pressable

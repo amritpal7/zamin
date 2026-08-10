@@ -60,6 +60,16 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 - **Test:** +1 — a flagged owner's listing disappears from the list but is still reachable by id
   (24 total). Live-verified: 2 flagged rows retained in DB, 0 shown by the public API.
 
+### 2026-08-11 (cosmetic: punctuation overlap while typing)
+- **Fixed (UI, chat):** repeated narrow punctuation (`?` `.` `-`) visually overlapped in the
+  chat input + message bubbles. **Not a data bug** — stored text is intact (verified
+  `[???????????????]` in the DB); purely how the monospace design font (GeistMono) advances
+  those glyphs. Added `letterSpacing: 0.3` to the composer input and bubble text so repeated
+  glyphs don't collide (monospace look preserved).
+- **Ripple (pending confirmation):** the same font is used in all other inputs (`NeoInput`,
+  `GlassInput`, discover search). Will apply the same `letterSpacing` there once the chat fix is
+  confirmed visually.
+
 ### 2026-08-11 (tab bar transition animation)
 - **Changed (UI polish):** Bottom tab bar now animates on screen switch — the active
   highlight pill **fades + scales** in/out between tabs (via the existing per-tab spring),
