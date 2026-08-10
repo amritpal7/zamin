@@ -12,6 +12,27 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-08-11 (real-time chat + read receipts)
+- **Added (real-time):** Socket.io on the Express API (`src/realtime.js`), attached to the HTTP
+  server. Clients authenticate with their Clerk session token (verified via `@clerk/backend`;
+  unauthenticated/bad tokens rejected) and join a personal room (their Clerk id). Reaches the app
+  through nginx at `/api/socket.io` (WS upgrade already configured) — no infra change.
+- **Instant delivery:** `POST /messages` emits the new message to both participants' rooms; the
+  chat + inbox update live (no refresh). Dedup by id on the client.
+- **Read receipts:** `messages.read_at` column + `POST /messages/:propertyId/read?peer=` marks the
+  peer's messages read and emits a `read` event → sender's ticks flip to ✓✓ (seen) in real time.
+  Own messages show ✓ (sent) / ✓✓ (seen).
+- **Unread badges:** conversations now return an `unread` count; the inbox shows a per-thread badge
+  and refreshes live on new messages.
+- **Typing indicator:** ephemeral `typing` socket event → the header shows "typing…".
+- **Client:** `SocketProvider` (one Clerk-authenticated socket for the app, refreshes token on
+  reconnect); chat + inbox subscribe to `message`/`read`/`typing`.
+- **Deps:** `socket.io` (backend), `socket.io-client` (mobile).
+- **Tests:** +1 (28 total) — unread count then mark-read. Verified: nginx handshake + WS upgrade;
+  socket rejects missing/invalid tokens. Live two-device delivery is the on-device check (Clerk
+  restricts minting session tokens from the Backend API).
+
+
 ### 2026-08-11 (messaging fixed properly: one thread, two-way, with sender identity)
 - **Root cause (found by inspecting the DB):** the old "receiver = owner always" bug had
   written **10 self-addressed messages** (sender = receiver = owner) for the amrit5377↔ram123

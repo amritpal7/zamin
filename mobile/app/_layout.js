@@ -22,6 +22,7 @@ import {
 } from "@expo-google-fonts/geist-mono";
 import { C } from "../src/theme";
 import { ThemeProvider } from "../src/context/ThemeContext";
+import { SocketProvider } from "../src/context/SocketContext";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -79,6 +80,7 @@ export default function RootLayout() {
     <ClerkProvider {...clerkProps}>
       <ThemeProvider>
         <SafeAreaProvider>
+          <SocketProvider>
           <StatusBar style="light" />
           <AuthGuard />
           <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: C.bg }, animation: "slide_from_right" }}>
@@ -94,6 +96,7 @@ export default function RootLayout() {
             <Stack.Screen name="notifications" />
             <Stack.Screen name="settings" />
           </Stack>
+          </SocketProvider>
         </SafeAreaProvider>
       </ThemeProvider>
     </ClerkProvider>

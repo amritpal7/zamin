@@ -2,7 +2,7 @@
 // SVG icons (back/send/bell for call), editorial header, bubble shapes via borderRadius corners.
 
 import { useTheme } from "../../src/context/ThemeContext";
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { View, Text, ScrollView, TextInput, Pressable, KeyboardAvoidingView, Platform, ActivityIndicator, StyleSheet } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -13,6 +13,7 @@ import { Icon } from "../../src/components/Icon";
 import { Avatar } from "../../src/components/ui";
 import { SEED_PROPERTIES } from "../../src/data/properties";
 import { useApi } from "../../src/hooks/useApi";
+import { useSocket } from "../../src/context/SocketContext";
 
 export default function Chat() {
   useTheme();
@@ -21,6 +22,7 @@ export default function Chat() {
   const insets = useSafeAreaInsets();
   const { user } = useUser();
   const api = useApi();
+  const socket = useSocket();
 
   // Load the REAL property so the header + receiver_id are correct for live
   // listings (UUID ids). Fall back to seed data for the demo listings.
@@ -29,7 +31,12 @@ export default function Chat() {
   const [msg, setMsg]           = useState("");
   const [loading, setLoading]   = useState(true);
   const [sending, setSending]   = useState(false);
+  const [peerTyping, setPeerTyping] = useState(false);
   const scrollRef = useRef(null);
+  const typingClearRef = useRef(null);
+  const typingEmitRef  = useRef(null);
+
+  const markRead = useCallback(() => { if (peer) api.markRead(id, peer).catch(() => {}); }, [id, peer, api]);
 
   // My identity, stamped on each message I send so the other side sees who wrote it.
   const myName   = user ? ([user.firstName, user.lastName].filter(Boolean).join(" ") || (user.username ? `@${user.username}` : "User")) : "User";
@@ -54,6 +61,56 @@ export default function Chat() {
   useEffect(() => {
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
   }, [messages]);
+
+  // Mark the peer's messages as read once the thread has loaded.
+  useEffect(() => { if (!loading) markRead(); }, [loading, markRead]);
+
+  // Real-time: incoming messages, read receipts, and typing signals for THIS thread.
+  useEffect(() => {
+    if (!socket) return;
+    const mine = String(user?.id);
+    const inThread = (m) =>
+      String(m.property_id) === String(id) &&
+      ((String(m.sender_id) === String(peer) && String(m.receiver_id) === mine) ||
+       (String(m.sender_id) === mine && String(m.receiver_id) === String(peer)));
+
+    const onMessage = (m) => {
+      if (!inThread(m)) return;
+      setMessages((prev) => (prev.some((x) => x.id === m.id) ? prev : [...prev, m]));
+      if (String(m.sender_id) === String(peer)) markRead();
+    };
+    const onRead = (data) => {
+      if (String(data.propertyId) === String(id) && String(data.by) === String(peer)) {
+        setMessages((prev) => prev.map((x) =>
+          (String(x.sender_id) === mine && !x.read_at) ? { ...x, read_at: new Date().toISOString() } : x));
+      }
+    };
+    const onTyping = (data) => {
+      if (String(data.from) !== String(peer) || String(data.propertyId) !== String(id)) return;
+      setPeerTyping(!!data.typing);
+      if (data.typing) {
+        clearTimeout(typingClearRef.current);
+        typingClearRef.current = setTimeout(() => setPeerTyping(false), 3500);
+      }
+    };
+    socket.on("message", onMessage);
+    socket.on("read", onRead);
+    socket.on("typing", onTyping);
+    return () => {
+      socket.off("message", onMessage);
+      socket.off("read", onRead);
+      socket.off("typing", onTyping);
+    };
+  }, [socket, id, peer, user?.id, markRead]);
+
+  // Emit typing (debounced off) to the peer as I type.
+  const onChangeMsg = (t) => {
+    setMsg(t);
+    if (!socket || !peer) return;
+    socket.emit("typing", { to: peer, propertyId: id, typing: true });
+    clearTimeout(typingEmitRef.current);
+    typingEmitRef.current = setTimeout(() => socket.emit("typing", { to: peer, propertyId: id, typing: false }), 1500);
+  };
 
   const send = async () => {
     if (!msg.trim() || sending) return;
@@ -117,8 +174,8 @@ export default function Chat() {
           <Text style={{ color: C.fg, fontFamily: FONT_MED, fontSize: 14 }} numberOfLines={1}>{peerName}</Text>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginTop: 1 }}>
             <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: peerGone ? C.red : C.green }} />
-            <Text style={{ color: peerGone ? C.red : C.fgDim, fontSize: 11, fontFamily: FONT }}>
-              {peerGone ? "No longer available" : "Online"}
+            <Text style={{ color: peerGone ? C.red : peerTyping ? C.amberText : C.fgDim, fontSize: 11, fontFamily: FONT }}>
+              {peerGone ? "No longer available" : peerTyping ? "typing…" : "Online"}
             </Text>
           </View>
         </View>
@@ -192,8 +249,8 @@ export default function Chat() {
                 }}>
                   <Text style={{ color: own ? C.ink : C.fg, fontFamily: FONT, fontSize: 14, lineHeight: 20, letterSpacing: 0.3 }}>{m.text}</Text>
                 </View>
-                <Text style={{ color: C.fgDim, fontSize: 10, marginTop: 4, marginHorizontal: 6, textAlign: own ? "right" : "left", fontFamily: FONT }}>
-                  {fmt(m.created_at)}
+                <Text style={{ color: own && m.read_at ? C.amberText : C.fgDim, fontSize: 10, marginTop: 4, marginHorizontal: 6, textAlign: own ? "right" : "left", fontFamily: FONT }}>
+                  {fmt(m.created_at)}{own ? (m.read_at ? "  ✓✓" : "  ✓") : ""}
                 </Text>
               </View>
             );
@@ -216,7 +273,7 @@ export default function Chat() {
             flexDirection: "row", alignItems: "center", gap: 8,
           }}>
             <TextInput
-              value={msg} onChangeText={setMsg} onSubmitEditing={send}
+              value={msg} onChangeText={onChangeMsg} onSubmitEditing={send}
               placeholder="Type a message…" placeholderTextColor={C.fgDim}
               style={{ flex: 1, paddingVertical: 10, color: C.fg, fontFamily: FONT, fontSize: 14, letterSpacing: 0.3 }}
             />

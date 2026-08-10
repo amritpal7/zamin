@@ -252,4 +252,17 @@ describe("messaging: two-way delivery", () => {
     expect(rows[0].peer_id).toBe(USER_B);
     expect(rows[0].peer_name).toBe("Ram Buyer");
   });
+
+  test("read receipts: unread count then mark-read", async () => {
+    // USER_A has 1 unread (m1 from USER_B)
+    let convos = await request(app).get("/messages").set("x-test-user", USER_A);
+    expect(convos.body.find((c) => c.property_id === pid).unread).toBe(1);
+
+    const read = await request(app).post(`/messages/${pid}/read?peer=${USER_B}`).set("x-test-user", USER_A);
+    expect(read.status).toBe(200);
+    expect(read.body.read).toBe(1);
+
+    convos = await request(app).get("/messages").set("x-test-user", USER_A);
+    expect(convos.body.find((c) => c.property_id === pid).unread).toBe(0);
+  });
 });

@@ -1,7 +1,9 @@
 require("dotenv").config();
+const http = require("http");
 const app = require("./app");
 const pool = require("./db");
 const { ensureBucket } = require("./storage");
+const { attachRealtime } = require("./realtime");
 
 const PORT = process.env.PORT || 4000;
 
@@ -16,6 +18,7 @@ async function migrate() {
   await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS sender_name VARCHAR(255)`);
   await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS sender_avatar VARCHAR(10)`);
   await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS sender_image TEXT`);
+  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS read_at TIMESTAMPTZ`);
 
   // One-time repair of the old "reply addressed to self" bug: re-address any
   // self-message (sender = receiver) to the other participant on that property,
@@ -71,8 +74,11 @@ async function migrate() {
   console.log("✅ DB migration complete (images column ready)");
 }
 
-app.listen(PORT, () => {
-  console.log(`🚀 Zamin API running on port ${PORT}`);
+const server = http.createServer(app);
+attachRealtime(server, app);
+
+server.listen(PORT, () => {
+  console.log(`🚀 Zamin API running on port ${PORT} (+ realtime)`);
   migrate().catch(err => console.error("Migration failed:", err.message));
   ensureBucket()
     .then(() => console.log("✅ Object storage bucket ready"))

@@ -91,6 +91,8 @@ export function useApi() {
     getMessages: (propertyId, peer) => request(`/messages/${propertyId}${peer ? `?peer=${encodeURIComponent(peer)}` : ""}`),
     sendMessage: (propertyId, text, receiver_id, sender = {}) =>
       request(`/messages/${propertyId}`, { method: "POST", body: JSON.stringify({ text, receiver_id, ...sender }) }),
+    markRead: (propertyId, peer) =>
+      request(`/messages/${propertyId}/read?peer=${encodeURIComponent(peer)}`, { method: "POST" }),
 
     // Auth — public, no token needed
     resolveUsername: async (username) => {

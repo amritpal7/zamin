@@ -59,6 +59,7 @@ as a foreign-key-like reference on every row.
 | Mobile/Web client | Expo SDK 54, React Native, expo-router, react-native-web |
 | Auth | Clerk (`@clerk/clerk-expo` on client, `@clerk/express` on API) |
 | API | Node + Express |
+| Real-time | Socket.io on the API (`/api/socket.io` via nginx); client `socket.io-client` |
 | Database | PostgreSQL 16 |
 | Object storage | MinIO (S3-compatible; swappable for AWS S3 / Cloudflare R2 via env only) |
 | Job queue | BullMQ on Redis 7 |
@@ -123,7 +124,16 @@ Bookmarks. `UNIQUE(clerk_user_id, property_id)`, `property_id` FK → properties
 `sender_name` / `sender_avatar` / `sender_image` (so the inbox/chat can show who wrote).
 Index on `property_id`. **Invariant:** `sender_id <> receiver_id` (enforced in the route;
 legacy self-messages repaired by migration). A conversation = (property, peer) where peer is
-"the other person"; the receiver is always the peer, never yourself.
+"the other person"; the receiver is always the peer, never yourself. `read_at` (nullable) drives
+read receipts + unread counts.
+
+### Real-time (`backend/src/realtime.js`)
+Socket.io attaches to the HTTP server. Each client authenticates with its Clerk session token
+(`@clerk/backend` `verifyToken`) and joins a personal room keyed by its Clerk id. Events:
+`message` (emitted by `POST /messages` to both participants), `read` (emitted by the mark-read
+route → flips the sender's ticks to ✓✓), `typing` (ephemeral, relayed to the peer). Reached at
+`/api/socket.io` (nginx already forwards WS upgrades). Single-node today; add
+`@socket.io/redis-adapter` (Redis is already running) to scale to multiple API instances.
 
 > **Migrations today:** there is no migration framework. `backend/src/index.js` runs a
 > hand-written idempotent `migrate()` on boot (`ALTER TABLE ... ADD COLUMN IF NOT EXISTS`)

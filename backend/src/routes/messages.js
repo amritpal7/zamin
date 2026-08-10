@@ -37,7 +37,10 @@ router.get("/", async (req, res) => {
          COALESCE(CASE WHEN c.peer_id = p.clerk_user_id THEN p.owner_avatar END,
                   (SELECT mm.sender_avatar FROM messages mm WHERE mm.property_id = c.property_id AND mm.sender_id = c.peer_id AND mm.sender_avatar IS NOT NULL ORDER BY mm.created_at DESC LIMIT 1)) AS peer_avatar,
          COALESCE(CASE WHEN c.peer_id = p.clerk_user_id THEN p.owner_image END,
-                  (SELECT mm.sender_image FROM messages mm WHERE mm.property_id = c.property_id AND mm.sender_id = c.peer_id AND mm.sender_image IS NOT NULL ORDER BY mm.created_at DESC LIMIT 1)) AS peer_image
+                  (SELECT mm.sender_image FROM messages mm WHERE mm.property_id = c.property_id AND mm.sender_id = c.peer_id AND mm.sender_image IS NOT NULL ORDER BY mm.created_at DESC LIMIT 1)) AS peer_image,
+         (SELECT count(*)::int FROM messages um
+           WHERE um.property_id = c.property_id AND um.sender_id = c.peer_id
+             AND um.receiver_id = $1 AND um.read_at IS NULL) AS unread
        FROM convo c
        JOIN properties p ON p.id = c.property_id
        ORDER BY c.property_id, c.peer_id, c.last_time DESC`,
@@ -95,7 +98,31 @@ router.post("/:propertyId", async (req, res) => {
        VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
       [req.params.propertyId, userId, receiver_id, text, sender_name || null, sender_avatar || null, sender_image || null]
     );
+    // Real-time: push the new message to both participants' rooms.
+    const io = req.app.get("io");
+    if (io) io.to(String(receiver_id)).to(String(userId)).emit("message", rows[0]);
     res.status(201).json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /messages/:propertyId/read?peer=<id> — mark messages FROM peer TO me as read.
+router.post("/:propertyId/read", async (req, res) => {
+  try {
+    if (!isUuid(req.params.propertyId)) return res.status(400).json({ error: "Invalid property id" });
+    const { userId } = getAuth(req);
+    const { peer } = req.query;
+    if (!peer) return res.status(400).json({ error: "peer is required" });
+    const { rowCount } = await pool.query(
+      `UPDATE messages SET read_at = NOW()
+       WHERE property_id = $1 AND sender_id = $2 AND receiver_id = $3 AND read_at IS NULL`,
+      [req.params.propertyId, peer, userId]
+    );
+    // Notify the peer so their sent messages flip to "seen" (✓✓) in real time.
+    const io = req.app.get("io");
+    if (io && rowCount) io.to(String(peer)).emit("read", { propertyId: req.params.propertyId, by: userId });
+    res.json({ read: rowCount });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
