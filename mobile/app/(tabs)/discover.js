@@ -5,6 +5,7 @@ import {
   ActivityIndicator, RefreshControl, StyleSheet,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { Image } from "expo-image";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -128,8 +129,10 @@ export default function Discover() {
 
   const featured  = filtered[0];
   const rest      = filtered.slice(1);
-  const firstName = user?.firstName || "there";
-  const initials  = user ? `${user.firstName?.[0] || ""}${user.lastName?.[0] || ""}`.toUpperCase() || "ME" : "?";
+  // Username-first accounts have no first/last name — fall back to the username.
+  const username  = user?.username ?? user?.unsafeMetadata?.username ?? null;
+  const firstName = user?.firstName || username || "there";
+  const initials  = user ? (`${user.firstName?.[0] || ""}${user.lastName?.[0] || ""}`.toUpperCase() || username?.[0]?.toUpperCase() || "ME") : "?";
   const ambientTone = featured?.color || C.amber;
 
   return (
@@ -161,13 +164,17 @@ export default function Discover() {
           >
             {isSignedIn
               ? (
-                <LinearGradient
-                  colors={[C.amber + "cc", C.accent?.deep || "#B86A26"]}
-                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-                  style={styles.greetAvatar}
-                >
-                  <Text style={[styles.greetAvatarTxt, { fontFamily: FONT_HEAD }]}>{initials[0]}</Text>
-                </LinearGradient>
+                user?.hasImage ? (
+                  <Image source={{ uri: user.imageUrl }} style={styles.greetAvatar} contentFit="cover" />
+                ) : (
+                  <LinearGradient
+                    colors={[C.amber + "cc", C.accent?.deep || "#B86A26"]}
+                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                    style={styles.greetAvatar}
+                  >
+                    <Text style={[styles.greetAvatarTxt, { fontFamily: FONT_HEAD }]}>{initials[0]}</Text>
+                  </LinearGradient>
+                )
               )
               : (
                 <View style={[styles.greetAvatar, { backgroundColor: C.chipBg }]}>

@@ -12,6 +12,15 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-08-11 (UI bugfixes: tab labels + home header identity)
+- **Fixed (tab bar):** inactive tab labels were invisible in both themes — `_layout.js` set
+  label `opacity` to the per-tab anim value (0 when inactive). Now interpolates to 0.8–1 so
+  all labels are visible; active state still emphasized via color + opacity.
+- **Fixed (home header):** the Discover greeting showed "Hello, there" + a generic "M" and no
+  photo for username-first accounts. Now falls back to the **username** for the name/initials
+  and shows the user's **profile picture** (`user.imageUrl`) when set. Consistent with the
+  profile/settings username+image handling.
+
 ### 2026-08-05 (bugfix: owner profile photo not visible on listings / to others)
 - **Fixed:** profile photos showed only on the owner's own Profile/Settings, never on their
   listings or to other users, because owner display data is **denormalized** onto each

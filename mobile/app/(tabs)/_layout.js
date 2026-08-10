@@ -113,7 +113,8 @@ function TabBar({ state, navigation }) {
                   {
                     color: tint,
                     fontFamily: FONT_MED,
-                    opacity: isPost ? 1 : anims[i],
+                    // Keep inactive labels visible (active = full, inactive = slightly dimmed).
+                    opacity: isPost ? 1 : anims[i].interpolate({ inputRange: [0, 1], outputRange: [0.8, 1] }),
                   },
                 ]}
               >
