@@ -189,3 +189,27 @@ describe("input validation (400)", () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe("visibility: soft-hide flagged owners", () => {
+  test("flagged owner's listing is hidden from the list but reachable by id", async () => {
+    const create = await request(app).post("/properties").set("x-test-user", USER_A).send({ ...sampleListing, title: "Hidden Listing" });
+    expect(create.status).toBe(201);
+    const id = create.body.id;
+
+    // visible while owner is active
+    let list = await request(app).get("/properties");
+    expect(list.body.some((p) => p.id === id)).toBe(true);
+
+    // soft-delete: flag the owner inactive (data stays in the DB)
+    await pool.query("UPDATE properties SET owner_active = false WHERE id = $1", [id]);
+
+    // hidden from the public list…
+    list = await request(app).get("/properties");
+    expect(list.body.some((p) => p.id === id)).toBe(false);
+
+    // …but still reachable by direct id (deep links show "unavailable" in the UI)
+    const detail = await request(app).get(`/properties/${id}`);
+    expect(detail.status).toBe(200);
+    expect(detail.body.owner_active).toBe(false);
+  });
+});

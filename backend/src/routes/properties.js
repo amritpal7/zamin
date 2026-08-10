@@ -106,7 +106,9 @@ router.post("/reconcile-owners", requireAuth, async (req, res) => {
 router.get("/", async (req, res) => {
   try {
     const { type, status, search } = req.query;
-    let query = "SELECT * FROM properties WHERE 1=1";
+    // Hide listings from flagged/deleted owners (owner_active = false). Data is
+    // retained in the DB — this is a soft-hide, not a delete. NULL/true stay visible.
+    let query = "SELECT * FROM properties WHERE owner_active IS DISTINCT FROM false";
     const params = [];
 
     if (type && type !== "All") {

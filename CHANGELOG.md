@@ -12,6 +12,17 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-08-11 (soft-hide listings from flagged/deleted owners)
+- **Changed (visibility / industry-standard soft-delete):** Listings whose owner is flagged
+  `owner_active = false` are now **hidden** from the app, not shown with an "Unavailable" badge.
+  Filtered out of `GET /properties` (discover + search) and `GET /saved`. Data is **retained**
+  in Postgres — nothing is deleted.
+- **Kept reachable by direct id** (`GET /properties/:id`) so existing deep links / chat threads
+  still resolve and show the "no longer available" state. Conversations remain visible with the
+  flag (users keep their chat history rather than having it vanish).
+- **Test:** +1 — a flagged owner's listing disappears from the list but is still reachable by id
+  (24 total). Live-verified: 2 flagged rows retained in DB, 0 shown by the public API.
+
 ### 2026-08-11 (tab bar transition animation)
 - **Changed (UI polish):** Bottom tab bar now animates on screen switch — the active
   highlight pill **fades + scales** in/out between tabs (via the existing per-tab spring),

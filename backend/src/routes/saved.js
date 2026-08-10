@@ -15,6 +15,7 @@ router.get("/", async (req, res) => {
       `SELECT p.* FROM properties p
        JOIN saved_properties s ON p.id = s.property_id
        WHERE s.clerk_user_id = $1
+         AND p.owner_active IS DISTINCT FROM false
        ORDER BY s.created_at DESC`,
       [userId]
     );
