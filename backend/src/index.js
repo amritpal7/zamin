@@ -20,6 +20,15 @@ async function migrate() {
   await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS sender_image TEXT`);
   await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS read_at TIMESTAMPTZ`);
 
+  // Expo push tokens (one user can have several devices).
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS push_tokens (
+      token         VARCHAR(255) PRIMARY KEY,
+      clerk_user_id VARCHAR(255) NOT NULL,
+      updated_at    TIMESTAMPTZ DEFAULT NOW()
+    )`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_push_tokens_user ON push_tokens(clerk_user_id)`);
+
   // One-time repair of the old "reply addressed to self" bug: re-address any
   // self-message (sender = receiver) to the other participant on that property,
   // so the history is preserved AND finally delivered. No-ops once clean.

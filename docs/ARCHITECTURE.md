@@ -118,6 +118,12 @@ Indexes: `type`, `status`, `clerk_user_id`.
 ### `saved_properties`
 Bookmarks. `UNIQUE(clerk_user_id, property_id)`, `property_id` FK → properties (ON DELETE CASCADE). Index on `clerk_user_id`.
 
+### `push_tokens`
+Expo push tokens per user for notifications. `token` PK, `clerk_user_id`, `updated_at`. One user
+may have several devices. Registered via `POST /push/register`; a message send notifies the
+recipient via the Expo Push API (`backend/src/push.js`). Remote push needs a **dev build**
+(Expo Go SDK 53+ dropped it); no-ops safely otherwise.
+
 ### `messages`
 1:1 chat between two users about a property. `property_id` FK (CASCADE), `sender_id`,
 `receiver_id` (both Clerk ids), `text`, `created_at`, plus denormalized sender identity

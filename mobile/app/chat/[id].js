@@ -14,6 +14,7 @@ import { Avatar } from "../../src/components/ui";
 import { SEED_PROPERTIES } from "../../src/data/properties";
 import { useApi } from "../../src/hooks/useApi";
 import { useSocket } from "../../src/context/SocketContext";
+import { setActiveChat } from "../../src/components/PushManager";
 
 export default function Chat() {
   useTheme();
@@ -44,6 +45,9 @@ export default function Chat() {
   const myName   = user ? ([user.firstName, user.lastName].filter(Boolean).join(" ") || (user.username ? `@${user.username}` : "User")) : "User";
   const myAvatar = user ? (`${user.firstName?.[0] || ""}${user.lastName?.[0] || ""}`.toUpperCase() || user.username?.[0]?.toUpperCase() || "U") : "U";
   const myImage  = user?.hasImage ? user.imageUrl : null;
+
+  // Suppress push banners for the chat that's currently open.
+  useEffect(() => { setActiveChat(id); return () => setActiveChat(null); }, [id]);
 
   useEffect(() => {
     api.getProperty(id).then(setP).catch(() => {});

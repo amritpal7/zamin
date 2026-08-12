@@ -71,8 +71,9 @@ The plan for taking chat further, tiered by user value. Tier 1 foundation is don
 
 **Tier 1 — feel like real chat**
 - [x] Real-time delivery, read receipts (✓/✓✓), unread badges, typing indicator (Socket.io).
-- [ ] **Push notifications** — `expo-notifications` + Expo Push (FCM/APNs) so replies land when
-      the app is closed. Biggest retention lever; do next.
+- [x] **Push notifications** (2026-08-12) — `expo-notifications` + Expo Push; message replies
+      notify the recipient, taps open the chat, in-chat banners suppressed. Needs a **dev build**
+      to actually receive (Expo Go SDK 53+ dropped remote push); no-ops safely in Expo Go/web.
 - [ ] `@socket.io/redis-adapter` once we run multiple API instances (Redis already available).
 
 **Tier 2 — move the deal forward (marketplace differentiators)**

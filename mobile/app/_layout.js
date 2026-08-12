@@ -23,6 +23,7 @@ import {
 import { C } from "../src/theme";
 import { ThemeProvider } from "../src/context/ThemeContext";
 import { SocketProvider } from "../src/context/SocketContext";
+import PushManager from "../src/components/PushManager";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -83,6 +84,7 @@ export default function RootLayout() {
           <SocketProvider>
           <StatusBar style="light" />
           <AuthGuard />
+          <PushManager />
           <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: C.bg }, animation: "slide_from_right" }}>
             <Stack.Screen name="index" />
             <Stack.Screen name="sign-in" />

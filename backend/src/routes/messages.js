@@ -3,6 +3,7 @@ const pool = require("../db");
 const { requireAuth } = require("../middleware/auth");
 const { getAuth } = require("@clerk/express");
 const { validateMessage, isUuid } = require("../validation");
+const { sendPush } = require("../push");
 
 router.use(requireAuth);
 
@@ -101,6 +102,12 @@ router.post("/:propertyId", async (req, res) => {
     // Real-time: push the new message to both participants' rooms.
     const io = req.app.get("io");
     if (io) io.to(String(receiver_id)).to(String(userId)).emit("message", rows[0]);
+    // Push notification to the recipient (for when their app is closed).
+    sendPush(receiver_id, {
+      title: sender_name || "New message",
+      body: text.length > 120 ? text.slice(0, 117) + "…" : text,
+      data: { propertyId: req.params.propertyId, peer: userId },
+    });
     res.status(201).json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });

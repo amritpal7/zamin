@@ -12,6 +12,19 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-08-12 (push notifications for new messages)
+- **Added (push):** Expo push notifications so message replies land when the app is closed.
+  - Backend: `push_tokens` table + `POST /push/register` / `POST /push/unregister`; `src/push.js`
+    `sendPush` posts to the Expo Push API. `POST /messages` notifies the recipient (title = sender,
+    body = message), fire-and-forget so a push failure never fails a send.
+  - Client: `PushManager` registers the device's Expo token on sign-in, routes notification taps to
+    the right chat, and **suppresses the banner for the chat that's already open**. Added
+    `expo-notifications` + the app.json plugin.
+- **Graceful degradation:** remote push needs a **development build** (Expo Go SDK 53+ dropped it)
+  and web has no native push — `PushManager` no-ops safely in those. Verified `sendPush` reaches
+  Expo and handles bad tokens without throwing.
+- **Tests:** +2 (31 total) — push register requires auth + a token, and stores it per user.
+
 ### 2026-08-12 (fix messages inbox flicker + chat forecast plan)
 - **Fixed (regression):** the messages inbox flickered in a render loop. The new `load`/`markRead`
   callbacks depended on `useApi()`, which isn't referentially stable, so `useFocusEffect` re-ran

@@ -41,6 +41,7 @@ const sampleListing = {
 // Clean up any rows the suite created (even if an assertion failed mid-way).
 afterAll(async () => {
   await pool.query("DELETE FROM properties WHERE clerk_user_id LIKE 'test_user_jest%'");
+  await pool.query("DELETE FROM push_tokens WHERE clerk_user_id LIKE 'test_user_jest%'");
   await pool.end();
 });
 
@@ -86,6 +87,23 @@ describe("auth guards (401 when signed out)", () => {
   });
   test("GET /messages (conversations) → 401", async () => {
     expect((await request(app).get("/messages")).status).toBe(401);
+  });
+  test("POST /push/register → 401", async () => {
+    expect((await request(app).post("/push/register").send({ token: "x" })).status).toBe(401);
+  });
+});
+
+describe("push token registration", () => {
+  test("register requires a token (400)", async () => {
+    const res = await request(app).post("/push/register").set("x-test-user", USER_A).send({});
+    expect(res.status).toBe(400);
+  });
+  test("register stores the token for the user", async () => {
+    const token = "ExponentPushToken[test-jest-a]";
+    const res = await request(app).post("/push/register").set("x-test-user", USER_A).send({ token });
+    expect(res.status).toBe(200);
+    const { rows } = await pool.query("SELECT clerk_user_id FROM push_tokens WHERE token = $1", [token]);
+    expect(rows[0]?.clerk_user_id).toBe(USER_A);
   });
 });
 

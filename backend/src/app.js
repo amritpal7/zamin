@@ -8,6 +8,7 @@ const propertiesRouter = require("./routes/properties");
 const savedRouter = require("./routes/saved");
 const messagesRouter = require("./routes/messages");
 const authRouter = require("./routes/auth");
+const pushRouter = require("./routes/push");
 
 // Builds the Express app WITHOUT starting a server. index.js adds listen() +
 // boot tasks; tests import this directly with supertest.
@@ -31,6 +32,7 @@ app.use("/properties", propertiesRouter);
 app.use("/saved", savedRouter);
 app.use("/messages", messagesRouter);
 app.use("/auth", authRouter);
+app.use("/push", pushRouter);
 
 // ── 404 / error handlers ────────────────────────────────────
 app.use((_, res) => res.status(404).json({ error: "Not found" }));

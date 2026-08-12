@@ -94,6 +94,10 @@ export function useApi() {
     markRead: (propertyId, peer) =>
       request(`/messages/${propertyId}/read?peer=${encodeURIComponent(peer)}`, { method: "POST" }),
 
+    // Push notifications
+    registerPush: (token) => request("/push/register", { method: "POST", body: JSON.stringify({ token }) }),
+    unregisterPush: (token) => request("/push/unregister", { method: "POST", body: JSON.stringify({ token }) }),
+
     // Auth — public, no token needed
     resolveUsername: async (username) => {
       const res = await fetch(`${BASE}/auth/resolve?username=${encodeURIComponent(username)}`, {

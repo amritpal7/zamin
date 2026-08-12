@@ -7,26 +7,48 @@
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#0a0a0f",
-    "splash": { "backgroundColor": "#0a0a0f", "resizeMode": "contain" },
-    "assetBundlePatterns": ["**/*"],
+    "splash": {
+      "backgroundColor": "#0a0a0f",
+      "resizeMode": "contain"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.zamin.app",
-      "config": { "googleMapsApiKey": "YOUR_IOS_GOOGLE_MAPS_KEY" },
+      "config": {
+        "googleMapsApiKey": "YOUR_IOS_GOOGLE_MAPS_KEY"
+      },
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Zamin uses your location to show nearby properties."
       }
     },
     "android": {
       "package": "com.zamin.app",
-      "config": { "googleMaps": { "apiKey": "YOUR_ANDROID_GOOGLE_MAPS_KEY" } },
-      "permissions": ["ACCESS_FINE_LOCATION"]
+      "config": {
+        "googleMaps": {
+          "apiKey": "YOUR_ANDROID_GOOGLE_MAPS_KEY"
+        }
+      },
+      "permissions": [
+        "ACCESS_FINE_LOCATION"
+      ]
     },
-    "web": { "bundler": "metro", "output": "single" },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
     "plugins": [
       "expo-router",
       "expo-secure-store",
-      ["expo-image-picker", { "photosPermission": "Zamin needs access to your photos so you can add images to your property listings." }]
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Zamin needs access to your photos so you can add images to your property listings."
+        }
+      ],
+      "expo-notifications"
     ]
   }
 }
