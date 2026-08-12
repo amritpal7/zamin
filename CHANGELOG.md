@@ -12,6 +12,14 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-08-12 (fix messages inbox flicker + chat forecast plan)
+- **Fixed (regression):** the messages inbox flickered in a render loop. The new `load`/`markRead`
+  callbacks depended on `useApi()`, which isn't referentially stable, so `useFocusEffect` re-ran
+  every render → `setState` → re-render. Pinned `api` in a ref (`apiRef`) in `messages.js` and
+  `chat/[id].js` — the same pattern already used in discover/profile. Also stops repeated
+  mark-read API calls in chat.
+- **Docs:** added the **chat enhancements forecast** (Tiers 1–3 with resources) to `docs/ROADMAP.md`.
+
 ### 2026-08-11 (real-time chat + read receipts)
 - **Added (real-time):** Socket.io on the Express API (`src/realtime.js`), attached to the HTTP
   server. Clients authenticate with their Clerk session token (verified via `@clerk/backend`;

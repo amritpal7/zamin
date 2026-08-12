@@ -65,6 +65,38 @@ Three pillars we judge every change against:
 - [ ] **Price insights** (avg ₹/sqft for area, price history, "good deal" flag).
 - [ ] **Reviews / reporting** — rate owners, flag suspicious listings, moderation queue.
 
+## Chat enhancements (forecast — discussed 2026-08-11)
+
+The plan for taking chat further, tiered by user value. Tier 1 foundation is done.
+
+**Tier 1 — feel like real chat**
+- [x] Real-time delivery, read receipts (✓/✓✓), unread badges, typing indicator (Socket.io).
+- [ ] **Push notifications** — `expo-notifications` + Expo Push (FCM/APNs) so replies land when
+      the app is closed. Biggest retention lever; do next.
+- [ ] `@socket.io/redis-adapter` once we run multiple API instances (Redis already available).
+
+**Tier 2 — move the deal forward (marketplace differentiators)**
+- [ ] **📅 Schedule a visit** — structured "visit request" message: propose date/time →
+      owner accepts / declines / reschedules. (Postgres table + UI; no new infra.)
+- [ ] **💰 Make an offer / negotiate** — structured offer card: buyer proposes ₹ → owner
+      accepts / counters / declines. Fits zero-brokerage.
+- [ ] **📷 Photo & document attachments** — reuse the existing MinIO presigned-upload + sharp
+      thumbnail pipeline for chat media.
+- [ ] **⚡ Quick replies** — canned buyer/owner messages ("Still available?", "Can I visit this
+      weekend?", "Is the price negotiable?").
+- [ ] Richer property context in the chat header (live price, "still available" badge).
+
+**Tier 3 — trust & safety (given fake-account concerns)**
+- [ ] **Report / block user** in chat.
+- [ ] **Verified badge** in the chat header (uses the existing `verified` column).
+- [ ] Contact-reveal controls (e.g. show phone only after a chat starts).
+
+**Resources / approach (for reference)**
+- Real-time: Socket.io on our Express API (chosen — we own the stack); Supabase Realtime / Stream
+  Chat are managed alternatives.
+- Push: `expo-notifications` + Expo Push service.
+- Offers / visits / receipts / attachments: Postgres tables + the existing image pipeline — no new infra.
+
 ## Security backlog (ongoing — never "done")
 
 - [ ] Rate limiting on API (esp. auth + messaging endpoints).

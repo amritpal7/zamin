@@ -1,7 +1,7 @@
 // mobile/app/messages.js — real conversations inbox.
 // Lists the current user's chats (one row per property), newest first.
 
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import { View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -19,6 +19,8 @@ export default function Messages() {
   const insets = useSafeAreaInsets();
   const { isSignedIn } = useAuth();
   const api = useApi();
+  const apiRef = useRef(api);
+  apiRef.current = api;               // useApi() isn't referentially stable — pin it in a ref
   const socket = useSocket();
   useTheme();
 
@@ -27,8 +29,8 @@ export default function Messages() {
 
   const load = useCallback(() => {
     if (!isSignedIn) { setLoading(false); return; }
-    return api.getConversations().then(setChats).catch(() => setChats([]));
-  }, [isSignedIn, api]);
+    return apiRef.current.getConversations().then(setChats).catch(() => setChats([]));
+  }, [isSignedIn]);
 
   useFocusEffect(
     useCallback(() => {

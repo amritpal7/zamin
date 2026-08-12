@@ -22,6 +22,8 @@ export default function Chat() {
   const insets = useSafeAreaInsets();
   const { user } = useUser();
   const api = useApi();
+  const apiRef = useRef(api);
+  apiRef.current = api;               // useApi() isn't referentially stable — pin it in a ref
   const socket = useSocket();
 
   // Load the REAL property so the header + receiver_id are correct for live
@@ -36,7 +38,7 @@ export default function Chat() {
   const typingClearRef = useRef(null);
   const typingEmitRef  = useRef(null);
 
-  const markRead = useCallback(() => { if (peer) api.markRead(id, peer).catch(() => {}); }, [id, peer, api]);
+  const markRead = useCallback(() => { if (peer) apiRef.current.markRead(id, peer).catch(() => {}); }, [id, peer]);
 
   // My identity, stamped on each message I send so the other side sees who wrote it.
   const myName   = user ? ([user.firstName, user.lastName].filter(Boolean).join(" ") || (user.username ? `@${user.username}` : "User")) : "User";
