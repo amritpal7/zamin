@@ -3,7 +3,7 @@
 
 import { useTheme } from "../../src/context/ThemeContext";
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { View, Text, ScrollView, TextInput, Pressable, KeyboardAvoidingView, Platform, ActivityIndicator, StyleSheet, Modal, Alert } from "react-native";
+import { View, Text, ScrollView, TextInput, Pressable, KeyboardAvoidingView, Platform, ActivityIndicator, StyleSheet, Modal, Alert, Animated } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -319,6 +319,19 @@ export default function Chat() {
     ? ["Yes, it's available", "When would you like to visit?", "I'll share more photos", "Price is negotiable"]
     : ["Is it still available?", "Can I schedule a visit?", "Can you share more photos?", "Is the price negotiable?"];
 
+  // Expanding "+" actions menu (photo / visit / offer).
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const actionsAnim = useRef(new Animated.Value(0)).current;
+  const animateActions = (open) => {
+    setActionsOpen(open);
+    Animated.spring(actionsAnim, { toValue: open ? 1 : 0, useNativeDriver: true, friction: 8, tension: 120 }).start();
+  };
+  const actions = [
+    { icon: "image", label: "Send a photo",   run: sendImage },
+    { icon: "clock", label: "Request a visit", run: () => setModal({ kind: "visit", mode: "new" }) },
+    { icon: "tag",   label: "Make an offer",   run: () => setModal({ kind: "offer", mode: "new" }) },
+  ];
+
   const fmt = (iso) => {
     const d = new Date(iso);
     return `${d.getHours() % 12 || 12}:${String(d.getMinutes()).padStart(2, "0")} ${d.getHours() >= 12 ? "PM" : "AM"}`;
@@ -451,14 +464,14 @@ export default function Chat() {
           })}
         </ScrollView>
 
-        {/* Quick replies — shown when the input is empty */}
-        {!peerGone && !msg.trim() && (
+        {/* Quick replies — shown when the input is empty and the actions menu is closed */}
+        {!peerGone && !actionsOpen && !msg.trim() && (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
-            style={{ maxHeight: 46, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.line, backgroundColor: C.glassBg }}
-            contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 9, gap: 8, alignItems: "center" }}
+            style={{ flexGrow: 0, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.line, backgroundColor: C.glassBg }}
+            contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 10, gap: 8, alignItems: "center" }}
           >
             {quickReplies.map((q) => (
               <Pressable key={q} onPress={() => sendText(q)} style={{ backgroundColor: C.chipBg, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder, borderRadius: 100, paddingHorizontal: 14, paddingVertical: 8 }}>
@@ -477,26 +490,14 @@ export default function Chat() {
           alignItems: "center",
         }}>
           {!peerGone && (
-            <>
-              <Pressable
-                onPress={sendImage}
-                style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: C.chipBg, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder, alignItems: "center", justifyContent: "center" }}
-              >
-                <Icon name="image" size={18} color={C.amberText} />
-              </Pressable>
-              <Pressable
-                onPress={() => setModal({ kind: "visit", mode: "new" })}
-                style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: C.chipBg, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder, alignItems: "center", justifyContent: "center" }}
-              >
-                <Icon name="clock" size={18} color={C.amberText} />
-              </Pressable>
-              <Pressable
-                onPress={() => setModal({ kind: "offer", mode: "new" })}
-                style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: C.chipBg, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder, alignItems: "center", justifyContent: "center" }}
-              >
-                <Icon name="tag" size={18} color={C.amberText} />
-              </Pressable>
-            </>
+            <Pressable
+              onPress={() => animateActions(!actionsOpen)}
+              style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: actionsOpen ? C.amber : C.chipBg, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder, alignItems: "center", justifyContent: "center" }}
+            >
+              <Animated.View style={{ transform: [{ rotate: actionsAnim.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "45deg"] }) }] }}>
+                <Icon name="plus" size={20} color={actionsOpen ? C.ink : C.amberText} />
+              </Animated.View>
+            </Pressable>
           )}
           <View style={{
             flex: 1, backgroundColor: C.bg,
@@ -531,6 +532,34 @@ export default function Chat() {
             </LinearGradient>
           </Pressable>
         </View>
+
+        {/* Tap-outside to close the actions menu */}
+        {actionsOpen && (
+          <Pressable onPress={() => animateActions(false)} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }} />
+        )}
+
+        {/* Expanding "+" actions menu */}
+        <Animated.View
+          pointerEvents={actionsOpen ? "auto" : "none"}
+          style={{
+            position: "absolute", left: 14, bottom: insets.bottom + 78,
+            opacity: actionsAnim,
+            transform: [{ translateY: actionsAnim.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }],
+          }}
+        >
+          {actions.map((a) => (
+            <Pressable
+              key={a.label}
+              onPress={() => { animateActions(false); a.run(); }}
+              style={{ flexDirection: "row", alignItems: "center", gap: 12, alignSelf: "flex-start", backgroundColor: C.glassBg, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder, borderRadius: 100, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 10, elevation: 6 }}
+            >
+              <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: C.chipBg, alignItems: "center", justifyContent: "center" }}>
+                <Icon name={a.icon} size={16} color={C.amberText} />
+              </View>
+              <Text style={{ color: C.fg, fontFamily: FONT_MED, fontSize: 14, paddingRight: 6 }}>{a.label}</Text>
+            </Pressable>
+          ))}
+        </Animated.View>
       </KeyboardAvoidingView>
 
       {modal?.kind === "visit" && <VisitModal onClose={() => setModal(null)} onPick={onPickValue} />}

@@ -12,6 +12,15 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-08-19 (chat composer polish: + actions menu + quick-reply fix)
+- **Changed (UI):** folded the photo / visit / offer buttons into a single **"+"** in the composer.
+  Tapping it springs open a **vertical actions menu** (Send a photo · Request a visit · Make an
+  offer) with a fade + slide-up animation; the "+" rotates to "×"; tap-outside closes. Declutters
+  the composer.
+- **Fixed (UI):** quick-reply chips were clipped ("half visible") — the row had a `maxHeight: 46`
+  smaller than the chip height. Removed the cap (`flexGrow: 0`); chips now render fully. Also hide
+  quick replies while the + menu is open.
+
 ### 2026-08-19 (Tier 2 chat: quick replies)
 - **Added (UX):** context-aware quick-reply chips above the composer (shown when the input is
   empty) — buyer set ("Is it still available?", "Can I schedule a visit?", "Can you share more
