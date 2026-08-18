@@ -12,10 +12,17 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
-### 2026-08-19 (fixes: chat back button + quick-reply appearance; add bug log)
-- **Fixed (regression):** chat header back button / taps stopped working. The overflow-menu and
-  report `Modal`s were always mounted (`visible={flag}`); on react-native-web an always-mounted
-  Modal leaves an overlay that swallows clicks. Now rendered conditionally (`{open && <Modal/>}`).
+### 2026-08-19 (fix: chat back button — real root cause)
+- **Fixed:** the chat back button did nothing because `router.back()` **no-ops when there's no
+  history to pop** (reload / deep-link / notification straight onto a `/chat/...` URL). Now guards
+  with `router.canGoBack() ? router.back() : router.replace("/messages")` (+ `hitSlop`). Note: the
+  earlier attempt (making menu/report Modals conditional) was a valid cleanup but **not** the cause
+  — recorded in `docs/BUGLOG.md` as a two-attempt fix.
+
+### 2026-08-19 (fixes: chat quick-reply appearance; add bug log)
+- **Fixed:** quick-reply chips were clipped/half-visible — a horizontal `ScrollView` with no fixed
+  height collapses on web. Wrapped it in a fixed-height (58) row, chips centered.
+- **Changed (hygiene):** render the chat header menu/report `Modal`s conditionally.
 - **Fixed:** quick-reply chips were clipped/half-visible — a horizontal `ScrollView` with no fixed
   height collapses on web. Wrapped it in a fixed-height (58) row, chips centered.
 - **Docs:** added `docs/BUGLOG.md` — bug history + a **recurring-patterns/guardrails** table

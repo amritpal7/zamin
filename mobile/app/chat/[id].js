@@ -368,7 +368,8 @@ export default function Chat() {
         flexDirection: "row", alignItems: "center", gap: 10,
       }}>
         <Pressable
-          onPress={() => router.back()}
+          onPress={() => { if (router.canGoBack()) router.back(); else router.replace("/messages"); }}
+          hitSlop={10}
           style={{
             width: 40, height: 40, borderRadius: 20,
             backgroundColor: C.chipBg,

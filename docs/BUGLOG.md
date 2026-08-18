@@ -9,7 +9,9 @@ of bug while building new features. Newest first. Update this whenever we fix a 
 | Pattern | Times hit | Guardrail |
 |---------|-----------|-----------|
 | **`useApi()` isn't referentially stable → `useFocusEffect`/effect render loop (flicker)** | 2+ | Any effect/callback that uses the API client must pin it in a ref (`const apiRef = useRef(api); apiRef.current = api;`) and depend on primitives, not `api`. Pattern already in discover/profile. |
-| **react-native-web overlay/layout quirks** | 3 | (a) Horizontal `ScrollView` with no fixed height **collapses on web** → wrap in a fixed-height `View`. (b) An **always-mounted `Modal`** (even `visible={false}`) can swallow clicks on web → render Modals **conditionally** (`{open && <Modal visible/>}`). |
+| **react-native-web layout quirks** | 2 | Horizontal `ScrollView` with no fixed height **collapses on web** → wrap in a fixed-height `View`. (Also: keyboard covering inputs.) |
+| **`router.back()` no-op / dead nav buttons** | 1 | `router.back()` does nothing with no history (reload/deep-link/notification). Use `router.canGoBack() ? router.back() : router.replace(<fallback>)`. Also: a dead button = handler-not-firing (overlay) OR handler-no-op (nav) — distinguish before fixing. |
+| **Modal hygiene** | 1 | Render `Modal`s **conditionally** (`{open && <Modal visible/>}`), not always-mounted — cleaner and avoids RN-web overlay risk. |
 | **Denormalized data not propagated to every copy** | 3 | owner_name / owner_avatar / owner_image / sender_name are copied onto rows — update ALL copies + the reconcile job, not just the Clerk user. (CLAUDE.md rule #1) |
 | **Messaging receiver/thread identity** | 2 | Receiver = the *peer* (other person), never self/owner-always; conversations keyed by (property, peer). Backend rejects `sender==receiver`. |
 | **mobile `npm install` ERESOLVE** | 2 | Install in the mobile container with `--legacy-peer-deps` (matches its Dockerfile). |
@@ -18,10 +20,19 @@ of bug while building new features. Newest first. Update this whenever we fix a 
 ## Log
 
 ### 2026-08-19
-- **Chat back button dead / header taps not registering.** Root cause: the header overflow-menu
-  and report `Modal`s were **always mounted** with `visible={menuOpen}`; on react-native-web an
-  always-mounted Modal leaves an overlay that swallows clicks. Fix: render them conditionally
-  (`{menuOpen && <Modal visible/>}`), matching the visit/offer modals. **Category:** RN-web overlay.
+- **Chat back button "not working".** ⚠️ **Two-attempt fix — first root cause was WRONG.**
+  - *First (incorrect) hypothesis:* always-mounted menu/report `Modal`s overlaying clicks →
+    made them conditional. Valid cleanup, but the back button still didn't work → **disproved the
+    overlay theory** (removing them changed nothing).
+  - *Actual root cause:* `router.back()` is a **no-op when there's no history to pop** (reload /
+    deep-link / notification straight onto a `/chat/...` URL, common on web). `onPress` was firing
+    all along. Fix: `if (router.canGoBack()) router.back(); else router.replace("/messages")`.
+  - **Lesson:** when a fix doesn't work, that *disproves* the hypothesis — don't ship the next guess
+    without checking. A dead button is either (a) the handler not firing (overlay/pointerEvents) or
+    (b) the handler firing but no-op'ing (navigation/history). Distinguish before fixing. **Category:** navigation / debugging discipline.
+- **Quick-reply chips clipped / "half visible".** Root cause: a horizontal `ScrollView` with no
+  fixed height collapses on web (earlier it was over-clipped by a too-small `maxHeight`). Fix:
+  wrap the ScrollView in a fixed-height (58) `View`, chips vertically centered. **Category:** RN-web layout.
 - **Quick-reply chips clipped / "half visible".** Root cause: a horizontal `ScrollView` with no
   fixed height collapses on web (earlier it was over-clipped by a too-small `maxHeight`). Fix:
   wrap the ScrollView in a fixed-height (58) `View`, chips vertically centered. **Category:** RN-web layout.
