@@ -504,21 +504,23 @@ export default function Chat() {
           })}
         </ScrollView>
 
-        {/* Quick replies — shown when the input is empty and the actions menu is closed */}
+        {/* Quick replies — shown when the input is empty and the actions menu is closed.
+            Wrapped in a fixed-height row so the horizontal ScrollView doesn't collapse. */}
         {!peerGone && !blocked && !actionsOpen && !msg.trim() && (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            style={{ flexGrow: 0, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.line, backgroundColor: C.glassBg }}
-            contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 10, gap: 8, alignItems: "center" }}
-          >
-            {quickReplies.map((q) => (
-              <Pressable key={q} onPress={() => sendText(q)} style={{ backgroundColor: C.chipBg, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder, borderRadius: 100, paddingHorizontal: 14, paddingVertical: 8 }}>
-                <Text style={{ color: C.fg, fontFamily: FONT, fontSize: 12 }}>{q}</Text>
-              </Pressable>
-            ))}
-          </ScrollView>
+          <View style={{ height: 58, justifyContent: "center", borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.line, backgroundColor: C.glassBg }}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ paddingHorizontal: 12, gap: 8, alignItems: "center" }}
+            >
+              {quickReplies.map((q) => (
+                <Pressable key={q} onPress={() => sendText(q)} style={{ backgroundColor: C.chipBg, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder, borderRadius: 100, paddingHorizontal: 14, paddingVertical: 9 }}>
+                  <Text style={{ color: C.fg, fontFamily: FONT, fontSize: 13 }}>{q}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
         )}
 
         {/* Composer */}
@@ -607,7 +609,8 @@ export default function Chat() {
       {modal?.kind === "offer" && <OfferModal onClose={() => setModal(null)} onPick={onPickValue} counter={modal.mode === "counter"} />}
 
       {/* Header overflow menu */}
-      <Modal transparent animationType="slide" visible={menuOpen} onRequestClose={() => setMenuOpen(false)}>
+      {menuOpen && (
+      <Modal transparent animationType="slide" visible onRequestClose={() => setMenuOpen(false)}>
         <Pressable onPress={() => setMenuOpen(false)} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" }}>
           <Pressable onPress={() => {}} style={{ backgroundColor: C.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 16, paddingBottom: 36 }}>
             <SheetRow icon="home" label="View listing" onPress={() => { setMenuOpen(false); router.push(`/property/${id}`); }} />
@@ -618,9 +621,11 @@ export default function Chat() {
           </Pressable>
         </Pressable>
       </Modal>
+      )}
 
       {/* Report reason picker */}
-      <Modal transparent animationType="slide" visible={reportOpen} onRequestClose={() => setReportOpen(false)}>
+      {reportOpen && (
+      <Modal transparent animationType="slide" visible onRequestClose={() => setReportOpen(false)}>
         <Pressable onPress={() => setReportOpen(false)} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" }}>
           <Pressable onPress={() => {}} style={{ backgroundColor: C.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 36 }}>
             <Text style={{ color: C.fg, fontFamily: FONT_HEAD, fontSize: 20, marginBottom: 14 }}>Report this user</Text>
@@ -632,6 +637,7 @@ export default function Chat() {
           </Pressable>
         </Pressable>
       </Modal>
+      )}
     </View>
   );
 }

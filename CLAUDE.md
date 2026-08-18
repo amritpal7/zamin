@@ -7,6 +7,8 @@ lives in the linked docs; this is the map + the rules + the runbook.
 - **`docs/ARCHITECTURE.md`** — full A–Z: stack, services, data model, auth, API, image pipeline. **The source of truth.**
 - **`docs/ROADMAP.md`** — the end goal + backlog. Skim at the start of a session so we don't drift.
 - **`CHANGELOG.md`** — what changed and why. Newest first.
+- **`docs/BUGLOG.md`** — bugs + root causes + **recurring patterns/guardrails**. Skim the
+  guardrails table before UI/messaging work; add an entry whenever you fix a bug.
 
 ## What Zamin is (one line)
 Zero-brokerage property marketplace. Expo/React Native (iOS/Android/web) + Express API +

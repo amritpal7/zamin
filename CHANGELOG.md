@@ -12,6 +12,16 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-08-19 (fixes: chat back button + quick-reply appearance; add bug log)
+- **Fixed (regression):** chat header back button / taps stopped working. The overflow-menu and
+  report `Modal`s were always mounted (`visible={flag}`); on react-native-web an always-mounted
+  Modal leaves an overlay that swallows clicks. Now rendered conditionally (`{open && <Modal/>}`).
+- **Fixed:** quick-reply chips were clipped/half-visible — a horizontal `ScrollView` with no fixed
+  height collapses on web. Wrapped it in a fixed-height (58) row, chips centered.
+- **Docs:** added `docs/BUGLOG.md` — bug history + a **recurring-patterns/guardrails** table
+  (useApi instability, RN-web overlay/layout quirks, denormalized-data propagation, messaging
+  identity, npm ERESOLVE). Referenced from `CLAUDE.md` so it's checked during new work.
+
 ### 2026-08-19 (Tier 3 trust & safety: block, report, verified badge)
 - **Added (safety):** block / report a user, and a verified badge in the chat header.
   - Backend: `blocks` + `reports` tables; `POST/DELETE /users/:id/block`, `GET /users/:id/block`
