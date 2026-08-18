@@ -12,6 +12,21 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-08-18 (Tier 2 chat: make an offer + counter/reschedule)
+- **Added (marketplace):** generalized the visit feature into a unified **proposal** system —
+  **visit** (`when`) and **offer** (`amount`) as structured messages — with a **counter** action.
+  - `POST /messages/:propertyId/proposal { kind, receiver_id, value }` create;
+    `POST /messages/proposal/:id/respond { status }` accept/decline (recipient only);
+    `POST /messages/proposal/:id/counter { value }` marks the original `countered` and sends a
+    fresh proposal back to the proposer (this is the "owner suggests another time / counter-offer"
+    the request asked for — immediate, not just a decline). Emits `message` + `message-update`.
+  - Client: composer now has **clock (visit)** + **tag (offer)** buttons; `ProposalCard` renders
+    both with Accept / Decline / **Suggest another time / Make a counter-offer**; `OfferModal`
+    (amount) + the existing day/time picker; counters open the picker prefilled to the kind.
+  - Replaced the visit-only endpoints (`/visit`, `/visit/:id/respond`) with the generic ones.
+- **Tests:** +3 (38 total) — offer propose/accept, invalid amount, invalid kind, and visit counter
+  (original → countered, new pending back to the buyer).
+
 ### 2026-08-18 (Tier 2 chat: schedule a visit)
 - **Added (marketplace action):** propose a property visit inside the chat. Modeled as a
   **structured message** (`messages.type='visit'` + `meta` JSON `{ when, status, by }`), so it

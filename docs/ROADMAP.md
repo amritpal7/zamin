@@ -83,11 +83,11 @@ The plan for taking chat further, tiered by user value. Tier 1 foundation is don
 - [ ] `@socket.io/redis-adapter` once we run multiple API instances (Redis already available).
 
 **Tier 2 — move the deal forward (marketplace differentiators)**
-- [x] **📅 Schedule a visit** (2026-08-18) — structured visit message (`type='visit'` + `meta`);
-      composer day/time picker, inline Accept/Decline cards, live `message-update` over sockets.
-      (Reschedule = propose a new one; a dedicated reschedule action can come later.)
-- [ ] **💰 Make an offer / negotiate** — structured offer card: buyer proposes ₹ → owner
-      accepts / counters / declines. Fits zero-brokerage.
+- [x] **📅 Schedule a visit + 💰 Make an offer** (2026-08-18) — unified **proposal** system
+      (visit=`when`, offer=`amount`) as structured messages. Recipient can **Accept / Decline /
+      Counter** — countering (e.g. owner suggests another time, or a counter-offer) marks the
+      original `countered` and sends a fresh proposal back immediately. Inline cards + day/time
+      and amount pickers (no native deps → web + Expo Go); live via `message-update` sockets.
 - [ ] **📷 Photo & document attachments** — reuse the existing MinIO presigned-upload + sharp
       thumbnail pipeline for chat media.
 - [ ] **⚡ Quick replies** — canned buyer/owner messages ("Still available?", "Can I visit this

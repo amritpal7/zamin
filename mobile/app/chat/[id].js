@@ -16,33 +16,68 @@ import { useApi } from "../../src/hooks/useApi";
 import { useSocket } from "../../src/context/SocketContext";
 import { setActiveChat } from "../../src/components/PushManager";
 
-// A visit request rendered inline in the thread. The recipient can Accept/Decline
-// while it's pending; both sides then see the resolved status.
-function VisitCard({ m, mineId, onRespond }) {
+// A visit or offer rendered inline. While pending, the recipient can Accept,
+// Decline, or Counter (propose a new time/amount). Both sides see the outcome.
+function ProposalCard({ m, mineId, onRespond, onCounter }) {
   const meta = m.meta || {};
-  const when = meta.when ? new Date(meta.when) : null;
-  const whenStr = when ? when.toLocaleString([], { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "";
+  const isVisit = m.type === "visit";
   const isRecipient = String(m.receiver_id) === String(mineId);
   const status = meta.status || "pending";
+  const valueStr = isVisit
+    ? (meta.when ? new Date(meta.when).toLocaleString([], { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "")
+    : `₹${Number(meta.amount || 0).toLocaleString("en-IN")}`;
+  const statusStr =
+    status === "accepted"  ? (isVisit ? "✓ Visit confirmed" : "✓ Offer accepted") :
+    status === "declined"  ? "✕ Declined" :
+    status === "countered" ? "↺ Countered" :
+    isRecipient ? "Pending" : "Awaiting response";
   return (
     <View style={{ alignSelf: "stretch", backgroundColor: C.glassBg, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder, borderRadius: 16, padding: 14, marginVertical: 4 }}>
-      <Text style={{ color: C.amberText, fontFamily: FONT_MED, fontSize: 12, marginBottom: 6 }}>📅 Visit request</Text>
-      <Text style={{ color: C.fg, fontFamily: FONT_HEAD, fontSize: 16, letterSpacing: -0.2 }}>{whenStr}</Text>
+      <Text style={{ color: C.amberText, fontFamily: FONT_MED, fontSize: 12, marginBottom: 6 }}>{isVisit ? "📅 Visit request" : "💰 Offer"}</Text>
+      <Text style={{ color: C.fg, fontFamily: FONT_HEAD, fontSize: 18, letterSpacing: -0.2 }}>{valueStr}</Text>
       {status === "pending" && isRecipient ? (
-        <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
-          <Pressable onPress={() => onRespond(m.id, "accepted")} style={{ flex: 1, backgroundColor: C.green, borderRadius: 100, paddingVertical: 9, alignItems: "center" }}>
-            <Text style={{ color: "#04210f", fontFamily: FONT_MED, fontSize: 13 }}>Accept</Text>
+        <>
+          <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
+            <Pressable onPress={() => onRespond(m.id, "accepted")} style={{ flex: 1, backgroundColor: C.green, borderRadius: 100, paddingVertical: 9, alignItems: "center" }}>
+              <Text style={{ color: "#04210f", fontFamily: FONT_MED, fontSize: 13 }}>Accept</Text>
+            </Pressable>
+            <Pressable onPress={() => onRespond(m.id, "declined")} style={{ flex: 1, backgroundColor: C.chipBg, borderRadius: 100, paddingVertical: 9, alignItems: "center" }}>
+              <Text style={{ color: C.fg, fontFamily: FONT_MED, fontSize: 13 }}>Decline</Text>
+            </Pressable>
+          </View>
+          <Pressable onPress={() => onCounter(m)} style={{ marginTop: 10, alignItems: "center" }}>
+            <Text style={{ color: C.amberText, fontFamily: FONT_MED, fontSize: 13 }}>{isVisit ? "Suggest another time" : "Make a counter-offer"}</Text>
           </Pressable>
-          <Pressable onPress={() => onRespond(m.id, "declined")} style={{ flex: 1, backgroundColor: C.chipBg, borderRadius: 100, paddingVertical: 9, alignItems: "center" }}>
-            <Text style={{ color: C.fg, fontFamily: FONT_MED, fontSize: 13 }}>Decline</Text>
-          </Pressable>
-        </View>
+        </>
       ) : (
         <Text style={{ marginTop: 8, fontFamily: FONT_MED, fontSize: 13, color: status === "accepted" ? C.green : status === "declined" ? C.red : C.fgDim }}>
-          {status === "accepted" ? "✓ Visit confirmed" : status === "declined" ? "✕ Declined" : isRecipient ? "Pending" : "Awaiting response"}
+          {statusStr}
         </Text>
       )}
     </View>
+  );
+}
+
+// Amount entry for a new offer or a counter-offer.
+function OfferModal({ onClose, onPick, counter }) {
+  const [amount, setAmount] = useState("");
+  const num = Number(amount.replace(/[^\d.]/g, ""));
+  return (
+    <Modal transparent animationType="slide" visible onRequestClose={onClose}>
+      <Pressable onPress={onClose} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" }}>
+        <Pressable onPress={() => {}} style={{ backgroundColor: C.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 36 }}>
+          <Text style={{ color: C.fg, fontFamily: FONT_HEAD, fontSize: 20, marginBottom: 14 }}>{counter ? "Counter offer" : "Make an offer"}</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: C.glassBg, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder, borderRadius: 14, paddingHorizontal: 16, marginBottom: 20 }}>
+            <Text style={{ color: C.amberText, fontFamily: FONT_HEAD, fontSize: 18 }}>₹</Text>
+            <TextInput value={amount} onChangeText={setAmount} keyboardType="numeric" placeholder="Amount (e.g. 2400000)" placeholderTextColor={C.fgDim}
+              style={{ flex: 1, paddingVertical: 14, color: C.fg, fontFamily: FONT, fontSize: 15 }} />
+          </View>
+          <Pressable onPress={() => num > 0 && onPick(num)} disabled={!(num > 0)} style={{ backgroundColor: C.amber, borderRadius: 100, paddingVertical: 14, alignItems: "center", opacity: num > 0 ? 1 : 0.4 }}>
+            <Text style={{ color: C.ink, fontFamily: FONT_MED, fontSize: 15 }}>{counter ? "Send counter-offer →" : "Send offer →"}</Text>
+          </Pressable>
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -104,7 +139,7 @@ export default function Chat() {
   const [loading, setLoading]   = useState(true);
   const [sending, setSending]   = useState(false);
   const [peerTyping, setPeerTyping] = useState(false);
-  const [visitOpen, setVisitOpen] = useState(false);
+  const [modal, setModal] = useState(null); // { kind: 'visit'|'offer', mode: 'new'|'counter', counterId? }
   const scrollRef = useRef(null);
   const typingClearRef = useRef(null);
   const typingEmitRef  = useRef(null);
@@ -185,22 +220,35 @@ export default function Chat() {
     };
   }, [socket, id, peer, user?.id, markRead]);
 
-  // Propose a visit / respond to one.
-  const proposeVisit = async (whenISO) => {
-    setVisitOpen(false);
-    const receiver = peer || p?.clerk_user_id;
-    if (!receiver || String(receiver) === String(user?.id)) return;
+  // Create / respond to / counter a proposal (visit or offer).
+  const ident = () => ({ sender_name: myName, sender_avatar: myAvatar, sender_image: myImage });
+  const onPickValue = async (value) => {
+    const m = modal; setModal(null);
+    if (!m) return;
     try {
-      const sent = await api.proposeVisit(id, { receiver_id: receiver, when: whenISO, sender_name: myName, sender_avatar: myAvatar, sender_image: myImage });
-      setMessages((prev) => (prev.some((x) => x.id === sent.id) ? prev : [...prev, sent]));
+      if (m.mode === "counter") {
+        const { proposal } = await api.counterProposal(m.counterId, { value, ...ident() });
+        setMessages((prev) => {
+          const withOrig = prev.map((x) => (x.id === m.counterId ? { ...x, meta: { ...(x.meta || {}), status: "countered" } } : x));
+          return withOrig.some((x) => x.id === proposal.id) ? withOrig : [...withOrig, proposal];
+        });
+      } else {
+        const receiver = peer || p?.clerk_user_id;
+        if (!receiver || String(receiver) === String(user?.id)) return;
+        const sent = m.kind === "visit"
+          ? await api.proposeVisit(id, { receiver_id: receiver, when: value, ...ident() })
+          : await api.proposeOffer(id, { receiver_id: receiver, amount: value, ...ident() });
+        setMessages((prev) => (prev.some((x) => x.id === sent.id) ? prev : [...prev, sent]));
+      }
     } catch { /* ignore */ }
   };
-  const respondVisit = async (messageId, status) => {
+  const respondProposal = async (messageId, status) => {
     try {
-      const updated = await api.respondVisit(messageId, status);
+      const updated = await api.respondProposal(messageId, status);
       setMessages((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
     } catch { /* ignore */ }
   };
+  const openCounter = (m) => setModal({ kind: m.type, mode: "counter", counterId: m.id });
 
   // Emit typing (debounced off) to the peer as I type.
   const onChangeMsg = (t) => {
@@ -333,8 +381,8 @@ export default function Chat() {
           {loading && <ActivityIndicator color={C.amber} style={{ marginTop: 20 }} />}
 
           {messages.map((m) => {
-            if (m.type === "visit") {
-              return <VisitCard key={m.id} m={m} mineId={user?.id} onRespond={respondVisit} />;
+            if (m.type === "visit" || m.type === "offer") {
+              return <ProposalCard key={m.id} m={m} mineId={user?.id} onRespond={respondProposal} onCounter={openCounter} />;
             }
             const own = m.sender_id === user?.id;
             return (
@@ -368,12 +416,20 @@ export default function Chat() {
           alignItems: "center",
         }}>
           {!peerGone && (
-            <Pressable
-              onPress={() => setVisitOpen(true)}
-              style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: C.chipBg, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder, alignItems: "center", justifyContent: "center" }}
-            >
-              <Icon name="clock" size={18} color={C.amberText} />
-            </Pressable>
+            <>
+              <Pressable
+                onPress={() => setModal({ kind: "visit", mode: "new" })}
+                style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: C.chipBg, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder, alignItems: "center", justifyContent: "center" }}
+              >
+                <Icon name="clock" size={18} color={C.amberText} />
+              </Pressable>
+              <Pressable
+                onPress={() => setModal({ kind: "offer", mode: "new" })}
+                style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: C.chipBg, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder, alignItems: "center", justifyContent: "center" }}
+              >
+                <Icon name="tag" size={18} color={C.amberText} />
+              </Pressable>
+            </>
           )}
           <View style={{
             flex: 1, backgroundColor: C.bg,
@@ -410,7 +466,8 @@ export default function Chat() {
         </View>
       </KeyboardAvoidingView>
 
-      {visitOpen && <VisitModal onClose={() => setVisitOpen(false)} onPick={proposeVisit} />}
+      {modal?.kind === "visit" && <VisitModal onClose={() => setModal(null)} onPick={onPickValue} />}
+      {modal?.kind === "offer" && <OfferModal onClose={() => setModal(null)} onPick={onPickValue} counter={modal.mode === "counter"} />}
     </View>
   );
 }

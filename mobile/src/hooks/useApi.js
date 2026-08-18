@@ -94,11 +94,15 @@ export function useApi() {
     markRead: (propertyId, peer) =>
       request(`/messages/${propertyId}/read?peer=${encodeURIComponent(peer)}`, { method: "POST" }),
 
-    // Schedule-a-visit (structured messages)
-    proposeVisit: (propertyId, body) =>
-      request(`/messages/${propertyId}/visit`, { method: "POST", body: JSON.stringify(body) }),
-    respondVisit: (messageId, status) =>
-      request(`/messages/visit/${messageId}/respond`, { method: "POST", body: JSON.stringify({ status }) }),
+    // Structured proposals: visit (when) + offer (amount), with accept/decline/counter
+    proposeVisit: (propertyId, { receiver_id, when, ...sender }) =>
+      request(`/messages/${propertyId}/proposal`, { method: "POST", body: JSON.stringify({ kind: "visit", receiver_id, value: when, ...sender }) }),
+    proposeOffer: (propertyId, { receiver_id, amount, ...sender }) =>
+      request(`/messages/${propertyId}/proposal`, { method: "POST", body: JSON.stringify({ kind: "offer", receiver_id, value: amount, ...sender }) }),
+    respondProposal: (messageId, status) =>
+      request(`/messages/proposal/${messageId}/respond`, { method: "POST", body: JSON.stringify({ status }) }),
+    counterProposal: (messageId, { value, ...sender }) =>
+      request(`/messages/proposal/${messageId}/counter`, { method: "POST", body: JSON.stringify({ value, ...sender }) }),
 
     // Push notifications
     registerPush: (token) => request("/push/register", { method: "POST", body: JSON.stringify({ token }) }),

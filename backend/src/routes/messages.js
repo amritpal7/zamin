@@ -114,49 +114,110 @@ router.post("/:propertyId", async (req, res) => {
   }
 });
 
-// POST /messages/:propertyId/visit — propose a property visit (structured message).
-// Body: { receiver_id, when (ISO), sender_name?, sender_avatar?, sender_image? }
-router.post("/:propertyId/visit", async (req, res) => {
+// ── Structured proposals: a visit (when) or an offer (amount) you can accept,
+//    decline, or counter (propose a new value back). ────────────────────────────
+const PROPOSAL_FIELD = { visit: "when", offer: "amount" };
+const PROPOSAL_TEXT  = { visit: "📅 Visit request", offer: "💰 Offer" };
+
+function proposalValue(kind, value) {
+  if (kind === "visit") return value && !isNaN(Date.parse(value)) ? value : null;
+  if (kind === "offer") { const n = Number(value); return n > 0 ? n : null; }
+  return null;
+}
+
+function createProposal(pool, { propertyId, senderId, receiverId, kind, value, extraMeta = {}, sender }) {
+  const meta = { status: "pending", by: senderId, [PROPOSAL_FIELD[kind]]: value, ...extraMeta };
+  return pool.query(
+    `INSERT INTO messages (property_id, sender_id, receiver_id, text, type, meta, sender_name, sender_avatar, sender_image)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+    [propertyId, senderId, receiverId, PROPOSAL_TEXT[kind], kind, JSON.stringify(meta),
+     sender?.sender_name || null, sender?.sender_avatar || null, sender?.sender_image || null]
+  ).then((r) => r.rows[0]);
+}
+
+// POST /messages/:propertyId/proposal { kind, receiver_id, value, sender_* } — create a proposal.
+router.post("/:propertyId/proposal", async (req, res) => {
   try {
     if (!isUuid(req.params.propertyId)) return res.status(400).json({ error: "Invalid property id" });
     const { userId } = getAuth(req);
-    const { receiver_id, when, sender_name, sender_avatar, sender_image } = req.body;
+    const { kind, receiver_id, value } = req.body;
+    if (!PROPOSAL_FIELD[kind]) return res.status(400).json({ error: "Invalid kind" });
     if (!receiver_id || String(receiver_id) === String(userId)) return res.status(400).json({ error: "Invalid recipient" });
-    if (!when || isNaN(Date.parse(when))) return res.status(400).json({ error: "Invalid date/time" });
-    const meta = { when, status: "pending", by: userId };
-    const { rows } = await pool.query(
-      `INSERT INTO messages (property_id, sender_id, receiver_id, text, type, meta, sender_name, sender_avatar, sender_image)
-       VALUES ($1, $2, $3, $4, 'visit', $5, $6, $7, $8) RETURNING *`,
-      [req.params.propertyId, userId, receiver_id, "📅 Visit request", JSON.stringify(meta), sender_name || null, sender_avatar || null, sender_image || null]
-    );
+    const v = proposalValue(kind, value);
+    if (v === null) return res.status(400).json({ error: kind === "visit" ? "Invalid date/time" : "Invalid amount" });
+
+    const row = await createProposal(pool, {
+      propertyId: req.params.propertyId, senderId: userId, receiverId: receiver_id, kind, value: v, sender: req.body,
+    });
     const io = req.app.get("io");
-    if (io) io.to(String(receiver_id)).to(String(userId)).emit("message", rows[0]);
-    sendPush(receiver_id, { title: sender_name || "Visit request", body: "Proposed a property visit", data: { propertyId: req.params.propertyId, peer: userId } });
-    res.status(201).json(rows[0]);
+    if (io) io.to(String(receiver_id)).to(String(userId)).emit("message", row);
+    sendPush(receiver_id, {
+      title: req.body.sender_name || (kind === "visit" ? "Visit request" : "New offer"),
+      body: kind === "visit" ? "Proposed a property visit" : "Made an offer",
+      data: { propertyId: req.params.propertyId, peer: userId },
+    });
+    res.status(201).json(row);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// POST /messages/visit/:messageId/respond { status: accepted|declined } — recipient responds.
-router.post("/visit/:messageId/respond", async (req, res) => {
+// POST /messages/proposal/:id/respond { status: accepted|declined } — recipient responds.
+router.post("/proposal/:id/respond", async (req, res) => {
   try {
-    if (!isUuid(req.params.messageId)) return res.status(400).json({ error: "Invalid id" });
+    if (!isUuid(req.params.id)) return res.status(400).json({ error: "Invalid id" });
     const { userId } = getAuth(req);
     const { status } = req.body;
     if (!["accepted", "declined"].includes(status)) return res.status(400).json({ error: "Invalid status" });
-    // Only the recipient of a still-pending visit may respond.
     const { rows } = await pool.query(
-      `UPDATE messages
-         SET meta = jsonb_set(meta, '{status}', to_jsonb($1::text))
-       WHERE id = $2 AND type = 'visit' AND receiver_id = $3 AND meta->>'status' = 'pending'
+      `UPDATE messages SET meta = jsonb_set(meta, '{status}', to_jsonb($1::text))
+       WHERE id = $2 AND type IN ('visit','offer') AND receiver_id = $3 AND meta->>'status' = 'pending'
        RETURNING *`,
-      [status, req.params.messageId, userId]
+      [status, req.params.id, userId]
     );
     if (!rows[0]) return res.status(404).json({ error: "Not found or not allowed" });
     const io = req.app.get("io");
     if (io) io.to(String(rows[0].sender_id)).to(String(rows[0].receiver_id)).emit("message-update", rows[0]);
     res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /messages/proposal/:id/counter { value, sender_* } — recipient marks the pending
+// proposal "countered" and sends a fresh proposal (new time/amount) back to the proposer.
+router.post("/proposal/:id/counter", async (req, res) => {
+  try {
+    if (!isUuid(req.params.id)) return res.status(400).json({ error: "Invalid id" });
+    const { userId } = getAuth(req);
+    const orig = (await pool.query(
+      `SELECT * FROM messages WHERE id = $1 AND type IN ('visit','offer') AND receiver_id = $2 AND meta->>'status' = 'pending'`,
+      [req.params.id, userId]
+    )).rows[0];
+    if (!orig) return res.status(404).json({ error: "Not found or not allowed" });
+    const kind = orig.type;
+    const v = proposalValue(kind, req.body.value);
+    if (v === null) return res.status(400).json({ error: kind === "visit" ? "Invalid date/time" : "Invalid amount" });
+
+    const updatedOrig = (await pool.query(
+      `UPDATE messages SET meta = jsonb_set(meta, '{status}', to_jsonb('countered'::text)) WHERE id = $1 RETURNING *`,
+      [orig.id]
+    )).rows[0];
+    const created = await createProposal(pool, {
+      propertyId: orig.property_id, senderId: userId, receiverId: orig.sender_id, kind, value: v,
+      extraMeta: { counter_of: orig.id }, sender: req.body,
+    });
+    const io = req.app.get("io");
+    if (io) {
+      io.to(String(orig.sender_id)).to(String(userId)).emit("message-update", updatedOrig);
+      io.to(String(orig.sender_id)).to(String(userId)).emit("message", created);
+    }
+    sendPush(orig.sender_id, {
+      title: req.body.sender_name || "Counter proposal",
+      body: kind === "visit" ? "Proposed another time" : "Countered your offer",
+      data: { propertyId: orig.property_id, peer: userId },
+    });
+    res.status(201).json({ original: updatedOrig, proposal: created });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

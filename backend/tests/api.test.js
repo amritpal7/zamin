@@ -107,34 +107,58 @@ describe("push token registration", () => {
   });
 });
 
-describe("schedule a visit", () => {
-  let pid, visitId;
+describe("proposals: visit & offer", () => {
+  let pid, visitId, offerId;
 
-  test("buyer proposes a visit → pending visit message", async () => {
-    const create = await request(app).post("/properties").set("x-test-user", USER_A).send({ ...sampleListing, title: "Visit Listing" });
+  test("propose a visit → pending visit message", async () => {
+    const create = await request(app).post("/properties").set("x-test-user", USER_A).send({ ...sampleListing, title: "Proposal Listing" });
     pid = create.body.id;
-    const when = new Date(Date.now() + 86400000).toISOString();
-    const res = await request(app).post(`/messages/${pid}/visit`).set("x-test-user", USER_B).send({ receiver_id: USER_A, when, sender_name: "Ram" });
+    const res = await request(app).post(`/messages/${pid}/proposal`).set("x-test-user", USER_B)
+      .send({ kind: "visit", receiver_id: USER_A, value: new Date(Date.now() + 86400000).toISOString(), sender_name: "Ram" });
     expect(res.status).toBe(201);
     expect(res.body.type).toBe("visit");
     expect(res.body.meta.status).toBe("pending");
     visitId = res.body.id;
   });
 
-  test("proposer cannot respond to their own visit (404)", async () => {
-    const res = await request(app).post(`/messages/visit/${visitId}/respond`).set("x-test-user", USER_B).send({ status: "accepted" });
+  test("invalid kind → 400", async () => {
+    const res = await request(app).post(`/messages/${pid}/proposal`).set("x-test-user", USER_B).send({ kind: "wedding", receiver_id: USER_A, value: "x" });
+    expect(res.status).toBe(400);
+  });
+
+  test("proposer cannot respond to their own proposal (404)", async () => {
+    const res = await request(app).post(`/messages/proposal/${visitId}/respond`).set("x-test-user", USER_B).send({ status: "accepted" });
     expect(res.status).toBe(404);
   });
 
-  test("recipient accepts → status accepted", async () => {
-    const res = await request(app).post(`/messages/visit/${visitId}/respond`).set("x-test-user", USER_A).send({ status: "accepted" });
-    expect(res.status).toBe(200);
-    expect(res.body.meta.status).toBe("accepted");
+  test("recipient counters the visit → original countered, new pending back to proposer", async () => {
+    const when2 = new Date(Date.now() + 172800000).toISOString();
+    const res = await request(app).post(`/messages/proposal/${visitId}/counter`).set("x-test-user", USER_A).send({ value: when2, sender_name: "Amrit" });
+    expect(res.status).toBe(201);
+    expect(res.body.original.meta.status).toBe("countered");
+    expect(res.body.proposal.type).toBe("visit");
+    expect(res.body.proposal.receiver_id).toBe(USER_B); // counter goes back to the buyer
+    expect(res.body.proposal.meta.status).toBe("pending");
   });
 
-  test("invalid status → 400", async () => {
-    const res = await request(app).post(`/messages/visit/${visitId}/respond`).set("x-test-user", USER_A).send({ status: "maybe" });
+  test("propose an offer → pending offer with amount", async () => {
+    const res = await request(app).post(`/messages/${pid}/proposal`).set("x-test-user", USER_B)
+      .send({ kind: "offer", receiver_id: USER_A, value: 2300000, sender_name: "Ram" });
+    expect(res.status).toBe(201);
+    expect(res.body.type).toBe("offer");
+    expect(res.body.meta.amount).toBe(2300000);
+    offerId = res.body.id;
+  });
+
+  test("offer with invalid amount → 400", async () => {
+    const res = await request(app).post(`/messages/${pid}/proposal`).set("x-test-user", USER_B).send({ kind: "offer", receiver_id: USER_A, value: -5 });
     expect(res.status).toBe(400);
+  });
+
+  test("recipient accepts the offer → accepted", async () => {
+    const res = await request(app).post(`/messages/proposal/${offerId}/respond`).set("x-test-user", USER_A).send({ status: "accepted" });
+    expect(res.status).toBe(200);
+    expect(res.body.meta.status).toBe("accepted");
   });
 });
 

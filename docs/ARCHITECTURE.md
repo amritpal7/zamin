@@ -131,10 +131,12 @@ recipient via the Expo Push API (`backend/src/push.js`). Remote push needs a **d
 Index on `property_id`. **Invariant:** `sender_id <> receiver_id` (enforced in the route;
 legacy self-messages repaired by migration). A conversation = (property, peer) where peer is
 "the other person"; the receiver is always the peer, never yourself. `read_at` (nullable) drives
-read receipts + unread counts. `type` (`text`|`visit`) + `meta` JSONB support **structured
-messages** — a visit request is `type='visit'`, `meta={ when, status: pending|accepted|declined,
-by }`, created via `POST /messages/:propertyId/visit` and resolved (recipient only) via
-`POST /messages/visit/:id/respond` (emits a `message-update` socket event).
+read receipts + unread counts. `type` (`text`|`visit`|`offer`) + `meta` JSONB support **structured proposals** — a visit
+(`meta.when`) or an offer (`meta.amount`), `meta.status` = pending|accepted|declined|countered.
+Endpoints (all under `/messages`): `POST /:propertyId/proposal { kind, receiver_id, value }`
+create; `POST /proposal/:id/respond { status }` accept/decline (recipient only); `POST
+/proposal/:id/counter { value }` marks the original `countered` and sends a fresh proposal back
+to the proposer. Status changes emit a `message-update` socket event.
 
 ### Real-time (`backend/src/realtime.js`)
 Socket.io attaches to the HTTP server. Each client authenticates with its Clerk session token
