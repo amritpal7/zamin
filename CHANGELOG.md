@@ -12,6 +12,11 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-08-19 (dev: PR-based flow + .env.example)
+- **Ops:** adopted a feature-branch → PR → CI → merge flow (GitHub CLI). `.env.example` now
+  documents the MinIO + security/ops vars (`CORS_ORIGIN`, `RATE_LIMIT_MAX`, `NODE_ENV`,
+  `RECONCILE_INTERVAL_MS`). First change merged via the new flow to validate it end to end.
+
 ### 2026-08-19 (security & CI hardening + duplicate-send fix)
 - **Fixed:** messages appeared **twice** on the sender's side (receiver saw one; reload showed one).
   Cause: optimistic message + the server's `message` socket echo to the sender's own room racing —
