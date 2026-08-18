@@ -3,7 +3,8 @@
 
 import { useTheme } from "../../src/context/ThemeContext";
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { View, Text, ScrollView, TextInput, Pressable, KeyboardAvoidingView, Platform, ActivityIndicator, StyleSheet, Modal } from "react-native";
+import { View, Text, ScrollView, TextInput, Pressable, KeyboardAvoidingView, Platform, ActivityIndicator, StyleSheet, Modal, Alert } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useUser } from "@clerk/clerk-expo";
@@ -11,6 +12,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { C, FONT, FONT_MED, FONT_HEAD } from "../../src/theme";
 import { Icon } from "../../src/components/Icon";
 import { Avatar } from "../../src/components/ui";
+import SmartImage from "../../src/components/SmartImage";
 import { SEED_PROPERTIES } from "../../src/data/properties";
 import { useApi } from "../../src/hooks/useApi";
 import { useSocket } from "../../src/context/SocketContext";
@@ -250,6 +252,27 @@ export default function Chat() {
   };
   const openCounter = (m) => setModal({ kind: m.type, mode: "counter", counterId: m.id });
 
+  // Pick + send a photo (reuses the presigned upload + thumbnail pipeline).
+  const sendImage = async () => {
+    const receiver = peer || p?.clerk_user_id;
+    if (!receiver || String(receiver) === String(user?.id)) return;
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) { Alert.alert("Permission needed", "Allow photo access to send a photo."); return; }
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.7 });
+    if (res.canceled) return;
+    const uri = res.assets[0].uri;
+    const optimistic = { id: `tmp-${Date.now()}`, sender_id: user?.id, type: "image", meta: { url: uri, thumb: uri }, created_at: new Date().toISOString() };
+    setMessages((prev) => [...prev, optimistic]);
+    try {
+      const [uploaded] = await api.uploadImages([uri]);   // { url, thumb } (+ optimistic local mapping)
+      const sent = await api.sendMessage(id, "📷 Photo", receiver, { ...ident(), image: uploaded });
+      setMessages((prev) => prev.map((m) => (m.id === optimistic.id ? sent : m)));
+    } catch {
+      setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
+      Alert.alert("Couldn't send", "The photo failed to upload. Please try again.");
+    }
+  };
+
   // Emit typing (debounced off) to the peer as I type.
   const onChangeMsg = (t) => {
     setMsg(t);
@@ -384,6 +407,20 @@ export default function Chat() {
             if (m.type === "visit" || m.type === "offer") {
               return <ProposalCard key={m.id} m={m} mineId={user?.id} onRespond={respondProposal} onCounter={openCounter} />;
             }
+            if (m.type === "image") {
+              const own = m.sender_id === user?.id;
+              const uri = m.meta?.url || m.meta?.thumb;
+              return (
+                <View key={m.id} style={{ alignSelf: own ? "flex-end" : "flex-start", maxWidth: "70%" }}>
+                  <View style={{ width: 220, height: 220, borderRadius: 16, overflow: "hidden", backgroundColor: C.chipBg }}>
+                    <SmartImage uri={uri} style={{ width: "100%", height: "100%" }} />
+                  </View>
+                  <Text style={{ color: own && m.read_at ? C.amberText : C.fgDim, fontSize: 10, marginTop: 4, marginHorizontal: 6, textAlign: own ? "right" : "left", fontFamily: FONT }}>
+                    {fmt(m.created_at)}{own ? (m.read_at ? "  ✓✓" : "  ✓") : ""}
+                  </Text>
+                </View>
+              );
+            }
             const own = m.sender_id === user?.id;
             return (
               <View key={m.id} style={{ alignSelf: own ? "flex-end" : "flex-start", maxWidth: "82%" }}>
@@ -417,6 +454,12 @@ export default function Chat() {
         }}>
           {!peerGone && (
             <>
+              <Pressable
+                onPress={sendImage}
+                style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: C.chipBg, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder, alignItems: "center", justifyContent: "center" }}
+              >
+                <Icon name="image" size={18} color={C.amberText} />
+              </Pressable>
               <Pressable
                 onPress={() => setModal({ kind: "visit", mode: "new" })}
                 style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: C.chipBg, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder, alignItems: "center", justifyContent: "center" }}

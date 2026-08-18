@@ -12,6 +12,14 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-08-19 (Tier 2 chat: photo attachments)
+- **Added:** send photos in chat (`type='image'`, `meta={ url, thumb }`), reusing the existing
+  presigned MinIO upload + sharp thumbnail pipeline. `POST /messages` now accepts an `image`
+  body (no text required); image messages render as inline photos with the same read-receipt
+  ticks. Composer gains an image button. *Purpose:* request/share specific property photos and
+  documents in the zero-brokerage flow (buyers routinely want more than the fixed gallery).
+- **Tests:** +1 (39 total) — an image message sends without requiring text.
+
 ### 2026-08-18 (Tier 2 chat: make an offer + counter/reschedule)
 - **Added (marketplace):** generalized the visit feature into a unified **proposal** system —
   **visit** (`when`) and **offer** (`amount`) as structured messages — with a **counter** action.

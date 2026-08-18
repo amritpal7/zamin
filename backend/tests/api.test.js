@@ -338,4 +338,12 @@ describe("messaging: two-way delivery", () => {
     convos = await request(app).get("/messages").set("x-test-user", USER_A);
     expect(convos.body.find((c) => c.property_id === pid).unread).toBe(0);
   });
+
+  test("image message: sends a photo without requiring text", async () => {
+    const res = await request(app).post(`/messages/${pid}`).set("x-test-user", USER_B)
+      .send({ receiver_id: USER_A, image: { url: "http://x/img.jpg", thumb: "http://x/thumb.jpg" } });
+    expect(res.status).toBe(201);
+    expect(res.body.type).toBe("image");
+    expect(res.body.meta.url).toBe("http://x/img.jpg");
+  });
 });

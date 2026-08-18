@@ -88,8 +88,9 @@ The plan for taking chat further, tiered by user value. Tier 1 foundation is don
       Counter** — countering (e.g. owner suggests another time, or a counter-offer) marks the
       original `countered` and sends a fresh proposal back immediately. Inline cards + day/time
       and amount pickers (no native deps → web + Expo Go); live via `message-update` sockets.
-- [ ] **📷 Photo & document attachments** — reuse the existing MinIO presigned-upload + sharp
-      thumbnail pipeline for chat media.
+- [x] **📷 Photo attachments** (2026-08-19) — send photos in chat (`type='image'`, `meta={url,thumb}`)
+      reusing the presigned MinIO + sharp pipeline. Purpose: request/share specific property
+      photos + documents in the broker-less flow. (Doc files / PDFs = future extension.)
 - [ ] **⚡ Quick replies** — canned buyer/owner messages ("Still available?", "Can I visit this
       weekend?", "Is the price negotiable?").
 - [ ] Richer property context in the chat header (live price, "still available" badge).

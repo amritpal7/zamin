@@ -85,19 +85,29 @@ router.get("/:propertyId", async (req, res) => {
 router.post("/:propertyId", async (req, res) => {
   try {
     if (!isUuid(req.params.propertyId)) return res.status(400).json({ error: "Invalid property id" });
-    const errors = validateMessage(req.body);
-    if (errors.length) return res.status(400).json({ error: errors.join("; "), errors });
     const { userId } = getAuth(req);
-    const { text, receiver_id, sender_name, sender_avatar, sender_image } = req.body;
+    const { receiver_id, sender_name, sender_avatar, sender_image, image } = req.body;
+    const isImage = image && typeof image.url === "string";
+    // Text messages must pass validation; image messages just need a recipient.
+    if (!isImage) {
+      const errors = validateMessage(req.body);
+      if (errors.length) return res.status(400).json({ error: errors.join("; "), errors });
+    } else if (!receiver_id) {
+      return res.status(400).json({ error: "receiver_id required" });
+    }
     // Never let a message be addressed to its own sender (the old delivery bug).
     if (String(receiver_id) === String(userId)) {
       return res.status(400).json({ error: "You can't message yourself." });
     }
 
+    const type = isImage ? "image" : "text";
+    const meta = isImage ? JSON.stringify({ url: image.url, thumb: image.thumb || image.url }) : null;
+    const text = isImage ? (req.body.text || "📷 Photo") : req.body.text;
+
     const { rows } = await pool.query(
-      `INSERT INTO messages (property_id, sender_id, receiver_id, text, sender_name, sender_avatar, sender_image)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [req.params.propertyId, userId, receiver_id, text, sender_name || null, sender_avatar || null, sender_image || null]
+      `INSERT INTO messages (property_id, sender_id, receiver_id, text, type, meta, sender_name, sender_avatar, sender_image)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [req.params.propertyId, userId, receiver_id, text, type, meta, sender_name || null, sender_avatar || null, sender_image || null]
     );
     // Real-time: push the new message to both participants' rooms.
     const io = req.app.get("io");
@@ -105,7 +115,7 @@ router.post("/:propertyId", async (req, res) => {
     // Push notification to the recipient (for when their app is closed).
     sendPush(receiver_id, {
       title: sender_name || "New message",
-      body: text.length > 120 ? text.slice(0, 117) + "…" : text,
+      body: isImage ? "📷 Photo" : (text.length > 120 ? text.slice(0, 117) + "…" : text),
       data: { propertyId: req.params.propertyId, peer: userId },
     });
     res.status(201).json(rows[0]);
