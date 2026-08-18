@@ -114,6 +114,54 @@ router.post("/:propertyId", async (req, res) => {
   }
 });
 
+// POST /messages/:propertyId/visit — propose a property visit (structured message).
+// Body: { receiver_id, when (ISO), sender_name?, sender_avatar?, sender_image? }
+router.post("/:propertyId/visit", async (req, res) => {
+  try {
+    if (!isUuid(req.params.propertyId)) return res.status(400).json({ error: "Invalid property id" });
+    const { userId } = getAuth(req);
+    const { receiver_id, when, sender_name, sender_avatar, sender_image } = req.body;
+    if (!receiver_id || String(receiver_id) === String(userId)) return res.status(400).json({ error: "Invalid recipient" });
+    if (!when || isNaN(Date.parse(when))) return res.status(400).json({ error: "Invalid date/time" });
+    const meta = { when, status: "pending", by: userId };
+    const { rows } = await pool.query(
+      `INSERT INTO messages (property_id, sender_id, receiver_id, text, type, meta, sender_name, sender_avatar, sender_image)
+       VALUES ($1, $2, $3, $4, 'visit', $5, $6, $7, $8) RETURNING *`,
+      [req.params.propertyId, userId, receiver_id, "📅 Visit request", JSON.stringify(meta), sender_name || null, sender_avatar || null, sender_image || null]
+    );
+    const io = req.app.get("io");
+    if (io) io.to(String(receiver_id)).to(String(userId)).emit("message", rows[0]);
+    sendPush(receiver_id, { title: sender_name || "Visit request", body: "Proposed a property visit", data: { propertyId: req.params.propertyId, peer: userId } });
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /messages/visit/:messageId/respond { status: accepted|declined } — recipient responds.
+router.post("/visit/:messageId/respond", async (req, res) => {
+  try {
+    if (!isUuid(req.params.messageId)) return res.status(400).json({ error: "Invalid id" });
+    const { userId } = getAuth(req);
+    const { status } = req.body;
+    if (!["accepted", "declined"].includes(status)) return res.status(400).json({ error: "Invalid status" });
+    // Only the recipient of a still-pending visit may respond.
+    const { rows } = await pool.query(
+      `UPDATE messages
+         SET meta = jsonb_set(meta, '{status}', to_jsonb($1::text))
+       WHERE id = $2 AND type = 'visit' AND receiver_id = $3 AND meta->>'status' = 'pending'
+       RETURNING *`,
+      [status, req.params.messageId, userId]
+    );
+    if (!rows[0]) return res.status(404).json({ error: "Not found or not allowed" });
+    const io = req.app.get("io");
+    if (io) io.to(String(rows[0].sender_id)).to(String(rows[0].receiver_id)).emit("message-update", rows[0]);
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /messages/:propertyId/read?peer=<id> — mark messages FROM peer TO me as read.
 router.post("/:propertyId/read", async (req, res) => {
   try {

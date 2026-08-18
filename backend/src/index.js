@@ -19,6 +19,9 @@ async function migrate() {
   await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS sender_avatar VARCHAR(10)`);
   await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS sender_image TEXT`);
   await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS read_at TIMESTAMPTZ`);
+  // Structured messages (e.g. visit requests): type + JSON meta.
+  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS type VARCHAR(20) DEFAULT 'text'`);
+  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS meta JSONB`);
 
   // Expo push tokens (one user can have several devices).
   await pool.query(`

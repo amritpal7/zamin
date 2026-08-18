@@ -107,6 +107,37 @@ describe("push token registration", () => {
   });
 });
 
+describe("schedule a visit", () => {
+  let pid, visitId;
+
+  test("buyer proposes a visit → pending visit message", async () => {
+    const create = await request(app).post("/properties").set("x-test-user", USER_A).send({ ...sampleListing, title: "Visit Listing" });
+    pid = create.body.id;
+    const when = new Date(Date.now() + 86400000).toISOString();
+    const res = await request(app).post(`/messages/${pid}/visit`).set("x-test-user", USER_B).send({ receiver_id: USER_A, when, sender_name: "Ram" });
+    expect(res.status).toBe(201);
+    expect(res.body.type).toBe("visit");
+    expect(res.body.meta.status).toBe("pending");
+    visitId = res.body.id;
+  });
+
+  test("proposer cannot respond to their own visit (404)", async () => {
+    const res = await request(app).post(`/messages/visit/${visitId}/respond`).set("x-test-user", USER_B).send({ status: "accepted" });
+    expect(res.status).toBe(404);
+  });
+
+  test("recipient accepts → status accepted", async () => {
+    const res = await request(app).post(`/messages/visit/${visitId}/respond`).set("x-test-user", USER_A).send({ status: "accepted" });
+    expect(res.status).toBe(200);
+    expect(res.body.meta.status).toBe("accepted");
+  });
+
+  test("invalid status → 400", async () => {
+    const res = await request(app).post(`/messages/visit/${visitId}/respond`).set("x-test-user", USER_A).send({ status: "maybe" });
+    expect(res.status).toBe(400);
+  });
+});
+
 describe("conversations", () => {
   test("GET /messages (authed) → 200 array", async () => {
     const res = await request(app).get("/messages").set("x-test-user", USER_A);

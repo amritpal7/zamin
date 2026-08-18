@@ -94,6 +94,12 @@ export function useApi() {
     markRead: (propertyId, peer) =>
       request(`/messages/${propertyId}/read?peer=${encodeURIComponent(peer)}`, { method: "POST" }),
 
+    // Schedule-a-visit (structured messages)
+    proposeVisit: (propertyId, body) =>
+      request(`/messages/${propertyId}/visit`, { method: "POST", body: JSON.stringify(body) }),
+    respondVisit: (messageId, status) =>
+      request(`/messages/visit/${messageId}/respond`, { method: "POST", body: JSON.stringify({ status }) }),
+
     // Push notifications
     registerPush: (token) => request("/push/register", { method: "POST", body: JSON.stringify({ token }) }),
     unregisterPush: (token) => request("/push/unregister", { method: "POST", body: JSON.stringify({ token }) }),

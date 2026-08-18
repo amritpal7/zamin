@@ -3,7 +3,7 @@
 
 import { useTheme } from "../../src/context/ThemeContext";
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { View, Text, ScrollView, TextInput, Pressable, KeyboardAvoidingView, Platform, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, ScrollView, TextInput, Pressable, KeyboardAvoidingView, Platform, ActivityIndicator, StyleSheet, Modal } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useUser } from "@clerk/clerk-expo";
@@ -15,6 +15,75 @@ import { SEED_PROPERTIES } from "../../src/data/properties";
 import { useApi } from "../../src/hooks/useApi";
 import { useSocket } from "../../src/context/SocketContext";
 import { setActiveChat } from "../../src/components/PushManager";
+
+// A visit request rendered inline in the thread. The recipient can Accept/Decline
+// while it's pending; both sides then see the resolved status.
+function VisitCard({ m, mineId, onRespond }) {
+  const meta = m.meta || {};
+  const when = meta.when ? new Date(meta.when) : null;
+  const whenStr = when ? when.toLocaleString([], { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "";
+  const isRecipient = String(m.receiver_id) === String(mineId);
+  const status = meta.status || "pending";
+  return (
+    <View style={{ alignSelf: "stretch", backgroundColor: C.glassBg, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder, borderRadius: 16, padding: 14, marginVertical: 4 }}>
+      <Text style={{ color: C.amberText, fontFamily: FONT_MED, fontSize: 12, marginBottom: 6 }}>📅 Visit request</Text>
+      <Text style={{ color: C.fg, fontFamily: FONT_HEAD, fontSize: 16, letterSpacing: -0.2 }}>{whenStr}</Text>
+      {status === "pending" && isRecipient ? (
+        <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
+          <Pressable onPress={() => onRespond(m.id, "accepted")} style={{ flex: 1, backgroundColor: C.green, borderRadius: 100, paddingVertical: 9, alignItems: "center" }}>
+            <Text style={{ color: "#04210f", fontFamily: FONT_MED, fontSize: 13 }}>Accept</Text>
+          </Pressable>
+          <Pressable onPress={() => onRespond(m.id, "declined")} style={{ flex: 1, backgroundColor: C.chipBg, borderRadius: 100, paddingVertical: 9, alignItems: "center" }}>
+            <Text style={{ color: C.fg, fontFamily: FONT_MED, fontSize: 13 }}>Decline</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <Text style={{ marginTop: 8, fontFamily: FONT_MED, fontSize: 13, color: status === "accepted" ? C.green : status === "declined" ? C.red : C.fgDim }}>
+          {status === "accepted" ? "✓ Visit confirmed" : status === "declined" ? "✕ Declined" : isRecipient ? "Pending" : "Awaiting response"}
+        </Text>
+      )}
+    </View>
+  );
+}
+
+// Bottom-sheet picker: choose a day + time slot to propose. No native date picker
+// dependency, so it works on web and Expo Go alike.
+function VisitModal({ onClose, onPick }) {
+  const [day, setDay] = useState(0);
+  const [slot, setSlot] = useState(1);
+  const days = [...Array(6)].map((_, i) => { const d = new Date(); d.setDate(d.getDate() + i); return d; });
+  const slots = [{ label: "Morning", h: 10 }, { label: "Afternoon", h: 14 }, { label: "Evening", h: 17 }];
+  const confirm = () => { const d = new Date(days[day]); d.setHours(slots[slot].h, 0, 0, 0); onPick(d.toISOString()); };
+  return (
+    <Modal transparent animationType="slide" visible onRequestClose={onClose}>
+      <Pressable onPress={onClose} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" }}>
+        <Pressable onPress={() => {}} style={{ backgroundColor: C.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 36 }}>
+          <Text style={{ color: C.fg, fontFamily: FONT_HEAD, fontSize: 20, marginBottom: 14 }}>Propose a visit</Text>
+          <Text style={{ color: C.fgDim, fontFamily: FONT, fontSize: 12, marginBottom: 8 }}>DAY</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
+            {days.map((d, i) => (
+              <Pressable key={i} onPress={() => setDay(i)} style={{ paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, marginRight: 8, backgroundColor: day === i ? C.amber : C.glassBg, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder }}>
+                <Text style={{ color: day === i ? C.ink : C.fg, fontFamily: FONT_MED, fontSize: 12 }}>{i === 0 ? "Today" : i === 1 ? "Tomorrow" : d.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+          <Text style={{ color: C.fgDim, fontFamily: FONT, fontSize: 12, marginBottom: 8 }}>TIME</Text>
+          <View style={{ flexDirection: "row", gap: 8, marginBottom: 20 }}>
+            {slots.map((s, i) => (
+              <Pressable key={i} onPress={() => setSlot(i)} style={{ flex: 1, paddingVertical: 12, borderRadius: 14, alignItems: "center", backgroundColor: slot === i ? C.amber : C.glassBg, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder }}>
+                <Text style={{ color: slot === i ? C.ink : C.fg, fontFamily: FONT_MED, fontSize: 12 }}>{s.label}</Text>
+                <Text style={{ color: slot === i ? C.ink : C.fgDim, fontFamily: FONT, fontSize: 10, marginTop: 2 }}>{s.h > 12 ? s.h - 12 : s.h} {s.h >= 12 ? "PM" : "AM"}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <Pressable onPress={confirm} style={{ backgroundColor: C.amber, borderRadius: 100, paddingVertical: 14, alignItems: "center" }}>
+            <Text style={{ color: C.ink, fontFamily: FONT_MED, fontSize: 15 }}>Send visit request →</Text>
+          </Pressable>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
 
 export default function Chat() {
   useTheme();
@@ -35,6 +104,7 @@ export default function Chat() {
   const [loading, setLoading]   = useState(true);
   const [sending, setSending]   = useState(false);
   const [peerTyping, setPeerTyping] = useState(false);
+  const [visitOpen, setVisitOpen] = useState(false);
   const scrollRef = useRef(null);
   const typingClearRef = useRef(null);
   const typingEmitRef  = useRef(null);
@@ -91,6 +161,10 @@ export default function Chat() {
           (String(x.sender_id) === mine && !x.read_at) ? { ...x, read_at: new Date().toISOString() } : x));
       }
     };
+    const onUpdate = (m) => {
+      if (!inThread(m)) return;
+      setMessages((prev) => prev.map((x) => (x.id === m.id ? m : x)));
+    };
     const onTyping = (data) => {
       if (String(data.from) !== String(peer) || String(data.propertyId) !== String(id)) return;
       setPeerTyping(!!data.typing);
@@ -102,12 +176,31 @@ export default function Chat() {
     socket.on("message", onMessage);
     socket.on("read", onRead);
     socket.on("typing", onTyping);
+    socket.on("message-update", onUpdate);
     return () => {
       socket.off("message", onMessage);
       socket.off("read", onRead);
       socket.off("typing", onTyping);
+      socket.off("message-update", onUpdate);
     };
   }, [socket, id, peer, user?.id, markRead]);
+
+  // Propose a visit / respond to one.
+  const proposeVisit = async (whenISO) => {
+    setVisitOpen(false);
+    const receiver = peer || p?.clerk_user_id;
+    if (!receiver || String(receiver) === String(user?.id)) return;
+    try {
+      const sent = await api.proposeVisit(id, { receiver_id: receiver, when: whenISO, sender_name: myName, sender_avatar: myAvatar, sender_image: myImage });
+      setMessages((prev) => (prev.some((x) => x.id === sent.id) ? prev : [...prev, sent]));
+    } catch { /* ignore */ }
+  };
+  const respondVisit = async (messageId, status) => {
+    try {
+      const updated = await api.respondVisit(messageId, status);
+      setMessages((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
+    } catch { /* ignore */ }
+  };
 
   // Emit typing (debounced off) to the peer as I type.
   const onChangeMsg = (t) => {
@@ -240,6 +333,9 @@ export default function Chat() {
           {loading && <ActivityIndicator color={C.amber} style={{ marginTop: 20 }} />}
 
           {messages.map((m) => {
+            if (m.type === "visit") {
+              return <VisitCard key={m.id} m={m} mineId={user?.id} onRespond={respondVisit} />;
+            }
             const own = m.sender_id === user?.id;
             return (
               <View key={m.id} style={{ alignSelf: own ? "flex-end" : "flex-start", maxWidth: "82%" }}>
@@ -271,6 +367,14 @@ export default function Chat() {
           backgroundColor: C.glassBg,
           alignItems: "center",
         }}>
+          {!peerGone && (
+            <Pressable
+              onPress={() => setVisitOpen(true)}
+              style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: C.chipBg, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder, alignItems: "center", justifyContent: "center" }}
+            >
+              <Icon name="clock" size={18} color={C.amberText} />
+            </Pressable>
+          )}
           <View style={{
             flex: 1, backgroundColor: C.bg,
             borderRadius: 999,
@@ -305,6 +409,8 @@ export default function Chat() {
           </Pressable>
         </View>
       </KeyboardAvoidingView>
+
+      {visitOpen && <VisitModal onClose={() => setVisitOpen(false)} onPick={proposeVisit} />}
     </View>
   );
 }

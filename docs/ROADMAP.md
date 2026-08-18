@@ -65,6 +65,12 @@ Three pillars we judge every change against:
 - [ ] **Price insights** (avg ₹/sqft for area, price history, "good deal" flag).
 - [ ] **Reviews / reporting** — rate owners, flag suspicious listings, moderation queue.
 
+## Postponed (revisit later — not blocking)
+- [ ] **EAS development build** — needed to actually *receive* push notifications on device
+      (code is done; Expo Go SDK 53+ can't receive remote push). Steps: `eas build:configure` →
+      set `extra.eas.projectId` in `app.json` → `eas build --profile development` → install.
+      Parked 2026-08-18 to keep moving on features testable in Expo Go/web.
+
 ## Chat enhancements (forecast — discussed 2026-08-11)
 
 The plan for taking chat further, tiered by user value. Tier 1 foundation is done.
@@ -77,8 +83,9 @@ The plan for taking chat further, tiered by user value. Tier 1 foundation is don
 - [ ] `@socket.io/redis-adapter` once we run multiple API instances (Redis already available).
 
 **Tier 2 — move the deal forward (marketplace differentiators)**
-- [ ] **📅 Schedule a visit** — structured "visit request" message: propose date/time →
-      owner accepts / declines / reschedules. (Postgres table + UI; no new infra.)
+- [x] **📅 Schedule a visit** (2026-08-18) — structured visit message (`type='visit'` + `meta`);
+      composer day/time picker, inline Accept/Decline cards, live `message-update` over sockets.
+      (Reschedule = propose a new one; a dedicated reschedule action can come later.)
 - [ ] **💰 Make an offer / negotiate** — structured offer card: buyer proposes ₹ → owner
       accepts / counters / declines. Fits zero-brokerage.
 - [ ] **📷 Photo & document attachments** — reuse the existing MinIO presigned-upload + sharp

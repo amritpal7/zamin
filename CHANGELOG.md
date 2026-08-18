@@ -12,6 +12,20 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-08-18 (Tier 2 chat: schedule a visit)
+- **Added (marketplace action):** propose a property visit inside the chat. Modeled as a
+  **structured message** (`messages.type='visit'` + `meta` JSON `{ when, status, by }`), so it
+  flows through the existing chat, socket, conversations, and read-receipt pipeline.
+  - `POST /messages/:propertyId/visit { receiver_id, when }` → creates a pending visit (emits
+    `message` + push). `POST /messages/visit/:id/respond { status }` → **recipient only** accepts/
+    declines (emits `message-update`).
+  - Client: a clock button in the composer opens a bottom-sheet **day + time-slot picker** (no
+    native date-picker dep → works on web + Expo Go); visits render as inline cards with
+    Accept/Decline; status updates live via the new `message-update` socket event.
+- **Postponed:** EAS development build (to receive push on device) parked in ROADMAP.
+- **Tests:** +4 (35 total) — propose creates a pending visit; proposer can't respond (404);
+  recipient accepts → accepted; invalid status → 400.
+
 ### 2026-08-12 (push notifications for new messages)
 - **Added (push):** Expo push notifications so message replies land when the app is closed.
   - Backend: `push_tokens` table + `POST /push/register` / `POST /push/unregister`; `src/push.js`

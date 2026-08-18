@@ -131,7 +131,10 @@ recipient via the Expo Push API (`backend/src/push.js`). Remote push needs a **d
 Index on `property_id`. **Invariant:** `sender_id <> receiver_id` (enforced in the route;
 legacy self-messages repaired by migration). A conversation = (property, peer) where peer is
 "the other person"; the receiver is always the peer, never yourself. `read_at` (nullable) drives
-read receipts + unread counts.
+read receipts + unread counts. `type` (`text`|`visit`) + `meta` JSONB support **structured
+messages** — a visit request is `type='visit'`, `meta={ when, status: pending|accepted|declined,
+by }`, created via `POST /messages/:propertyId/visit` and resolved (recipient only) via
+`POST /messages/visit/:id/respond` (emits a `message-update` socket event).
 
 ### Real-time (`backend/src/realtime.js`)
 Socket.io attaches to the HTTP server. Each client authenticates with its Clerk session token
