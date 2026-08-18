@@ -91,8 +91,8 @@ The plan for taking chat further, tiered by user value. Tier 1 foundation is don
 - [x] **📷 Photo attachments** (2026-08-19) — send photos in chat (`type='image'`, `meta={url,thumb}`)
       reusing the presigned MinIO + sharp pipeline. Purpose: request/share specific property
       photos + documents in the broker-less flow. (Doc files / PDFs = future extension.)
-- [ ] **⚡ Quick replies** — canned buyer/owner messages ("Still available?", "Can I visit this
-      weekend?", "Is the price negotiable?").
+- [x] **⚡ Quick replies** (2026-08-19) — context-aware canned chips (buyer vs owner) above the
+      composer; one tap to send. Client-only.
 - [ ] Richer property context in the chat header (live price, "still available" badge).
 
 **Tier 3 — trust & safety (given fake-account concerns)**

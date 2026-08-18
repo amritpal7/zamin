@@ -282,13 +282,13 @@ export default function Chat() {
     typingEmitRef.current = setTimeout(() => socket.emit("typing", { to: peer, propertyId: id, typing: false }), 1500);
   };
 
-  const send = async () => {
-    if (!msg.trim() || sending) return;
+  // Send arbitrary text (used by the composer AND quick-reply chips).
+  const sendText = async (raw) => {
+    const text = (raw || "").trim();
+    if (!text || sending) return;
     // Message the OTHER person (peer). Never address it to yourself.
     const receiver = peer || p?.clerk_user_id || p?.owner_id;
     if (!receiver || String(receiver) === String(user?.id)) return;
-    const text = msg.trim();
-    setMsg("");
     setSending(true);
     const optimistic = { id: `tmp-${Date.now()}`, sender_id: user?.id, text, created_at: new Date().toISOString(), sender_name: myName, sender_avatar: myAvatar, sender_image: myImage };
     setMessages(prev => [...prev, optimistic]);
@@ -301,6 +301,7 @@ export default function Chat() {
       setSending(false);
     }
   };
+  const send = () => { const t = msg; setMsg(""); sendText(t); };
 
   // Who I'm talking to (the peer): the owner if peer is the owner, otherwise the
   // buyer whose identity we stamped onto their messages.
@@ -311,6 +312,12 @@ export default function Chat() {
   const peerAvatar  = peerIsOwner ? (p?.owner_avatar || "??")  : (peerMsg?.sender_avatar || "??");
   const peerImage   = peerIsOwner ? (p?.owner_image || null)   : (peerMsg?.sender_image || null);
   const peerGone    = peerIsOwner && p?.owner_active === false;
+
+  // Context-aware quick replies (owner vs buyer).
+  const amOwner = !!(user?.id && p?.clerk_user_id && String(user.id) === String(p.clerk_user_id));
+  const quickReplies = amOwner
+    ? ["Yes, it's available", "When would you like to visit?", "I'll share more photos", "Price is negotiable"]
+    : ["Is it still available?", "Can I schedule a visit?", "Can you share more photos?", "Is the price negotiable?"];
 
   const fmt = (iso) => {
     const d = new Date(iso);
@@ -443,6 +450,23 @@ export default function Chat() {
             );
           })}
         </ScrollView>
+
+        {/* Quick replies — shown when the input is empty */}
+        {!peerGone && !msg.trim() && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            style={{ maxHeight: 46, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.line, backgroundColor: C.glassBg }}
+            contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 9, gap: 8, alignItems: "center" }}
+          >
+            {quickReplies.map((q) => (
+              <Pressable key={q} onPress={() => sendText(q)} style={{ backgroundColor: C.chipBg, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder, borderRadius: 100, paddingHorizontal: 14, paddingVertical: 8 }}>
+                <Text style={{ color: C.fg, fontFamily: FONT, fontSize: 12 }}>{q}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        )}
 
         {/* Composer */}
         <View style={{
