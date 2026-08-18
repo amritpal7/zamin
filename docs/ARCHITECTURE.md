@@ -320,6 +320,12 @@ Shared code in `mobile/src`:
 Derived/compose-set: `DATABASE_URL`, `S3_ENDPOINT`, `S3_BUCKET`, `S3_PUBLIC_BASE=/media`,
 `REDIS_HOST/PORT`, `EXPO_PUBLIC_API_URL`, `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`.
 
+Security/ops (optional): `CORS_ORIGIN` (comma-separated allow-list; default `*` for dev),
+`RATE_LIMIT_MAX` (per-IP/min, default 600), `NODE_ENV=production` (prod-safe error responses).
+The API uses `helmet`, `express-rate-limit` (behind nginx via `trust proxy`), and a prod-safe
+error handler. Schema migrations live in `backend/src/migrate.js` (run on boot + in test/CI
+`globalSetup`). CI: `.github/workflows/ci.yml`.
+
 ---
 
 ## 11. Running & validating locally

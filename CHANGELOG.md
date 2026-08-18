@@ -12,6 +12,20 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-08-19 (security & CI hardening + duplicate-send fix)
+- **Fixed:** messages appeared **twice** on the sender's side (receiver saw one; reload showed one).
+  Cause: optimistic message + the server's `message` socket echo to the sender's own room racing —
+  the socket appended the real message before the HTTP response replaced the optimistic one, giving
+  two copies of the same id. Fix: on HTTP resolve, drop the optimistic and add the real one only if
+  the socket echo hasn't already (dedupe by id). Applied to text + image sends. `docs/BUGLOG.md`.
+- **Security:** added `helmet` (security headers), `express-rate-limit` (600/min per IP, `trust
+  proxy` for real client IP behind nginx), **configurable CORS** (`CORS_ORIGIN`, default `*` for
+  dev), 1mb JSON body cap, and a **prod-safe error handler** (no stack/message leak when
+  `NODE_ENV=production`).
+- **CI:** GitHub Actions (`.github/workflows/ci.yml`) — spins up Postgres + Redis, loads
+  `db/init.sql`, runs the API tests on push/PR, plus `npm audit`. Extracted `migrate()` into
+  `src/migrate.js` and added a Jest `globalSetup` so tests are self-contained (schema-wise).
+
 ### 2026-08-19 (fix: chat back button — real root cause)
 - **Fixed:** the chat back button did nothing because `router.back()` **no-ops when there's no
   history to pop** (reload / deep-link / notification straight onto a `/chat/...` URL). Now guards

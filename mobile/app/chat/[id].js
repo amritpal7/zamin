@@ -287,7 +287,10 @@ export default function Chat() {
     try {
       const [uploaded] = await api.uploadImages([uri]);   // { url, thumb } (+ optimistic local mapping)
       const sent = await api.sendMessage(id, "📷 Photo", receiver, { ...ident(), image: uploaded });
-      setMessages((prev) => prev.map((m) => (m.id === optimistic.id ? sent : m)));
+      setMessages((prev) => {
+        const rest = prev.filter((m) => m.id !== optimistic.id);
+        return rest.some((m) => m.id === sent.id) ? rest : [...rest, sent];
+      });
     } catch {
       setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
       Alert.alert("Couldn't send", "The photo failed to upload. Please try again.");
@@ -315,7 +318,11 @@ export default function Chat() {
     setMessages(prev => [...prev, optimistic]);
     try {
       const sent = await api.sendMessage(id, text, receiver, { sender_name: myName, sender_avatar: myAvatar, sender_image: myImage });
-      setMessages(prev => prev.map(m => m.id === optimistic.id ? sent : m));
+      // Drop the optimistic; add the real one only if the socket echo hasn't already (dedupe by id).
+      setMessages(prev => {
+        const rest = prev.filter(m => m.id !== optimistic.id);
+        return rest.some(m => m.id === sent.id) ? rest : [...rest, sent];
+      });
     } catch {
       /* keep optimistic on failure */
     } finally {

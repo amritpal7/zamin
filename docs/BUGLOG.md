@@ -20,6 +20,13 @@ of bug while building new features. Newest first. Update this whenever we fix a 
 ## Log
 
 ### 2026-08-19
+- **Messages sent twice on the sender's screen** (receiver saw one; reload showed one). Root cause:
+  optimistic message + the server's `message` **socket echo to the sender's own room** race. The
+  socket appended the real message (real id) before the HTTP response replaced the optimistic
+  (temp id) one → two copies of the same real id. Fix: on HTTP resolve, drop the optimistic and
+  add the real only if not already present (dedupe by id). **Category:** optimistic-UI / socket echo.
+  *Guardrail:* any optimistic send that also arrives via socket must reconcile by dropping the temp
+  and de-duping the real id — never blindly `map(temp → real)`.
 - **Chat back button "not working".** ⚠️ **Two-attempt fix — first root cause was WRONG.**
   - *First (incorrect) hypothesis:* always-mounted menu/report `Modal`s overlaying clicks →
     made them conditional. Valid cleanup, but the back button still didn't work → **disproved the

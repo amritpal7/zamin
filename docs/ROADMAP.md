@@ -110,18 +110,20 @@ The plan for taking chat further, tiered by user value. Tier 1 foundation is don
 
 ## Security backlog (ongoing — never "done")
 
-- [ ] Rate limiting on API (esp. auth + messaging endpoints).
-- [ ] CORS: lock `origin: "*"` down to known origins in prod.
-- [ ] Secrets management — no secrets in git; verify `.env` is git-ignored.
+- [x] Rate limiting on API (2026-08-19) — `express-rate-limit`, 600/min per IP, `trust proxy`.
+- [x] CORS configurable (2026-08-19) — `CORS_ORIGIN` env (default `*` dev; set known origins in prod).
+- [x] Structured error handling (2026-08-19) — prod-safe handler, no stack/message leak.
+- [x] Security headers (2026-08-19) — `helmet`.
+- [x] Dependency scanning (2026-08-19) — `npm audit` in CI.
+- [ ] Secrets management — `.env` is git-ignored ✓; add secret scanning.
 - [ ] Object storage: private buckets + short-lived signed GET URLs where appropriate.
 - [ ] Authorization audit — every route checks ownership, not just authentication.
-- [ ] Dependency scanning (npm audit / Dependabot) in CI.
-- [ ] Structured error handling — never leak stack traces / internal messages to clients in prod.
 - [ ] Run `/security-review` before each significant merge.
 
 ## Platform / scale (later)
 
-- [ ] CI/CD pipeline (lint, test, build, deploy).
+- [~] CI/CD: GitHub Actions runs API tests (Postgres+Redis) + `npm audit` on push/PR (2026-08-19).
+      Next: lint, build, deploy stages.
 - [ ] Prod object storage (S3/R2) via `S3_*` env swap.
 - [ ] Observability — logs/metrics/error tracking (Sentry).
 - [ ] Standalone app builds (EAS) for App Store / Play Store.
