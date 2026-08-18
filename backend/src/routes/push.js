@@ -22,11 +22,12 @@ router.post("/register", async (req, res) => {
   }
 });
 
-// POST /push/unregister { token } — remove a token (e.g. on sign-out).
+// POST /push/unregister { token } — remove one of MY tokens (e.g. on sign-out).
 router.post("/unregister", async (req, res) => {
   try {
+    const { userId } = getAuth(req);
     const { token } = req.body;
-    if (token) await pool.query("DELETE FROM push_tokens WHERE token = $1", [token]);
+    if (token) await pool.query("DELETE FROM push_tokens WHERE token = $1 AND clerk_user_id = $2", [token, userId]);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

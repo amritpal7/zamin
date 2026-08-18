@@ -109,6 +109,14 @@ describe("push token registration", () => {
   });
 });
 
+describe("admin-only endpoints", () => {
+  test("reconcile-owners requires auth (401) and admin (403)", async () => {
+    expect((await request(app).post("/properties/reconcile-owners")).status).toBe(401);
+    // USER_A is not in ADMIN_USER_IDS (unset in tests) → forbidden
+    expect((await request(app).post("/properties/reconcile-owners").set("x-test-user", USER_A)).status).toBe(403);
+  });
+});
+
 describe("trust & safety: block & report", () => {
   let pid;
   beforeAll(async () => {
