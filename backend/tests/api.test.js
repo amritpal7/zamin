@@ -42,6 +42,8 @@ const sampleListing = {
 afterAll(async () => {
   await pool.query("DELETE FROM properties WHERE clerk_user_id LIKE 'test_user_jest%'");
   await pool.query("DELETE FROM push_tokens WHERE clerk_user_id LIKE 'test_user_jest%'");
+  await pool.query("DELETE FROM blocks WHERE blocker_id LIKE 'test_user_jest%' OR blocked_id LIKE 'test_user_jest%'");
+  await pool.query("DELETE FROM reports WHERE reporter_id LIKE 'test_user_jest%'");
   await pool.end();
 });
 
@@ -104,6 +106,42 @@ describe("push token registration", () => {
     expect(res.status).toBe(200);
     const { rows } = await pool.query("SELECT clerk_user_id FROM push_tokens WHERE token = $1", [token]);
     expect(rows[0]?.clerk_user_id).toBe(USER_A);
+  });
+});
+
+describe("trust & safety: block & report", () => {
+  let pid;
+  beforeAll(async () => {
+    const create = await request(app).post("/properties").set("x-test-user", USER_A).send({ ...sampleListing, title: "Block Listing" });
+    pid = create.body.id;
+  });
+
+  test("block requires auth (401)", async () => {
+    expect((await request(app).post(`/users/${USER_B}/block`)).status).toBe(401);
+  });
+
+  test("cannot block yourself (400)", async () => {
+    expect((await request(app).post(`/users/${USER_A}/block`).set("x-test-user", USER_A)).status).toBe(400);
+  });
+
+  test("blocking prevents messaging (403); unblock restores it", async () => {
+    expect((await request(app).post(`/users/${USER_B}/block`).set("x-test-user", USER_A)).status).toBe(200);
+    const blocked = await request(app).post(`/messages/${pid}`).set("x-test-user", USER_B).send({ text: "hi", receiver_id: USER_A });
+    expect(blocked.status).toBe(403);
+
+    const status = await request(app).get(`/users/${USER_B}/block`).set("x-test-user", USER_A);
+    expect(status.body.blockedByMe).toBe(true);
+
+    expect((await request(app).delete(`/users/${USER_B}/block`).set("x-test-user", USER_A)).status).toBe(200);
+    const ok = await request(app).post(`/messages/${pid}`).set("x-test-user", USER_B).send({ text: "hi again", receiver_id: USER_A });
+    expect(ok.status).toBe(201);
+  });
+
+  test("report stores a report", async () => {
+    const res = await request(app).post(`/users/${USER_B}/report`).set("x-test-user", USER_A).send({ reason: "Spam", property_id: pid });
+    expect(res.status).toBe(200);
+    const { rows } = await pool.query("SELECT reason FROM reports WHERE reporter_id=$1 AND reported_id=$2", [USER_A, USER_B]);
+    expect(rows.some((r) => r.reason === "Spam")).toBe(true);
   });
 });
 

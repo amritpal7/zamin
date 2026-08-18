@@ -96,9 +96,11 @@ The plan for taking chat further, tiered by user value. Tier 1 foundation is don
 - [ ] Richer property context in the chat header (live price, "still available" badge).
 
 **Tier 3 — trust & safety (given fake-account concerns)**
-- [ ] **Report / block user** in chat.
-- [ ] **Verified badge** in the chat header (uses the existing `verified` column).
+- [x] **Report / block user** (2026-08-19) — `blocks`+`reports` tables, `/users/:id/block|report`,
+      messaging rejected 403 when either party blocked the other; chat header menu + blocked banner.
+- [x] **Verified badge** in the chat header (2026-08-19) — shows when the peer owns a verified listing.
 - [ ] Contact-reveal controls (e.g. show phone only after a chat starts).
+- [ ] Moderation: auto-flag/hide after N reports; an admin review surface for `reports`.
 
 **Resources / approach (for reference)**
 - Real-time: Socket.io on our Express API (chosen — we own the stack); Supabase Realtime / Stream

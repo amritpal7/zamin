@@ -32,6 +32,24 @@ async function migrate() {
     )`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_push_tokens_user ON push_tokens(clerk_user_id)`);
 
+  // Trust & safety: blocks + reports.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS blocks (
+      blocker_id VARCHAR(255) NOT NULL,
+      blocked_id VARCHAR(255) NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      PRIMARY KEY (blocker_id, blocked_id)
+    )`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS reports (
+      id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+      reporter_id VARCHAR(255) NOT NULL,
+      reported_id VARCHAR(255) NOT NULL,
+      property_id UUID,
+      reason      VARCHAR(100),
+      created_at  TIMESTAMPTZ DEFAULT NOW()
+    )`);
+
   // One-time repair of the old "reply addressed to self" bug: re-address any
   // self-message (sender = receiver) to the other participant on that property,
   // so the history is preserved AND finally delivered. No-ops once clean.

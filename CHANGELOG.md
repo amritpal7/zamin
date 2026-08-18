@@ -12,6 +12,19 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-08-19 (Tier 3 trust & safety: block, report, verified badge)
+- **Added (safety):** block / report a user, and a verified badge in the chat header.
+  - Backend: `blocks` + `reports` tables; `POST/DELETE /users/:id/block`, `GET /users/:id/block`
+    (returns `blockedByMe`/`blockedMe`), `POST /users/:id/report { reason, property_id }`.
+    Messaging (text/image/visit/offer) is **rejected with 403 if either party blocked the other**
+    (`src/blocks.js`).
+  - Client: chat header overflow menu (View listing · Report user · Block/Unblock); a blocked
+    banner disables the composer with an Unblock action; report opens a reason picker; a
+    **✓ Verified** badge shows in the header when the peer owns a verified listing.
+- **Tests:** +4 (43 total) — block requires auth, can't block self, block → send 403 → unblock
+  restores, report stored.
+
+
 ### 2026-08-19 (chat composer polish: + actions menu + quick-reply fix)
 - **Changed (UI):** folded the photo / visit / offer buttons into a single **"+"** in the composer.
   Tapping it springs open a **vertical actions menu** (Send a photo · Request a visit · Make an

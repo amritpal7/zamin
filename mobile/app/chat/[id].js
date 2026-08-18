@@ -122,6 +122,17 @@ function VisitModal({ onClose, onPick }) {
   );
 }
 
+function SheetRow({ icon, label, onPress, danger }) {
+  return (
+    <Pressable onPress={onPress} style={{ flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 14, paddingHorizontal: 8 }}>
+      <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: danger ? C.red + "18" : C.chipBg, alignItems: "center", justifyContent: "center" }}>
+        <Icon name={icon} size={17} color={danger ? C.red : C.fg} />
+      </View>
+      <Text style={{ color: danger ? C.red : C.fg, fontFamily: FONT_MED, fontSize: 15 }}>{label}</Text>
+    </Pressable>
+  );
+}
+
 export default function Chat() {
   useTheme();
   const { id, peer } = useLocalSearchParams();
@@ -142,6 +153,9 @@ export default function Chat() {
   const [sending, setSending]   = useState(false);
   const [peerTyping, setPeerTyping] = useState(false);
   const [modal, setModal] = useState(null); // { kind: 'visit'|'offer', mode: 'new'|'counter', counterId? }
+  const [block, setBlock] = useState({ blockedByMe: false, blockedMe: false });
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   const scrollRef = useRef(null);
   const typingClearRef = useRef(null);
   const typingEmitRef  = useRef(null);
@@ -155,6 +169,13 @@ export default function Chat() {
 
   // Suppress push banners for the chat that's currently open.
   useEffect(() => { setActiveChat(id); return () => setActiveChat(null); }, [id]);
+
+  // Block relationship with the peer.
+  useEffect(() => { if (peer) apiRef.current.getBlockStatus(peer).then(setBlock).catch(() => {}); }, [peer]);
+  const blocked = block.blockedByMe || block.blockedMe;
+  const doBlock = async () => { setMenuOpen(false); try { await apiRef.current.blockUser(peer); setBlock((b) => ({ ...b, blockedByMe: true })); } catch {} };
+  const doUnblock = async () => { try { await apiRef.current.unblockUser(peer); setBlock((b) => ({ ...b, blockedByMe: false })); } catch {} };
+  const doReport = async (reason) => { setReportOpen(false); setMenuOpen(false); try { await apiRef.current.reportUser(peer, reason, id); Alert.alert("Reported", "Thanks — our team will review this."); } catch {} };
 
   useEffect(() => {
     api.getProperty(id).then(setP).catch(() => {});
@@ -361,7 +382,14 @@ export default function Chat() {
         <Avatar initials={peerAvatar} size={40} color={p?.color || C.amber} imageUrl={peerImage} />
 
         <View style={{ flex: 1 }}>
-          <Text style={{ color: C.fg, fontFamily: FONT_MED, fontSize: 14 }} numberOfLines={1}>{peerName}</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+            <Text style={{ color: C.fg, fontFamily: FONT_MED, fontSize: 14 }} numberOfLines={1}>{peerName}</Text>
+            {peerIsOwner && p?.verified && (
+              <View style={{ backgroundColor: C.green + "22", borderRadius: 100, paddingHorizontal: 6, paddingVertical: 1 }}>
+                <Text style={{ color: C.green, fontSize: 10, fontFamily: FONT_MED }}>✓ Verified</Text>
+              </View>
+            )}
+          </View>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginTop: 1 }}>
             <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: peerGone ? C.red : C.green }} />
             <Text style={{ color: peerGone ? C.red : peerTyping ? C.amberText : C.fgDim, fontSize: 11, fontFamily: FONT }}>
@@ -371,6 +399,7 @@ export default function Chat() {
         </View>
 
         <Pressable
+          onPress={() => setMenuOpen(true)}
           style={{
             width: 40, height: 40, borderRadius: 20,
             backgroundColor: C.chipBg,
@@ -378,7 +407,7 @@ export default function Chat() {
             alignItems: "center", justifyContent: "center",
           }}
         >
-          <Icon name="bell" size={16} color={C.fg} />
+          <Icon name="menu" size={16} color={C.fg} />
         </Pressable>
       </View>
 
@@ -387,6 +416,17 @@ export default function Chat() {
           <Text style={{ color: C.red, fontSize: 12, fontFamily: FONT, textAlign: "center" }}>
             ⚠ This owner's account no longer exists. They won't receive new messages.
           </Text>
+        </View>
+      )}
+
+      {blocked && (
+        <View style={{ backgroundColor: C.red + "18", paddingHorizontal: 16, paddingVertical: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10 }}>
+          <Text style={{ color: C.red, fontSize: 12, fontFamily: FONT }}>
+            {block.blockedByMe ? "You blocked this user." : "You can't reply to this conversation."}
+          </Text>
+          {block.blockedByMe && (
+            <Pressable onPress={doUnblock}><Text style={{ color: C.amberText, fontSize: 12, fontFamily: FONT_MED }}>Unblock</Text></Pressable>
+          )}
         </View>
       )}
 
@@ -465,7 +505,7 @@ export default function Chat() {
         </ScrollView>
 
         {/* Quick replies — shown when the input is empty and the actions menu is closed */}
-        {!peerGone && !actionsOpen && !msg.trim() && (
+        {!peerGone && !blocked && !actionsOpen && !msg.trim() && (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -489,7 +529,7 @@ export default function Chat() {
           backgroundColor: C.glassBg,
           alignItems: "center",
         }}>
-          {!peerGone && (
+          {!peerGone && !blocked && (
             <Pressable
               onPress={() => animateActions(!actionsOpen)}
               style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: actionsOpen ? C.amber : C.chipBg, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder, alignItems: "center", justifyContent: "center" }}
@@ -508,13 +548,14 @@ export default function Chat() {
           }}>
             <TextInput
               value={msg} onChangeText={onChangeMsg} onSubmitEditing={send}
-              placeholder="Type a message…" placeholderTextColor={C.fgDim}
+              editable={!blocked}
+              placeholder={blocked ? "Messaging unavailable" : "Type a message…"} placeholderTextColor={C.fgDim}
               style={{ flex: 1, paddingVertical: 10, color: C.fg, fontFamily: FONT, fontSize: 14, letterSpacing: 0.3 }}
             />
           </View>
           <Pressable
             onPress={send}
-            disabled={sending || !msg.trim()}
+            disabled={sending || !msg.trim() || blocked}
             style={({ pressed }) => ({
               width: 44, height: 44, borderRadius: 22,
               opacity: pressed ? 0.85 : (sending || !msg.trim()) ? 0.4 : 1,
@@ -564,6 +605,33 @@ export default function Chat() {
 
       {modal?.kind === "visit" && <VisitModal onClose={() => setModal(null)} onPick={onPickValue} />}
       {modal?.kind === "offer" && <OfferModal onClose={() => setModal(null)} onPick={onPickValue} counter={modal.mode === "counter"} />}
+
+      {/* Header overflow menu */}
+      <Modal transparent animationType="slide" visible={menuOpen} onRequestClose={() => setMenuOpen(false)}>
+        <Pressable onPress={() => setMenuOpen(false)} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" }}>
+          <Pressable onPress={() => {}} style={{ backgroundColor: C.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 16, paddingBottom: 36 }}>
+            <SheetRow icon="home" label="View listing" onPress={() => { setMenuOpen(false); router.push(`/property/${id}`); }} />
+            <SheetRow icon="bell" label="Report user" onPress={() => { setMenuOpen(false); setReportOpen(true); }} />
+            {block.blockedByMe
+              ? <SheetRow icon="user" label="Unblock user" onPress={() => { setMenuOpen(false); doUnblock(); }} />
+              : <SheetRow icon="close" label="Block user" danger onPress={doBlock} />}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Report reason picker */}
+      <Modal transparent animationType="slide" visible={reportOpen} onRequestClose={() => setReportOpen(false)}>
+        <Pressable onPress={() => setReportOpen(false)} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" }}>
+          <Pressable onPress={() => {}} style={{ backgroundColor: C.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 36 }}>
+            <Text style={{ color: C.fg, fontFamily: FONT_HEAD, fontSize: 20, marginBottom: 14 }}>Report this user</Text>
+            {["Spam", "Scam or fraud", "Fake listing", "Inappropriate", "Other"].map((r) => (
+              <Pressable key={r} onPress={() => doReport(r)} style={{ paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.line }}>
+                <Text style={{ color: C.fg, fontFamily: FONT, fontSize: 15 }}>{r}</Text>
+              </Pressable>
+            ))}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }

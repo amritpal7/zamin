@@ -104,6 +104,13 @@ export function useApi() {
     counterProposal: (messageId, { value, ...sender }) =>
       request(`/messages/proposal/${messageId}/counter`, { method: "POST", body: JSON.stringify({ value, ...sender }) }),
 
+    // Trust & safety
+    blockUser: (userId) => request(`/users/${userId}/block`, { method: "POST" }),
+    unblockUser: (userId) => request(`/users/${userId}/block`, { method: "DELETE" }),
+    getBlockStatus: (userId) => request(`/users/${userId}/block`),
+    reportUser: (userId, reason, property_id) =>
+      request(`/users/${userId}/report`, { method: "POST", body: JSON.stringify({ reason, property_id }) }),
+
     // Push notifications
     registerPush: (token) => request("/push/register", { method: "POST", body: JSON.stringify({ token }) }),
     unregisterPush: (token) => request("/push/unregister", { method: "POST", body: JSON.stringify({ token }) }),

@@ -118,6 +118,12 @@ Indexes: `type`, `status`, `clerk_user_id`.
 ### `saved_properties`
 Bookmarks. `UNIQUE(clerk_user_id, property_id)`, `property_id` FK → properties (ON DELETE CASCADE). Index on `clerk_user_id`.
 
+### `blocks` / `reports`
+Trust & safety. `blocks (blocker_id, blocked_id)` — messaging is rejected (403) when either
+party has blocked the other (`src/blocks.js`, enforced in message/proposal sends). `reports
+(reporter_id, reported_id, property_id, reason)` — a moderation queue. Endpoints under `/users`:
+`POST/DELETE /:id/block`, `GET /:id/block`, `POST /:id/report`.
+
 ### `push_tokens`
 Expo push tokens per user for notifications. `token` PK, `clerk_user_id`, `updated_at`. One user
 may have several devices. Registered via `POST /push/register`; a message send notifies the

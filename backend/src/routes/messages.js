@@ -4,6 +4,7 @@ const { requireAuth } = require("../middleware/auth");
 const { getAuth } = require("@clerk/express");
 const { validateMessage, isUuid } = require("../validation");
 const { sendPush } = require("../push");
+const { areBlocked } = require("../blocks");
 
 router.use(requireAuth);
 
@@ -99,6 +100,9 @@ router.post("/:propertyId", async (req, res) => {
     if (String(receiver_id) === String(userId)) {
       return res.status(400).json({ error: "You can't message yourself." });
     }
+    if (await areBlocked(pool, userId, receiver_id)) {
+      return res.status(403).json({ error: "Messaging is unavailable with this user." });
+    }
 
     const type = isImage ? "image" : "text";
     const meta = isImage ? JSON.stringify({ url: image.url, thumb: image.thumb || image.url }) : null;
@@ -155,6 +159,7 @@ router.post("/:propertyId/proposal", async (req, res) => {
     if (!receiver_id || String(receiver_id) === String(userId)) return res.status(400).json({ error: "Invalid recipient" });
     const v = proposalValue(kind, value);
     if (v === null) return res.status(400).json({ error: kind === "visit" ? "Invalid date/time" : "Invalid amount" });
+    if (await areBlocked(pool, userId, receiver_id)) return res.status(403).json({ error: "Unavailable with this user." });
 
     const row = await createProposal(pool, {
       propertyId: req.params.propertyId, senderId: userId, receiverId: receiver_id, kind, value: v, sender: req.body,
