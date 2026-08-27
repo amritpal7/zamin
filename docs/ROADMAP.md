@@ -60,7 +60,8 @@ Three pillars we judge every change against:
 
 - [ ] **Owner/listing verification** (phone/email/ID) → trust badge (`verified` column already exists).
 - [ ] **Geo "near me" search** (PostGIS `ST_DWithin`) + map clustering.
-- [ ] **Saved-search alerts** — persist filters, notify on new matches.
+- [x] **Saved-search alerts** (2026-08-27) — `saved_searches` + a real `notifications` store; new
+      matching listing → in-app notification (+ push). Discover "Save this search" + manager screen.
 - [ ] **In-app visit scheduling** (request/confirm viewing slots).
 - [ ] **Price insights** (avg ₹/sqft for area, price history, "good deal" flag).
 - [ ] **Reviews / reporting** — rate owners, flag suspicious listings, moderation queue.

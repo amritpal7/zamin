@@ -2,7 +2,7 @@ import { useTheme } from "../../src/context/ThemeContext";
 import React, { useState, useCallback, useRef } from "react";
 import {
   View, Text, ScrollView, Pressable, TextInput,
-  ActivityIndicator, RefreshControl, StyleSheet,
+  ActivityIndicator, RefreshControl, StyleSheet, Alert,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Image } from "expo-image";
@@ -113,6 +113,16 @@ export default function Discover() {
       apiRef.current.getSaved().then(d => setSaved(d.map(p => p.id))).catch(() => {});
     }, [isSignedIn])
   );
+
+  const saveSearch = async () => {
+    if (!isSignedIn) { router.push("/sign-in"); return; }
+    try {
+      await apiRef.current.createSavedSearch({ type, status, search });
+      Alert.alert("Search saved", "We'll notify you when new listings match this search.");
+    } catch {
+      Alert.alert("Couldn't save", "Please try again.");
+    }
+  };
 
   const toggleSave = async (p) => {
     if (!isSignedIn) { router.push("/sign-in"); return; }
@@ -246,6 +256,23 @@ export default function Discover() {
             <Chip key={f} label={f} active={status === f} onPress={() => setStatus(f)} />
           ))}
         </ScrollView>
+
+        {/* Save this search → get alerts on new matches */}
+        <View style={{ flexDirection: "row", gap: 10, paddingHorizontal: 18, paddingTop: 12 }}>
+          <Pressable
+            onPress={saveSearch}
+            style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: C.glassBg, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder, borderRadius: 999, paddingVertical: 11 }}
+          >
+            <Icon name="bell" size={15} color={C.amberText} />
+            <Text style={{ color: C.amberText, fontFamily: FONT_MED, fontSize: 13 }}>Save this search · get alerts</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => (isSignedIn ? router.push("/saved-searches") : router.push("/sign-in"))}
+            style={{ width: 46, alignItems: "center", justifyContent: "center", backgroundColor: C.glassBg, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder, borderRadius: 999 }}
+          >
+            <Icon name="bookmark" size={16} color={C.fg} />
+          </Pressable>
+        </View>
 
         {/* ── Featured card ── */}
         {featured && (

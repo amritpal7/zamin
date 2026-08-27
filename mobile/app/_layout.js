@@ -96,6 +96,7 @@ export default function RootLayout() {
             <Stack.Screen name="my-listings" />
             <Stack.Screen name="messages" />
             <Stack.Screen name="notifications" />
+            <Stack.Screen name="saved-searches" />
             <Stack.Screen name="settings" />
           </Stack>
           </SocketProvider>

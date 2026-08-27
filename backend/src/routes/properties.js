@@ -8,6 +8,7 @@ const { putObject, presignPut } = require("../storage");
 const { thumbnailQueue } = require("../queue");
 const { validateProperty, isUuid } = require("../validation");
 const { reconcileOwners } = require("../clerkUsers");
+const { notifyListingMatch } = require("../notify");
 
 const MAX_IMAGES = 8;
 const MAX_IMAGE_MB = 8;
@@ -218,6 +219,8 @@ router.post("/", requireAuth, async (req, res) => {
        RETURNING *`,
       [userId, owner_name, owner_phone, owner_avatar, owner_image || null, title, description, type, status, price, area, beds, baths, location, latitude, longitude, tags, img || "🏠", color || "#f0a500", images || [], thumbnails || []]
     );
+    // Notify users whose saved search matches this new listing (best-effort; never fails create).
+    try { await notifyListingMatch(pool, rows[0]); } catch (e) { console.error("saved-search notify failed:", e.message); }
     res.status(201).json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });

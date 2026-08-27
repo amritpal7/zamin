@@ -114,5 +114,14 @@ export function useApi() {
     // Push notifications
     registerPush: (token) => request("/push/register", { method: "POST", body: JSON.stringify({ token }) }),
     unregisterPush: (token) => request("/push/unregister", { method: "POST", body: JSON.stringify({ token }) }),
+
+    // Notifications store
+    getNotifications: () => request("/notifications"),
+    markNotificationsRead: () => request("/notifications/read", { method: "POST" }),
+
+    // Saved searches
+    createSavedSearch: (body) => request("/saved-searches", { method: "POST", body: JSON.stringify(body) }),
+    getSavedSearches: () => request("/saved-searches"),
+    deleteSavedSearch: (id) => request(`/saved-searches/${id}`, { method: "DELETE" }),
   }), [request]);
 }
