@@ -15,6 +15,7 @@ const MENU = [
   { icon: "home",     label: "My Listings",   sub: "Properties you've posted",  route: "/my-listings" },
   { icon: "bell",     label: "Messages",       sub: "Chats with owners",         route: "/messages"    },
   { icon: "bell",     label: "Notifications",  sub: "Alerts & updates",          route: "/notifications"},
+  { icon: "search",   label: "Saved searches", sub: "Alerts on new matches",     route: "/saved-searches"},
   { icon: "settings", label: "Settings",       sub: "Profile, security, theme",  route: "/settings"    },
   { icon: "globe",    label: "Help & Support", sub: "FAQ and contact",           route: null            },
 ];

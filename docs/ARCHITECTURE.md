@@ -118,6 +118,14 @@ Indexes: `type`, `status`, `clerk_user_id`.
 ### `saved_properties`
 Bookmarks. `UNIQUE(clerk_user_id, property_id)`, `property_id` FK → properties (ON DELETE CASCADE). Index on `clerk_user_id`.
 
+### `saved_searches` / `notifications`
+**Saved-search alerts.** `saved_searches (clerk_user_id, name, type, status, search)` — a buyer's
+filters. On `POST /properties`, `notifyListingMatch` (`src/notify.js`) finds saved searches that
+match (type/status wildcard-or-equal + free-text in title/location, owner excluded) and writes a
+`notifications` row (+ push). `notifications (clerk_user_id, type, title, body, data, read_at)` is
+the app's notification feed (`new_message` + `listing_match`); `GET /notifications` (+ unread),
+`POST /notifications/read`. Endpoints: `/saved-searches` (POST/GET/DELETE), `/notifications`.
+
 ### `blocks` / `reports`
 Trust & safety. `blocks (blocker_id, blocked_id)` — messaging is rejected (403) when either
 party has blocked the other (`src/blocks.js`, enforced in message/proposal sends). `reports

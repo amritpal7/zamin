@@ -12,6 +12,23 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-08-27 (feature: saved-search alerts + real notifications store)
+- **Added:** save a search (discover filters: type/status/text) and get **alerted when a new
+  matching listing is posted**.
+  - Backend: `saved_searches` + `notifications` tables. `POST/GET /saved-searches`,
+    `DELETE /saved-searches/:id`; `GET /notifications` (+ unread count), `POST /notifications/read`.
+    `notifyListingMatch` runs on `POST /properties` → inserts a `listing_match` notification (+ push)
+    for each matching searcher (owner excluded). `POST /messages` now also writes a `new_message`
+    notification.
+  - Replaced the derive-from-conversations notifications screen with a real store feed
+    (`notifications.js` reads `GET /notifications`, marks read on open; new/listing rows with the
+    right tap target). Discover gains a **“Save this search · get alerts”** button + a saved-searches
+    manager screen (`saved-searches.js`, linked from Profile). Push taps route to the property for
+    listing alerts.
+  - **Tests:** +3 (49 total) — saved-search CRUD (auth-scoped), matching notifies the searcher (and
+    non-match/own-listing don't), message → notification + mark-read.
+
+
 ### 2026-08-27 (authorization audit — 2 fixes)
 Reviewed every route for authz (ownership scoping, recipient-only proposal actions, block/self
 checks — all sound). Two real gaps found & fixed:

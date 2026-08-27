@@ -45,6 +45,8 @@ afterAll(async () => {
   await pool.query("DELETE FROM blocks WHERE blocker_id LIKE 'test_user_jest%' OR blocked_id LIKE 'test_user_jest%'");
   await pool.query("DELETE FROM reports WHERE reporter_id LIKE 'test_user_jest%'");
   await pool.query("DELETE FROM pending_uploads WHERE clerk_user_id LIKE 'test_user_jest%'");
+  await pool.query("DELETE FROM saved_searches WHERE clerk_user_id LIKE 'test_user_jest%'");
+  await pool.query("DELETE FROM notifications WHERE clerk_user_id LIKE 'test_user_jest%'");
   await pool.end();
 });
 
@@ -107,6 +109,62 @@ describe("push token registration", () => {
     expect(res.status).toBe(200);
     const { rows } = await pool.query("SELECT clerk_user_id FROM push_tokens WHERE token = $1", [token]);
     expect(rows[0]?.clerk_user_id).toBe(USER_A);
+  });
+});
+
+describe("saved searches + notifications", () => {
+  test("saved-search CRUD (auth-scoped)", async () => {
+    expect((await request(app).get("/saved-searches")).status).toBe(401);
+    const create = await request(app).post("/saved-searches").set("x-test-user", USER_B)
+      .send({ name: "Villas", type: "House", status: "For Sale", search: "villa" });
+    expect(create.status).toBe(201);
+    const id = create.body.id;
+    const list = await request(app).get("/saved-searches").set("x-test-user", USER_B);
+    expect(list.body.some((s) => s.id === id)).toBe(true);
+    // another user doesn't see it
+    const other = await request(app).get("/saved-searches").set("x-test-user", USER_A);
+    expect(other.body.some((s) => s.id === id)).toBe(false);
+    // and can't delete it
+    expect((await request(app).delete(`/saved-searches/${id}`).set("x-test-user", USER_A)).status).toBe(404);
+    expect((await request(app).delete(`/saved-searches/${id}`).set("x-test-user", USER_B)).status).toBe(200);
+  });
+
+  test("a matching new listing notifies the searcher (and a non-match does not)", async () => {
+    // USER_B saves a search for houses for sale mentioning "villa"
+    await request(app).post("/saved-searches").set("x-test-user", USER_B)
+      .send({ type: "House", status: "For Sale", search: "villa" });
+
+    // USER_A posts a matching listing
+    const match = await request(app).post("/properties").set("x-test-user", USER_A)
+      .send({ ...sampleListing, title: "Modern Villa with View", type: "House", status: "For Sale" });
+    expect(match.status).toBe(201);
+
+    // USER_A posts a non-matching listing (Land)
+    await request(app).post("/properties").set("x-test-user", USER_A)
+      .send({ ...sampleListing, title: "Open plot", type: "Land", status: "For Sale" });
+
+    const notifs = await request(app).get("/notifications").set("x-test-user", USER_B);
+    const matches = notifs.body.notifications.filter((n) => n.type === "listing_match" && n.data?.propertyId === match.body.id);
+    expect(matches.length).toBe(1);
+    // the non-matching Land listing produced no listing_match for USER_B
+    expect(notifs.body.notifications.some((n) => n.type === "listing_match" && n.body === "Open plot")).toBe(false);
+    // the searcher (USER_A, the owner) is never notified about their own listing
+    const ownNotifs = await request(app).get("/notifications").set("x-test-user", USER_A);
+    expect(ownNotifs.body.notifications.some((n) => n.data?.propertyId === match.body.id)).toBe(false);
+  });
+
+  test("a new message creates a notification for the recipient; mark-read clears unread", async () => {
+    const listing = await request(app).post("/properties").set("x-test-user", USER_A).send({ ...sampleListing, title: "Notif Listing" });
+    await request(app).post(`/messages/${listing.body.id}`).set("x-test-user", USER_B)
+      .send({ text: "Interested!", receiver_id: USER_A, sender_name: "Ram" });
+
+    let notifs = await request(app).get("/notifications").set("x-test-user", USER_A);
+    expect(notifs.body.notifications.some((n) => n.type === "new_message")).toBe(true);
+    expect(notifs.body.unread).toBeGreaterThan(0);
+
+    expect((await request(app).post("/notifications/read").set("x-test-user", USER_A)).status).toBe(200);
+    notifs = await request(app).get("/notifications").set("x-test-user", USER_A);
+    expect(notifs.body.unread).toBe(0);
   });
 });
 

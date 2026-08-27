@@ -5,6 +5,7 @@ const { getAuth } = require("@clerk/express");
 const { validateMessage, isUuid } = require("../validation");
 const { sendPush } = require("../push");
 const { areBlocked } = require("../blocks");
+const { createNotification } = require("../notify");
 
 router.use(requireAuth);
 
@@ -116,12 +117,18 @@ router.post("/:propertyId", async (req, res) => {
     // Real-time: push the new message to both participants' rooms.
     const io = req.app.get("io");
     if (io) io.to(String(receiver_id)).to(String(userId)).emit("message", rows[0]);
+    const preview = isImage ? "📷 Photo" : (text.length > 120 ? text.slice(0, 117) + "…" : text);
     // Push notification to the recipient (for when their app is closed).
-    sendPush(receiver_id, {
-      title: sender_name || "New message",
-      body: isImage ? "📷 Photo" : (text.length > 120 ? text.slice(0, 117) + "…" : text),
-      data: { propertyId: req.params.propertyId, peer: userId },
-    });
+    sendPush(receiver_id, { title: sender_name || "New message", body: preview, data: { propertyId: req.params.propertyId, peer: userId, kind: "chat" } });
+    // In-app notifications feed entry (best-effort; never fails the send).
+    try {
+      await createNotification(pool, receiver_id, {
+        type: "new_message",
+        title: sender_name || "New message",
+        body: preview,
+        data: { propertyId: req.params.propertyId, peer: userId, kind: "chat" },
+      });
+    } catch (e) { console.error("notification insert failed:", e.message); }
     res.status(201).json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });

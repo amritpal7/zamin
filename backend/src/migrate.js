@@ -25,6 +25,31 @@ async function migrate(pool) {
     )`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_push_tokens_user ON push_tokens(clerk_user_id)`);
 
+  // Saved searches + a notifications store (new-message + saved-search matches).
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS saved_searches (
+      id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+      clerk_user_id VARCHAR(255) NOT NULL,
+      name          VARCHAR(120),
+      type          VARCHAR(50) DEFAULT 'All',
+      status        VARCHAR(50) DEFAULT 'All',
+      search        VARCHAR(255) DEFAULT '',
+      created_at    TIMESTAMPTZ DEFAULT NOW()
+    )`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_saved_searches_user ON saved_searches(clerk_user_id)`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+      clerk_user_id VARCHAR(255) NOT NULL,
+      type          VARCHAR(30) NOT NULL,
+      title         VARCHAR(255),
+      body          TEXT,
+      data          JSONB,
+      read_at       TIMESTAMPTZ,
+      created_at    TIMESTAMPTZ DEFAULT NOW()
+    )`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(clerk_user_id, created_at DESC)`);
+
   // Binds a presigned upload `base` to the user who requested it, so /process
   // can only be triggered for keys that caller actually presigned (prevents
   // overwriting another user's listing images).
