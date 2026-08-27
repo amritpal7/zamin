@@ -9,7 +9,6 @@ const { UPLOAD_DIR } = require("./upload");
 const propertiesRouter = require("./routes/properties");
 const savedRouter = require("./routes/saved");
 const messagesRouter = require("./routes/messages");
-const authRouter = require("./routes/auth");
 const pushRouter = require("./routes/push");
 const usersRouter = require("./routes/users");
 
@@ -49,7 +48,6 @@ app.use("/uploads", express.static(UPLOAD_DIR));
 app.use("/properties", propertiesRouter);
 app.use("/saved", savedRouter);
 app.use("/messages", messagesRouter);
-app.use("/auth", authRouter);
 app.use("/push", pushRouter);
 app.use("/users", usersRouter);
 

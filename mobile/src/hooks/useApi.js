@@ -114,17 +114,5 @@ export function useApi() {
     // Push notifications
     registerPush: (token) => request("/push/register", { method: "POST", body: JSON.stringify({ token }) }),
     unregisterPush: (token) => request("/push/unregister", { method: "POST", body: JSON.stringify({ token }) }),
-
-    // Auth — public, no token needed
-    resolveUsername: async (username) => {
-      const res = await fetch(`${BASE}/auth/resolve?username=${encodeURIComponent(username)}`, {
-        headers: { "Content-Type": "application/json" },
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || "Username not found");
-      }
-      return res.json();
-    },
   }), [request]);
 }

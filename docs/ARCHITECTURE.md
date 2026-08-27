@@ -242,10 +242,12 @@ Base path through nginx: `/api`. Direct: `http://localhost:4000`.
 | GET | `/messages/:propertyId?peer=<id>` | The two-person thread (me ↔ peer); without `peer`, all my messages on the property |
 | POST | `/messages/:propertyId` | Send message (`{ text, receiver_id }`) — receiver is the **peer**, not always the owner |
 
-### Auth (`routes/auth.js`)
+### Users / trust & safety (`routes/users.js`, all 🔒)
 | Method | Path | Purpose |
 |--------|------|---------|
-| GET | `/auth/resolve?username=` | Resolve username → email (public). **Currently unused** by the new username-native sign-in; candidate for removal. |
+| POST/DELETE | `/users/:id/block` | Block / unblock (messaging then rejected 403 either way) |
+| GET | `/users/:id/block` | `{ blockedByMe, blockedMe }` |
+| POST | `/users/:id/report` | File a report (moderation queue) |
 
 ### Misc
 - `GET /health` → `{ status: "ok" }`
@@ -267,9 +269,11 @@ list on failure:
 
 Defined in `mobile/src/hooks/useApi.js#uploadImages` + `routes/properties.js` + `worker.js`.
 
-1. Client asks API for **presigned URLs**: `POST /properties/presign { count }`.
+1. Client asks API for **presigned URLs**: `POST /properties/presign { count }` (each `base` is
+   bound to the requesting user in `pending_uploads`).
 2. Client **PUTs each file straight to MinIO** using the signed URL (API never proxies bytes).
-3. Client calls `POST /properties/process { items:[{base, origKey}] }` → API **enqueues a BullMQ job**.
+3. Client calls `POST /properties/process { items:[{base, origKey}] }` → API verifies the caller
+   presigned each `base` (else skipped) then **enqueues a BullMQ job**.
 4. **Worker** (`worker.js`) consumes the job, uses **sharp** to resize + build a thumbnail, writes them back to storage.
 5. Final URLs (`{ url, thumb }`) are stored on the property (`images[]`, `thumbnails[]`) and served via nginx `/media`.
 6. Client keeps an **optimistic local mapping** (`utils/imageCache.js`) so the just-picked local image shows instantly before the processed one lands.

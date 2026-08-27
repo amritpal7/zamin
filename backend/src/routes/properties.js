@@ -26,6 +26,7 @@ function enqueueThumb(id, base, origKey) {
 // Body: { count } (1..MAX_IMAGES). Returns { files: [{ uploadUrl, base, origKey, url, thumb }] }.
 router.post("/presign", requireAuth, async (req, res) => {
   try {
+    const { userId } = getAuth(req);
     const count = Math.min(Math.max(parseInt(req.body?.count, 10) || 0, 1), MAX_IMAGES);
     const files = [];
     for (let i = 0; i < count; i++) {
@@ -33,6 +34,11 @@ router.post("/presign", requireAuth, async (req, res) => {
       const base = `properties/${id}`;
       const origKey = `${base}_orig`;
       const uploadUrl = await presignPut(origKey);
+      // Bind this base to the requesting user so only they can /process it.
+      await pool.query(
+        "INSERT INTO pending_uploads (base, clerk_user_id) VALUES ($1, $2) ON CONFLICT (base) DO NOTHING",
+        [base, userId]
+      );
       files.push({
         uploadUrl, base, origKey,
         url: `${PUBLIC_BASE}/${base}.jpg`,
@@ -49,13 +55,23 @@ router.post("/presign", requireAuth, async (req, res) => {
 // Enqueues background resize+thumbnail jobs. Body: { items: [{ base, origKey }] }.
 router.post("/process", requireAuth, async (req, res) => {
   try {
+    const { userId } = getAuth(req);
     const items = Array.isArray(req.body?.items) ? req.body.items.slice(0, MAX_IMAGES) : [];
+    let processed = 0;
     for (const it of items) {
       if (!it?.base || !it?.origKey) continue;
+      // Only process a base this user actually presigned (prevents overwriting
+      // someone else's listing images). Consume the binding.
+      const { rowCount } = await pool.query(
+        "DELETE FROM pending_uploads WHERE base = $1 AND clerk_user_id = $2",
+        [it.base, userId]
+      );
+      if (!rowCount) continue;
       const id = it.base.split("/").pop();
       await enqueueThumb(id, it.base, it.origKey);
+      processed++;
     }
-    res.json({ ok: true });
+    res.json({ ok: true, processed });
   } catch (e) {
     res.status(500).json({ error: "Could not process images. Please try again." });
   }
