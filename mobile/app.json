@@ -48,7 +48,13 @@
           "photosPermission": "Zamin needs access to your photos so you can add images to your property listings."
         }
       ],
-      "expo-notifications"
+      "expo-notifications",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Zamin uses your location to show nearby property listings."
+        }
+      ]
     ]
   }
 }

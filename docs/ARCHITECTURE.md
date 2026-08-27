@@ -225,7 +225,7 @@ Base path through nginx: `/api`. Direct: `http://localhost:4000`.
 ### Properties (`routes/properties.js`)
 | Method | Path | Auth | Purpose |
 |--------|------|------|---------|
-| GET | `/properties` | public | List; filters: `type`, `status`, `search` (via query) |
+| GET | `/properties` | public | List; filters: `type`, `status`, `search`. **Geo:** `lat`+`lng`(+`radius` km, default 25, clamp 1–500) → Haversine distance in plain SQL (no PostGIS), within-radius rows nearest-first with a `distance_km` field; null lat/lng excluded. Non-geo = newest-first, no `distance_km` |
 | GET | `/properties/:id` | public | Single property |
 | GET | `/properties/mine` | 🔒 | Current user's listings |
 | POST | `/properties` | 🔒 | Create listing |

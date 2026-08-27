@@ -6,6 +6,7 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Image } from "expo-image";
+import * as Location from "expo-location";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -92,16 +93,21 @@ export default function Discover() {
   const [search,     setSearch]     = useState("");
   const [loading,    setLoading]    = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [geo,        setGeo]        = useState(null);  // { lat, lng } when "Near me" active
+  const [locating,   setLocating]   = useState(false);
 
   const load = useCallback(async (isRefresh = false) => {
     try {
       isRefresh ? setRefreshing(true) : setLoading(true);
-      const data = await api.getProperties({ type, status, search });
+      const data = await apiRef.current.getProperties({
+        type, status, search,
+        ...(geo ? { lat: geo.lat, lng: geo.lng, radius: 25 } : {}),
+      });
       setProperties(data);
     } catch {
       setProperties(SEED_PROPERTIES);
     } finally { setLoading(false); setRefreshing(false); }
-  }, [type, status, search]);
+  }, [type, status, search, geo]);
 
   // Reload the list on mount, when filters change, AND whenever Home regains
   // focus (e.g. returning after editing/posting) so cards show fresh images.
@@ -113,6 +119,21 @@ export default function Discover() {
       apiRef.current.getSaved().then(d => setSaved(d.map(p => p.id))).catch(() => {});
     }, [isSignedIn])
   );
+
+  const toggleNearMe = async () => {
+    if (geo) { setGeo(null); return; }
+    try {
+      setLocating(true);
+      const { status: perm } = await Location.requestForegroundPermissionsAsync();
+      if (perm !== "granted") { Alert.alert("Location needed", "Allow location access to find nearby listings."); return; }
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      setGeo({ lat: loc.coords.latitude, lng: loc.coords.longitude });
+    } catch {
+      Alert.alert("Couldn't get location", "Please try again.");
+    } finally {
+      setLocating(false);
+    }
+  };
 
   const saveSearch = async () => {
     if (!isSignedIn) { router.push("/sign-in"); return; }
@@ -256,6 +277,19 @@ export default function Discover() {
             <Chip key={f} label={f} active={status === f} onPress={() => setStatus(f)} />
           ))}
         </ScrollView>
+
+        {/* Near me toggle */}
+        <View style={{ flexDirection: "row", paddingHorizontal: 18, paddingTop: 12 }}>
+          <Pressable
+            onPress={toggleNearMe}
+            style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: geo ? C.amber : C.glassBg, borderWidth: StyleSheet.hairlineWidth, borderColor: geo ? "transparent" : C.glassBorder, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 9 }}
+          >
+            {locating
+              ? <ActivityIndicator size="small" color={geo ? C.ink : C.amber} />
+              : <Icon name="pin" size={14} color={geo ? C.ink : C.amberText} />}
+            <Text style={{ color: geo ? C.ink : C.amberText, fontFamily: FONT_MED, fontSize: 13 }}>{geo ? "Near me · on" : "Near me"}</Text>
+          </Pressable>
+        </View>
 
         {/* Save this search → get alerts on new matches */}
         <View style={{ flexDirection: "row", gap: 10, paddingHorizontal: 18, paddingTop: 12 }}>

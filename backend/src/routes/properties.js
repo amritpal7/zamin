@@ -121,29 +121,42 @@ router.post("/reconcile-owners", requireAuth, async (req, res) => {
   }
 });
 
-// GET /properties — list all (public)
+// GET /properties — list all (public). Optional geo: ?lat&lng[&radius=km] returns
+// listings within radius (Haversine, no PostGIS) sorted by distance, with distance_km.
 router.get("/", async (req, res) => {
   try {
-    const { type, status, search } = req.query;
-    // Hide listings from flagged/deleted owners (owner_active = false). Data is
-    // retained in the DB — this is a soft-hide, not a delete. NULL/true stay visible.
-    let query = "SELECT * FROM properties WHERE owner_active IS DISTINCT FROM false";
-    const params = [];
+    const { type, status, search, lat, lng, radius } = req.query;
+    const glat = parseFloat(lat), glng = parseFloat(lng);
+    const hasGeo = Number.isFinite(glat) && Number.isFinite(glng);
 
-    if (type && type !== "All") {
-      params.push(type);
-      query += ` AND type = $${params.length}`;
-    }
-    if (status && status !== "All") {
-      params.push(status);
-      query += ` AND status = $${params.length}`;
-    }
+    const params = [];
+    if (hasGeo) params.push(glat, glng); // $1, $2
+
+    // Hide listings from flagged/deleted owners (soft-hide; data retained).
+    let where = "owner_active IS DISTINCT FROM false";
+    if (hasGeo) where += " AND latitude IS NOT NULL AND longitude IS NOT NULL";
+    if (type && type !== "All")   { params.push(type);   where += ` AND type = $${params.length}`; }
+    if (status && status !== "All") { params.push(status); where += ` AND status = $${params.length}`; }
     if (search) {
       params.push(`%${search}%`);
-      query += ` AND (title ILIKE $${params.length} OR location ILIKE $${params.length})`;
+      where += ` AND (title ILIKE $${params.length} OR location ILIKE $${params.length})`;
     }
 
-    query += " ORDER BY created_at DESC";
+    let query;
+    if (hasGeo) {
+      const rad = Math.min(Math.max(parseFloat(radius) || 25, 1), 500);
+      params.push(rad);
+      // LEAST(1, …) clamps the acos argument so float error can't produce NaN.
+      query = `SELECT * FROM (
+        SELECT *, (6371 * acos(LEAST(1,
+          cos(radians($1)) * cos(radians(latitude)) * cos(radians(longitude) - radians($2))
+          + sin(radians($1)) * sin(radians(latitude))))) AS distance_km
+        FROM properties WHERE ${where}
+      ) t WHERE distance_km <= $${params.length} ORDER BY distance_km ASC`;
+    } else {
+      query = `SELECT * FROM properties WHERE ${where} ORDER BY created_at DESC`;
+    }
+
     const { rows } = await pool.query(query, params);
     res.json(rows);
   } catch (err) {

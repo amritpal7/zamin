@@ -12,6 +12,23 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-08-27 (feature: geo / "near me" search)
+- **Added:** distance-based listing search. `GET /properties?lat&lng[&radius=km]` computes a
+  **Haversine distance in plain SQL** (no PostGIS dependency), filters to listings within `radius`
+  (default 25 km, clamped 1–500), and returns them sorted nearest-first with a `distance_km` field.
+  Non-geo requests are unchanged (newest-first, no `distance_km`). `LEAST(1, …)` clamps the `acos`
+  argument so float error can't yield `NaN`; rows with null lat/lng are excluded from geo results.
+  - Mobile: Discover gains a **"Near me"** toggle pill (`app/(tabs)/discover.js`) — requests
+    foreground location via `expo-location`, refetches with `lat/lng/radius`, shows a spinner while
+    locating and an active state when on; toggling off restores the default feed. `PropertyCard`
+    shows a **"📍 X.X km"** chip when `distance_km` is present. Added the `expo-location` plugin
+    (with a location-usage string) to `app.json`.
+  - **Ripple check:** `useApi.getProperties` already spreads arbitrary params → no change needed;
+    `load` deps include `geo` so the focus-effect refetches on toggle; `distance_km` is additive so
+    all existing consumers are unaffected.
+  - **Tests:** +2 (51 total) — near point returned & far point excluded within radius, results
+    ascending by distance with `distance_km` present; non-geo request omits `distance_km`.
+
 ### 2026-08-27 (feature: saved-search alerts + real notifications store)
 - **Added:** save a search (discover filters: type/status/text) and get **alerted when a new
   matching listing is posted**.
