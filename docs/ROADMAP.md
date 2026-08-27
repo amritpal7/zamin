@@ -117,7 +117,8 @@ The plan for taking chat further, tiered by user value. Tier 1 foundation is don
 - [x] Dependency scanning (2026-08-19) — `npm audit` in CI.
 - [ ] Secrets management — `.env` is git-ignored ✓; add secret scanning.
 - [ ] Object storage: private buckets + short-lived signed GET URLs where appropriate.
-- [ ] Authorization audit — every route checks ownership, not just authentication.
+- [x] Authorization audit (2026-08-27) — reviewed all routes; fixed unauth email-by-username leak
+      (`/auth/resolve` removed) and `/process` image-tampering (base bound to user). Rest sound.
 - [ ] Run `/security-review` before each significant merge.
 
 ## Platform / scale (later)

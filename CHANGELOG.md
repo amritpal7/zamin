@@ -12,6 +12,19 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-08-27 (authorization audit — 2 fixes)
+Reviewed every route for authz (ownership scoping, recipient-only proposal actions, block/self
+checks — all sound). Two real gaps found & fixed:
+- **Removed `GET /auth/resolve`** — an **unauthenticated** endpoint that mapped a username → the
+  account's **email** (PII harvesting / phishing enumeration). It was already unused by the client
+  (username-first sign-in dropped it). Deleted the route + the dead `resolveUsername` client method.
+- **`POST /properties/process` image tampering** — `base` paths are public (in listing image URLs)
+  and `/process` didn't verify ownership, so any user could overwrite another listing's images.
+  Now each presigned `base` is bound to the requesting user (`pending_uploads`) and `/process` only
+  acts on bases the caller presigned (consumed on use); returns `{ processed }`.
+- **Tests:** +2 (46 total). Findings recorded in `docs/BUGLOG.md`.
+
+
 ### 2026-08-19 (dev: PR-based flow + .env.example)
 - **Ops:** adopted a feature-branch → PR → CI → merge flow (GitHub CLI). `.env.example` now
   documents the MinIO + security/ops vars (`CORS_ORIGIN`, `RATE_LIMIT_MAX`, `NODE_ENV`,

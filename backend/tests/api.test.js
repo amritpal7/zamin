@@ -44,6 +44,7 @@ afterAll(async () => {
   await pool.query("DELETE FROM push_tokens WHERE clerk_user_id LIKE 'test_user_jest%'");
   await pool.query("DELETE FROM blocks WHERE blocker_id LIKE 'test_user_jest%' OR blocked_id LIKE 'test_user_jest%'");
   await pool.query("DELETE FROM reports WHERE reporter_id LIKE 'test_user_jest%'");
+  await pool.query("DELETE FROM pending_uploads WHERE clerk_user_id LIKE 'test_user_jest%'");
   await pool.end();
 });
 
@@ -106,6 +107,25 @@ describe("push token registration", () => {
     expect(res.status).toBe(200);
     const { rows } = await pool.query("SELECT clerk_user_id FROM push_tokens WHERE token = $1", [token]);
     expect(rows[0]?.clerk_user_id).toBe(USER_A);
+  });
+});
+
+describe("authorization audit fixes", () => {
+  test("removed username→email resolve endpoint → 404", async () => {
+    const res = await request(app).get("/auth/resolve?username=someone");
+    expect(res.status).toBe(404);
+  });
+
+  test("/process only processes bases the caller presigned", async () => {
+    const base = "properties/test-jest-base-1";
+    await pool.query("INSERT INTO pending_uploads (base, clerk_user_id) VALUES ($1,$2) ON CONFLICT (base) DO NOTHING", [base, USER_A]);
+    // USER_B cannot process USER_A's base
+    const bad = await request(app).post("/properties/process").set("x-test-user", USER_B).send({ items: [{ base, origKey: base + "_orig" }] });
+    expect(bad.body.processed).toBe(0);
+    // USER_A can (and it consumes the binding)
+    const ok = await request(app).post("/properties/process").set("x-test-user", USER_A).send({ items: [{ base, origKey: base + "_orig" }] });
+    expect(ok.body.processed).toBe(1);
+    await pool.query("DELETE FROM pending_uploads WHERE base = $1", [base]);
   });
 });
 

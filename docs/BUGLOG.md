@@ -19,6 +19,15 @@ of bug while building new features. Newest first. Update this whenever we fix a 
 
 ## Log
 
+### 2026-08-27 (authorization audit — security findings)
+- **Unauthenticated PII exposure:** `GET /auth/resolve?username=` returned the account's **email**
+  with no auth — username→email harvesting. Fix: removed the (unused) endpoint. **Category:** authz / data exposure.
+- **Image tampering via `/process`:** image `base` paths are public (in listing URLs) and `/process`
+  didn't check ownership, so any user could overwrite another listing's images. Fix: bind `base` to
+  the presigning user (`pending_uploads`), verify + consume in `/process`. **Category:** authz / integrity.
+  *Guardrail:* any endpoint that acts on a client-supplied storage key/path must verify the caller
+  owns/created it — public identifiers are not authorization.
+
 ### 2026-08-19
 - **Messages sent twice on the sender's screen** (receiver saw one; reload showed one). Root cause:
   optimistic message + the server's `message` **socket echo to the sender's own room** race. The

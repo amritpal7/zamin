@@ -25,6 +25,16 @@ async function migrate(pool) {
     )`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_push_tokens_user ON push_tokens(clerk_user_id)`);
 
+  // Binds a presigned upload `base` to the user who requested it, so /process
+  // can only be triggered for keys that caller actually presigned (prevents
+  // overwriting another user's listing images).
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS pending_uploads (
+      base          VARCHAR(255) PRIMARY KEY,
+      clerk_user_id VARCHAR(255) NOT NULL,
+      created_at    TIMESTAMPTZ DEFAULT NOW()
+    )`);
+
   // Trust & safety: blocks + reports.
   await pool.query(`
     CREATE TABLE IF NOT EXISTS blocks (
