@@ -59,7 +59,9 @@ Three pillars we judge every change against:
 ## Medium term (1–3 months)
 
 - [ ] **Owner/listing verification** (phone/email/ID) → trust badge (`verified` column already exists).
-- [ ] **Geo "near me" search** (PostGIS `ST_DWithin`) + map clustering.
+- [x] **Geo "near me" search** (2026-08-27) — `GET /properties?lat&lng&radius` via a **Haversine
+      distance in plain SQL** (skipped the PostGIS dependency), nearest-first + `distance_km`.
+      Discover "Near me" toggle (`expo-location`) + distance chip on cards. *Remaining:* map clustering.
 - [x] **Saved-search alerts** (2026-08-27) — `saved_searches` + a real `notifications` store; new
       matching listing → in-app notification (+ push). Discover "Save this search" + manager screen.
 - [ ] **In-app visit scheduling** (request/confirm viewing slots).

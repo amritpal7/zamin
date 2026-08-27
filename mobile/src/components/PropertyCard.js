@@ -119,6 +119,7 @@ export default function PropertyCard({ property: p, onPress, onSave, saved, isOw
         {/* ── Footer ── */}
         <View style={{ paddingHorizontal: 18, paddingVertical: 14, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
           <View style={{ flexDirection: "row", gap: 14 }}>
+            {p.distance_km != null && <Text style={{ color: C.amberText, fontSize: 12, fontFamily: FONT }}>📍 {Number(p.distance_km).toFixed(1)} km</Text>}
             {p.area  && <Text style={{ color: C.fgDim, fontSize: 12, fontFamily: FONT }}>📐 {p.area}</Text>}
             {p.beds  && <Text style={{ color: C.fgDim, fontSize: 12, fontFamily: FONT }}>🛏 {p.beds}</Text>}
             {p.baths && <Text style={{ color: C.fgDim, fontSize: 12, fontFamily: FONT }}>🚿 {p.baths}</Text>}

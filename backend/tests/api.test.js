@@ -112,6 +112,38 @@ describe("push token registration", () => {
   });
 });
 
+describe("geo / near-me search", () => {
+  let nearId, farId;
+  beforeAll(async () => {
+    const near = await request(app).post("/properties").set("x-test-user", USER_A)
+      .send({ ...sampleListing, title: "Near BLR", latitude: 12.98, longitude: 77.60 });
+    nearId = near.body.id;
+    const far = await request(app).post("/properties").set("x-test-user", USER_A)
+      .send({ ...sampleListing, title: "Far Delhi", latitude: 28.6139, longitude: 77.2090 });
+    farId = far.body.id;
+  });
+
+  test("returns listings within radius, sorted by distance, with distance_km", async () => {
+    const res = await request(app).get("/properties?lat=12.9716&lng=77.5946&radius=25");
+    expect(res.status).toBe(200);
+    const near = res.body.find((p) => p.id === nearId);
+    expect(near).toBeDefined();
+    expect(Number(near.distance_km)).toBeLessThan(25);
+    // the far listing (Delhi, ~1700 km) is excluded by the 25 km radius
+    expect(res.body.some((p) => p.id === farId)).toBe(false);
+    // results are ascending by distance
+    const dists = res.body.map((p) => Number(p.distance_km));
+    for (let i = 1; i < dists.length; i++) expect(dists[i]).toBeGreaterThanOrEqual(dists[i - 1] - 0.001);
+  });
+
+  test("without geo params → normal list, no distance_km", async () => {
+    const res = await request(app).get("/properties");
+    const near = res.body.find((p) => p.id === nearId);
+    expect(near).toBeDefined();
+    expect(near.distance_km).toBeUndefined();
+  });
+});
+
 describe("saved searches + notifications", () => {
   test("saved-search CRUD (auth-scoped)", async () => {
     expect((await request(app).get("/saved-searches")).status).toBe(401);
