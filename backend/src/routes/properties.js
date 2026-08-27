@@ -90,11 +90,13 @@ router.post("/upload", requireAuth, (req, res) => {
 });
 
 // POST /properties/reconcile-owners — check each owner against Clerk and update
-// owner_active so the app can flag listings whose owner no longer exists.
-// NOTE: for production this should be admin-only and/or run on a schedule or a
-// Clerk `user.deleted` webhook rather than on demand.
+// owner_active. Admin-only: it fans out a Clerk request per owner, so it must not
+// be triggerable by any user. The worker also runs this on a schedule.
+const ADMIN_IDS = (process.env.ADMIN_USER_IDS || "").split(",").map((s) => s.trim()).filter(Boolean);
 router.post("/reconcile-owners", requireAuth, async (req, res) => {
   try {
+    const { userId } = getAuth(req);
+    if (!ADMIN_IDS.includes(userId)) return res.status(403).json({ error: "Admins only" });
     const result = await reconcileOwners(pool);
     res.json(result);
   } catch (err) {
