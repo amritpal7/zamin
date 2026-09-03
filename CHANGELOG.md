@@ -12,6 +12,25 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-04 (feature: verified-owner trust badge — server-authoritative, Clerk-synced)
+- **Changed:** the "verified" badge is now **real, owner-level, and server-authoritative**.
+  Previously `post.js` sent `verified: <clerk email verified>` but `POST /properties` **never stored
+  it** (dead field) — so only seed rows ever showed the badge, and had it been stored it would have
+  let a client self-assign a trust badge. Now:
+  - `getUser` (`clerkUsers.js`) also returns `verified` = the owner's Clerk account has ≥1 **verified
+    email or phone**. Guards: no `CLERK_SECRET_KEY` / seed owner → unverified, no network call.
+  - `POST /properties` derives `verified` from the **owner's Clerk account** and stores it, **ignoring
+    any client-sent value**. `reconcileOwners` syncs `verified` across all of an owner's listings on
+    its schedule (kept fresh + consistent, like `owner_active`/`owner_image`).
+  - Removed the dead `verified` from the `post.js` create payload.
+- **Added:** a prominent **"✓ Verified"** pill on the property-detail owner card (cards + chat keep
+  their existing ✓, now backed by the real flag).
+- **Ripple check:** displays reading `p.verified` (`PropertyCard`, `property/[id].js`, `chat/[id].js`)
+  now reflect a meaningful owner-level flag; `migrate.js` ensures the `verified` column exists;
+  worker's scheduled `reconcileOwners` propagates it. Seed rows keep their init.sql `verified` values
+  (reconcile skips `seed_user_*`).
+- **Tests:** +1 (52) — a client cannot self-assign `verified` via the create body (persists `false`).
+
 ### 2026-09-03 (test infra: jest-expo + first mobile unit tests → caught 2 live bugs)
 - **Added:** mobile test runner. `jest-expo`/`jest`/`react-test-renderer` devDeps, `jest.config.js`
   (jest-expo preset), `npm test` script, and `mobile/.npmrc` (`legacy-peer-deps=true`) so `npm ci`

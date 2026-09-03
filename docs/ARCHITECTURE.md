@@ -108,7 +108,7 @@ Three tables. Clerk owns identity; we key everything by `clerk_user_id VARCHAR(2
 | tags | TEXT[] | e.g. {Pool, Garden} |
 | img, color | VARCHAR | emoji + accent color fallback |
 | images, thumbnails | TEXT[] | object-storage URLs (added via migration) |
-| verified | BOOLEAN | owner/listing verification badge |
+| verified | BOOLEAN | **owner-level trust badge, server-authoritative.** Set from the owner's Clerk account (≥1 verified email/phone) on create + kept in sync across all their listings by `reconcileOwners`. Never trusted from the client. Seed rows keep their init.sql values (reconcile skips `seed_user_*`) |
 | owner_active | BOOLEAN | false = owner's Clerk account no longer exists (reconciled). **Soft-hide:** false rows are excluded from `GET /properties` + `GET /saved` (data retained, reachable by direct id) |
 | owner_image | TEXT | owner's Clerk profile photo URL (denormalized; set on create + reconcile) |
 | created_at, updated_at | TIMESTAMPTZ | |

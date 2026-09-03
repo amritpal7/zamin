@@ -59,7 +59,9 @@ Three pillars we judge every change against:
 
 ## Medium term (1–3 months)
 
-- [ ] **Owner/listing verification** (phone/email/ID) → trust badge (`verified` column already exists).
+- [~] **Owner/listing verification** → trust badge. ✅ (2026-09-04) Server-authoritative owner-level
+      badge synced from Clerk (verified email/phone) on create + reconcile; client can't self-assign.
+      *Next:* explicit ID/document verification tier.
 - [x] **Geo "near me" search** (2026-08-27) — `GET /properties?lat&lng&radius` via a **Haversine
       distance in plain SQL** (skipped the PostGIS dependency), nearest-first + `distance_km`.
       Discover "Near me" toggle (`expo-location`) + distance chip on cards.
