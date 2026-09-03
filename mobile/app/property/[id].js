@@ -333,9 +333,16 @@ export default function PropertyDetail() {
             <View style={{ padding: 16, flexDirection: "row", alignItems: "center", gap: 14 }}>
               <Avatar initials={isOwn ? "ME" : (p.owner_avatar || "??")} size={50} color={color} imageUrl={p.owner_image} />
               <View style={{ flex: 1 }}>
-                <Text style={{ color: C.text, fontWeight: "800", fontSize: 15, fontFamily: FONT }}>
-                  {isOwn ? "Me" : (p.owner_name + (p.verified ? "  ✓" : ""))}
-                </Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                  <Text style={{ color: C.text, fontWeight: "800", fontSize: 15, fontFamily: FONT }}>
+                    {isOwn ? "Me" : p.owner_name}
+                  </Text>
+                  {!isOwn && p.verified && (
+                    <View style={{ backgroundColor: C.amber + "22", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 }}>
+                      <Text style={{ color: C.amberText, fontSize: 11, fontFamily: FONT_MED }}>✓ Verified</Text>
+                    </View>
+                  )}
+                </View>
                 <Text style={{ color: (!isOwn && p.owner_active === false) ? C.red : C.muted, fontSize: 12, marginTop: 2, fontFamily: FONT }}>
                   {isOwn ? "Your listing" : (p.owner_active === false ? "⚠ No longer available" : "Property Owner")}
                 </Text>

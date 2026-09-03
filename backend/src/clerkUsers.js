@@ -7,23 +7,29 @@ const SECRET = process.env.CLERK_SECRET_KEY;
 
 // Fetch a Clerk user. Returns { reliable, exists, imageUrl }.
 // - reliable=false on a transient error → callers should NOT overwrite stored data.
-// - demo/seed owners are treated as always active with no image.
+// - verified = the account has at least one *verified* email or phone (trust badge).
+// - demo/seed owners are treated as always active, unverified, with no image.
 async function getUser(id) {
-  const empty = { reliable: true, exists: true, imageUrl: null, name: null, avatar: null };
-  if (!id || id.startsWith("seed_user_")) return empty;
+  const empty = { reliable: true, exists: true, imageUrl: null, name: null, avatar: null, verified: false };
+  // No Clerk secret (tests/CI, or misconfig) → don't hit the network; treat as
+  // unverified. seed/demo owners are likewise short-circuited.
+  if (!id || !SECRET || id.startsWith("seed_user_")) return empty;
   try {
     const res = await fetch(`https://api.clerk.com/v1/users/${id}`, {
       headers: { Authorization: `Bearer ${SECRET}` },
     });
-    if (res.status === 404) return { reliable: true, exists: false, imageUrl: null, name: null, avatar: null };
-    if (!res.ok) return { reliable: false, exists: true, imageUrl: null, name: null, avatar: null };
+    if (res.status === 404) return { reliable: true, exists: false, imageUrl: null, name: null, avatar: null, verified: false };
+    if (!res.ok) return { reliable: false, exists: true, imageUrl: null, name: null, avatar: null, verified: false };
     const u = await res.json();
     const first = u.first_name || "", last = u.last_name || "", uname = u.username || "";
     const name = [first, last].filter(Boolean).join(" ") || (uname ? `@${uname}` : "User");
     const avatar = (`${first[0] || ""}${last[0] || ""}`).toUpperCase() || (uname[0] || "").toUpperCase() || "U";
-    return { reliable: true, exists: true, imageUrl: u.has_image ? u.image_url : null, name, avatar };
+    const verified =
+      (u.email_addresses || []).some((e) => e.verification?.status === "verified") ||
+      (u.phone_numbers || []).some((p) => p.verification?.status === "verified");
+    return { reliable: true, exists: true, imageUrl: u.has_image ? u.image_url : null, name, avatar, verified };
   } catch {
-    return { reliable: false, exists: true, imageUrl: null, name: null, avatar: null };
+    return { reliable: false, exists: true, imageUrl: null, name: null, avatar: null, verified: false };
   }
 }
 
@@ -68,9 +74,10 @@ async function reconcileOwners(pool) {
            SET owner_active = true,
                owner_image  = $1,
                owner_name   = COALESCE($2, owner_name),
-               owner_avatar = COALESCE($3, owner_avatar)
-         WHERE clerk_user_id = $4`,
-        [u.imageUrl, u.name, u.avatar, clerk_user_id]
+               owner_avatar = COALESCE($3, owner_avatar),
+               verified     = $4
+         WHERE clerk_user_id = $5`,
+        [u.imageUrl, u.name, u.avatar, u.verified, clerk_user_id]
       );
       active++;
     } else {

@@ -7,7 +7,7 @@ const { upload } = require("../upload");
 const { putObject, presignPut } = require("../storage");
 const { thumbnailQueue } = require("../queue");
 const { validateProperty, isUuid } = require("../validation");
-const { reconcileOwners } = require("../clerkUsers");
+const { reconcileOwners, getUser } = require("../clerkUsers");
 const { notifyListingMatch } = require("../notify");
 
 const MAX_IMAGES = 8;
@@ -225,12 +225,19 @@ router.post("/", requireAuth, async (req, res) => {
     const { userId } = getAuth(req);
     const { title, description, type, status, price, area, beds, baths, location, latitude, longitude, tags, img, color, owner_name, owner_phone, owner_avatar, owner_image, images, thumbnails } = req.body;
 
+    // The trust badge is server-authoritative: derive it from the owner's Clerk
+    // account (verified email/phone), never from the client — a client must not be
+    // able to self-assign a "verified" badge. Falls back to false if Clerk is
+    // unreachable; the scheduled reconcile heals it.
+    let verified = false;
+    try { verified = (await getUser(userId)).verified === true; } catch { /* keep false */ }
+
     const { rows } = await pool.query(
       `INSERT INTO properties
-        (clerk_user_id, owner_name, owner_phone, owner_avatar, owner_image, title, description, type, status, price, area, beds, baths, location, latitude, longitude, tags, img, color, images, thumbnails)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+        (clerk_user_id, owner_name, owner_phone, owner_avatar, owner_image, title, description, type, status, price, area, beds, baths, location, latitude, longitude, tags, img, color, images, thumbnails, verified)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
        RETURNING *`,
-      [userId, owner_name, owner_phone, owner_avatar, owner_image || null, title, description, type, status, price, area, beds, baths, location, latitude, longitude, tags, img || "🏠", color || "#f0a500", images || [], thumbnails || []]
+      [userId, owner_name, owner_phone, owner_avatar, owner_image || null, title, description, type, status, price, area, beds, baths, location, latitude, longitude, tags, img || "🏠", color || "#f0a500", images || [], thumbnails || [], verified]
     );
     // Notify users whose saved search matches this new listing (best-effort; never fails create).
     try { await notifyListingMatch(pool, rows[0]); } catch (e) { console.error("saved-search notify failed:", e.message); }

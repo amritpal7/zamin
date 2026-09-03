@@ -6,6 +6,8 @@ async function migrate(pool) {
   await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS thumbnails TEXT[] DEFAULT '{}'`);
   await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS owner_active BOOLEAN DEFAULT true`);
   await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS owner_image TEXT`);
+  // Trust badge: owner-level, server-authoritative (synced from Clerk verification).
+  await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS verified BOOLEAN DEFAULT false`);
 
   // messages: denormalized sender identity so the inbox/chat can show who wrote.
   await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS sender_name VARCHAR(255)`);

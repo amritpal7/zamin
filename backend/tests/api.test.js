@@ -144,6 +144,21 @@ describe("geo / near-me search", () => {
   });
 });
 
+describe("verified trust badge (server-authoritative)", () => {
+  test("a client cannot self-assign verified via the create body", async () => {
+    // The badge is derived server-side from Clerk. With no Clerk configured in
+    // tests, a freshly created listing must be verified=false even though the
+    // client sent verified:true.
+    const res = await request(app).post("/properties").set("x-test-user", USER_A)
+      .send({ ...sampleListing, title: "Fake Verified", verified: true });
+    expect(res.status).toBe(201);
+    expect(res.body.verified).toBe(false);
+    // and it's persisted false, not just omitted from the response
+    const got = await request(app).get(`/properties/${res.body.id}`);
+    expect(got.body.verified).toBe(false);
+  });
+});
+
 describe("saved searches + notifications", () => {
   test("saved-search CRUD (auth-scoped)", async () => {
     expect((await request(app).get("/saved-searches")).status).toBe(401);

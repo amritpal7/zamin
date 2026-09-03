@@ -532,14 +532,15 @@ export default function Post() {
                             || (username ? `@${username}` : "Owner");
         const ownerAvatar = (`${user?.firstName?.[0] || ""}${user?.lastName?.[0] || ""}`.toUpperCase())
                             || username?.[0]?.toUpperCase() || "ZM";
-        const isVerified  = user?.primaryEmailAddress?.verification?.status === "verified";
+        // Note: the "verified" trust badge is set server-side from the owner's
+        // Clerk account (verified email/phone) — not sent from here, so a client
+        // can't self-assign it.
         await api.createProperty({
           ...payload,
           owner_name:   ownerName,
           owner_avatar: ownerAvatar,
           owner_image:  user?.hasImage ? user.imageUrl : null,
           owner_phone:  form.contactPhone || null,
-          verified:     isVerified,
           img:          "🏠",
           color:        C.amber,
         });
