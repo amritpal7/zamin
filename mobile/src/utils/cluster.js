@@ -51,10 +51,16 @@ export function clusterProperties(points, region, gridSize = 8) {
   return out;
 }
 
+// Coerce to a number, treating null/undefined/"" as missing (NOT 0 — Number(null)
+// is 0, which would silently place a coordinate-less listing at lat/lng 0).
+function num(v) {
+  return v === null || v === undefined || v === "" ? NaN : Number(v);
+}
+
 // Normalize a listing (seed uses lat/lng; DB rows use latitude/longitude) to
 // finite lat/lng, dropping any without coordinates.
 export function withCoords(list) {
   return (list || [])
-    .map((p) => ({ ...p, lat: Number(p.lat ?? p.latitude), lng: Number(p.lng ?? p.longitude) }))
+    .map((p) => ({ ...p, lat: num(p.lat ?? p.latitude), lng: num(p.lng ?? p.longitude) }))
     .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
 }

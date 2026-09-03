@@ -41,9 +41,10 @@ Three pillars we judge every change against:
 
 ## Near term (weeks)
 
-- [~] **Automated tests.** ✅ API smoke suite done (`backend/tests/api.test.js`, Jest +
-      Supertest: auth guards, ownership, CRUD). Next: validation/edge cases, `saved`/`messages`
-      happy-path, and CI to run it automatically. No client/mobile tests yet.
+- [~] **Automated tests.** ✅ API smoke suite (`backend/tests/api.test.js`, Jest + Supertest: auth
+      guards, ownership, CRUD, geo). ✅ First **mobile** unit tests (2026-09-03, `jest-expo`) for pure
+      helpers (`utils/cluster`, `utils/property`) — both CI jobs (`backend-tests` + `mobile-tests`)
+      gate merges. Next: component tests (PropertyCard, chat), more edge cases.
 - [x] **Input validation** on write endpoints (required fields, enums, lengths, ranges,
       UUID params) → 400 with `errors[]`. `backend/src/validation.js` + 8 tests. *(2026-08-04)*
 - [ ] **Pagination + server-side search** on `GET /properties` (before the table grows).

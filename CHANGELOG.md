@@ -12,6 +12,26 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-03 (test infra: jest-expo + first mobile unit tests → caught 2 live bugs)
+- **Added:** mobile test runner. `jest-expo`/`jest`/`react-test-renderer` devDeps, `jest.config.js`
+  (jest-expo preset), `npm test` script, and `mobile/.npmrc` (`legacy-peer-deps=true`) so `npm ci`
+  resolves in CI. New job **`mobile-tests`** in `.github/workflows/ci.yml` (checkout → `npm ci` →
+  `npm test`) — merges are now gated on both `backend-tests` and `mobile-tests`.
+- **Tests:** first mobile unit tests (23) for the pure helpers — `src/utils/__tests__/cluster.test.js`
+  (merge/split by zoom, coord normalization, null/degenerate-region guards) and
+  `.../property.test.js` (price/area parsing, ₹-prefix + comma regressions, ppsf/EMI formatting).
+- **Fixed (surfaced by the new tests):** two live parsing bugs in `src/utils/property.js`.
+  `priceToRupees("₹2.4 Cr")` returned `null` (`parseFloat` NaN's on the leading `₹`) and
+  `areaToSqft("3,200 sq ft")` returned `3` (`parseFloat` stops at the comma) — so **price-per-sqft
+  and the EMI estimate never rendered** on `PropertyCard`/property detail for ₹-prefixed listings
+  (i.e. almost all of them) and comma'd areas were wildly off. Replaced ad-hoc `parseFloat` with a
+  shared `parseAmount()` that strips the currency symbol + commas, reads the first numeric token, and
+  detects spaced/unspaced unit suffixes. See BUGLOG (new "`parseFloat` on formatted strings" guardrail).
+- **Fixed:** `withCoords` (`src/utils/cluster.js`) kept coordinate-less rows at lat/lng `0`
+  (`Number(null)` is `0`, not `NaN`); now coerces null/""/undefined to `NaN` so pinless listings drop.
+- **Ripple check:** `pricePerSqft`/`estimateEMI` consumers (`PropertyCard`, `property/[id].js`) are
+  unchanged — they now simply render values that were silently null before. ios + web bundles compile.
+
 ### 2026-09-03 (feature: map clustering + live listings on the map)
 - **Added:** the Map tab now clusters nearby pins. Zoomed out, close listings collapse into a
   single amber **"N"** bubble; tapping it zooms in (`animateToRegion`) so the group splits apart;

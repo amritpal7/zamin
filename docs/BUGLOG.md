@@ -14,10 +14,24 @@ of bug while building new features. Newest first. Update this whenever we fix a 
 | **Modal hygiene** | 1 | Render `Modal`s **conditionally** (`{open && <Modal visible/>}`), not always-mounted — cleaner and avoids RN-web overlay risk. |
 | **Denormalized data not propagated to every copy** | 3 | owner_name / owner_avatar / owner_image / sender_name are copied onto rows — update ALL copies + the reconcile job, not just the Clerk user. (CLAUDE.md rule #1) |
 | **Messaging receiver/thread identity** | 2 | Receiver = the *peer* (other person), never self/owner-always; conversations keyed by (property, peer). Backend rejects `sender==receiver`. |
-| **mobile `npm install` ERESOLVE** | 2 | Install in the mobile container with `--legacy-peer-deps` (matches its Dockerfile). |
+| **mobile `npm install` ERESOLVE** | 2 | Install in the mobile container with `--legacy-peer-deps` (matches its Dockerfile). Now pinned via `mobile/.npmrc` (`legacy-peer-deps=true`) so `npm ci` works in CI too. |
 | **Stray `</content>` appended by the Write tool** | many | After writing files, strip lines matching `^</content>$`. |
+| **`parseFloat` on formatted strings** | 2 | `parseFloat("₹2.4 Cr")` is `NaN` (leading symbol) and `parseFloat("3,200")` is `3` (stops at comma). Strip currency/commas and match the numeric token before parsing. |
 
 ## Log
+
+### 2026-09-03 (mobile test setup surfaced two live parsing bugs)
+- **`priceToRupees` returned null for every ₹-prefixed price.** Root cause: `parseFloat("₹2.4 Cr")`
+  is `NaN` because the string starts with `₹`. Effect: **price-per-sqft and EMI estimate silently
+  never rendered** on `PropertyCard` + property detail for essentially all real listings (DB stores
+  `₹2.4 Cr`, `₹85 L`, …) and all seed data. **Category:** input parsing.
+- **`areaToSqft` truncated comma'd areas.** `parseFloat("3,200 sq ft")` → `3` (stops at the comma),
+  so a 3,200 sqft plot parsed as 3 sqft → ppsf failed its sanity cap → null. **Category:** input parsing.
+  - *Fix (both):* a shared `parseAmount()` that strips the currency symbol + thousands commas, reads
+    the first numeric token, and detects the unit suffix (spaced `85 L` **and** unspaced `22K`).
+  - *How found:* writing the **first mobile unit tests** for these pure helpers (jest-expo). The tests
+    asserted the documented behavior; the helpers didn't meet it. Exactly the point of the exercise.
+  - *Guardrail (added above):* never `parseFloat` a display-formatted string directly.
 
 ### 2026-08-27 (authorization audit — security findings)
 - **Unauthenticated PII exposure:** `GET /auth/resolve?username=` returned the account's **email**

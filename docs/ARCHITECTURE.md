@@ -372,7 +372,11 @@ inspection, creating test users via the Backend API, etc.).
 - **Native-only maps**: `react-native-maps` is stubbed on web; guard native map code.
 - **API tests:** `backend/tests/api.test.js` (Jest + Supertest) covers auth guards + CRUD +
   ownership. Run with `docker exec zamin_api npm test`. Clerk is mocked via `x-test-user`
-  header; the app is imported from `src/app.js` (server-less). No client/mobile tests yet.
+  header; the app is imported from `src/app.js` (server-less).
+- **Mobile tests:** `jest-expo` preset (`mobile/jest.config.js`), specs under
+  `mobile/src/**/__tests__/*.test.js` — currently the pure helpers (`utils/cluster`, `utils/property`).
+  Run with `docker compose exec mobile npm test`. `mobile/.npmrc` pins `legacy-peer-deps=true` so
+  `npm ci` resolves. Both `backend-tests` + `mobile-tests` CI jobs gate merges.
 - **Docker build npm flakiness**: first `--build` can fail on a transient npm network error; retry usually succeeds.
 - **Messages/notifications are real** (backed by the `messages` table via `GET /messages`),
   but there is **no read-tracking column**, so unread badges are intentionally absent. Adding
