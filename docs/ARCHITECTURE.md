@@ -313,7 +313,7 @@ Shared code in `mobile/src`:
 - `components/` — Neo* UI kit (NeoBox, NeoButton), PropertyCard, SmartImage, ConfirmModal, Header, Icon, ui (NeoInput, Tag, Avatar).
 - `hooks/useApi.js` — typed API client, auto-injects Clerk JWT.
 - `context/ThemeContext.js`, `theme/index.js` — theming (`C` colors, `FONT`, `FONT_HEAD`).
-- `utils/` — `imageCache.js`, `property.js`.
+- `utils/` — `imageCache.js`, `property.js`, `cluster.js` (grid map clustering: `clusterProperties`, `withCoords`).
 - `data/properties.js` — seed/fallback data.
 
 ---
