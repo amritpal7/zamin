@@ -12,6 +12,26 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-03 (feature: map clustering + live listings on the map)
+- **Added:** the Map tab now clusters nearby pins. Zoomed out, close listings collapse into a
+  single amber **"N"** bubble; tapping it zooms in (`animateToRegion`) so the group splits apart;
+  single pins stay normal markers that open the property. Implemented as **grid clustering in a
+  pure helper** (`src/utils/cluster.js#clusterProperties`) — buckets points into a grid sized off
+  the visible `region` + zoom, no extra native dependency (kept it out of `react-native-maps`).
+  `withCoords` normalizes seed `lat/lng` and DB `latitude/longitude` to finite coords and drops
+  pinless rows. Guards null/degenerate regions (→ all points, no divide-by-zero).
+- **Changed:** `app/(tabs)/map.js` loads **real listings** via `getProperties()` on focus (was
+  static `SEED_PROPERTIES`), falls back to seed if the API is unreachable, tracks `region` via
+  `onRegionChangeComplete`, and re-clusters with `useMemo`. Price/emoji render handles both numeric
+  DB prices and seed strings.
+- **Ripple check:** web has no `react-native-maps` (metro-stubbed) → the existing signed-in/​web
+  placeholder path is unchanged and now shows the live `points.length`. The property list below the
+  map switched from seed to the loaded `properties` (count + rows now reflect real data). No backend
+  or API change. Verified the pure `clusterProperties`/`withCoords` logic with a standalone Node
+  check (merge-on-zoom-out, split-on-zoom-in, bad-coord drop, null/zero-delta guards).
+- **Tests:** none added — mobile has no test runner (adding `jest-expo` is out of scope here); logic
+  is a pure, side-effect-free helper validated via the Node sanity check above + ios/web bundle compile.
+
 ### 2026-08-27 (feature: geo / "near me" search)
 - **Added:** distance-based listing search. `GET /properties?lat&lng[&radius=km]` computes a
   **Haversine distance in plain SQL** (no PostGIS dependency), filters to listings within `radius`
