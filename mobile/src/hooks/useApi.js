@@ -123,5 +123,13 @@ export function useApi() {
     createSavedSearch: (body) => request("/saved-searches", { method: "POST", body: JSON.stringify(body) }),
     getSavedSearches: () => request("/saved-searches"),
     deleteSavedSearch: (id) => request(`/saved-searches/${id}`, { method: "DELETE" }),
+
+    // Visit scheduling
+    createVisit: (property_id, slot, note) =>
+      request("/visits", { method: "POST", body: JSON.stringify({ property_id, slot, note }) }),
+    getVisits: () => request("/visits"),
+    respondVisit: (id, status) =>
+      request(`/visits/${id}/respond`, { method: "POST", body: JSON.stringify({ status }) }),
+    cancelVisit: (id) => request(`/visits/${id}/cancel`, { method: "POST" }),
   }), [request]);
 }

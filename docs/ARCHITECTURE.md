@@ -126,6 +126,16 @@ match (type/status wildcard-or-equal + free-text in title/location, owner exclud
 the app's notification feed (`new_message` + `listing_match`); `GET /notifications` (+ unread),
 `POST /notifications/read`. Endpoints: `/saved-searches` (POST/GET/DELETE), `/notifications`.
 
+### `visits`
+**In-app visit scheduling** (first-class booking, distinct from the informal in-chat visit
+*proposal*). `visits (property_id, requester_id, owner_id, slot, note, status)` where status is
+`pending → confirmed | declined | cancelled`. `routes/visits.js` at `/visits`: `POST /` (buyer books
+a slot — owner derived from the property; rejects your own listing, past/invalid slots, blocked
+users), `GET /` (mine as requester **or** owner, upcoming-first, with a `role` + listing title/img),
+`POST /:id/respond {confirmed|declined}` (owner-only, pending-only), `POST /:id/cancel` (either
+participant). Each transition writes a `notifications` row (type `visit`, `data.kind:"visit"`) + push;
+taps route to the `/visits` screen. Indexes on `(owner_id, slot)` and `(requester_id, slot)`.
+
 ### `blocks` / `reports`
 Trust & safety. `blocks (blocker_id, blocked_id)` — messaging is rejected (403) when either
 party has blocked the other (`src/blocks.js`, enforced in message/proposal sends). `reports

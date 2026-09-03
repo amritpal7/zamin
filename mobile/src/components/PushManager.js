@@ -58,7 +58,9 @@ export default function PushManager() {
   useEffect(() => {
     const sub = Notifications.addNotificationResponseReceivedListener((resp) => {
       const data = resp.notification?.request?.content?.data || {};
-      if (data.kind === "listing" && data.propertyId) {
+      if (data.kind === "visit") {
+        router.push("/visits");
+      } else if (data.kind === "listing" && data.propertyId) {
         router.push(`/property/${data.propertyId}`);
       } else if (data.propertyId) {
         router.push(`/chat/${data.propertyId}${data.peer ? `?peer=${data.peer}` : ""}`);
