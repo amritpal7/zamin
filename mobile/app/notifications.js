@@ -56,7 +56,8 @@ export default function Notifications() {
 
   const open = (n) => {
     const d = n.data || {};
-    if (d.kind === "listing" && d.propertyId) router.push(`/property/${d.propertyId}`);
+    if (d.kind === "visit") router.push("/visits");
+    else if (d.kind === "listing" && d.propertyId) router.push(`/property/${d.propertyId}`);
     else if (d.propertyId) router.push(`/chat/${d.propertyId}${d.peer ? `?peer=${d.peer}` : ""}`);
   };
 

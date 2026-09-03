@@ -12,6 +12,27 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-04 (feature: in-app visit scheduling)
+- **Added:** first-class **visit booking** (distinct from the informal in-chat visit *proposal*).
+  A buyer requests a viewing slot from the listing; the owner confirms/declines; either party can
+  cancel. Each transition notifies the other party (in-app + push).
+  - Backend: `visits` table (`property_id`, `requester_id`, `owner_id`, `slot`, `note`, `status`
+    pending→confirmed/declined/cancelled) + `routes/visits.js` mounted at `/visits`:
+    `POST /visits` (book — derives owner from the property, rejects booking your own listing, past/
+    invalid slots, and blocked users), `GET /visits` (mine as requester **or** owner, upcoming-first,
+    with `role` + listing title/img), `POST /visits/:id/respond` (owner-only, pending-only),
+    `POST /visits/:id/cancel` (either participant). Reuses `areBlocked`, `createNotification`, `sendPush`.
+  - Mobile: **"Schedule a visit"** on the property detail (slot-picker modal → `POST /visits`), a new
+    **Visits** screen (`app/visits.js`) with status badges + owner Confirm/Decline + Cancel, a Profile
+    menu link, and `kind:"visit"` notification routing (in-app list + push tap) → `/visits`.
+    `useApi`: `createVisit`/`getVisits`/`respondVisit`/`cancelVisit`.
+  - **Ripple check:** notification routing updated in **both** `notifications.js` and `PushManager.js`;
+    `migrate.js` creates the table + indexes; test cleanup drops `visits` rows. No change to the
+    existing chat visit proposal (kept for quick in-conversation proposals).
+  - **Tests:** +4 (56 total) — auth required; can't book own listing / past / invalid slot; full
+    lifecycle (book → both roles see it → owner confirms → requester notified → can't re-respond);
+    either party cancels (and re-cancel is a 404 no-op).
+
 ### 2026-09-04 (feature: verified-owner trust badge — server-authoritative, Clerk-synced)
 - **Changed:** the "verified" badge is now **real, owner-level, and server-authoritative**.
   Previously `post.js` sent `verified: <clerk email verified>` but `POST /properties` **never stored

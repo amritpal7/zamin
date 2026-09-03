@@ -47,6 +47,7 @@ afterAll(async () => {
   await pool.query("DELETE FROM pending_uploads WHERE clerk_user_id LIKE 'test_user_jest%'");
   await pool.query("DELETE FROM saved_searches WHERE clerk_user_id LIKE 'test_user_jest%'");
   await pool.query("DELETE FROM notifications WHERE clerk_user_id LIKE 'test_user_jest%'");
+  await pool.query("DELETE FROM visits WHERE requester_id LIKE 'test_user_jest%' OR owner_id LIKE 'test_user_jest%'");
   await pool.end();
 });
 
@@ -156,6 +157,72 @@ describe("verified trust badge (server-authoritative)", () => {
     // and it's persisted false, not just omitted from the response
     const got = await request(app).get(`/properties/${res.body.id}`);
     expect(got.body.verified).toBe(false);
+  });
+});
+
+describe("in-app visit scheduling", () => {
+  let pid;               // USER_A's listing
+  const soon = () => new Date(Date.now() + 86400000).toISOString(); // tomorrow
+
+  beforeAll(async () => {
+    const create = await request(app).post("/properties").set("x-test-user", USER_A)
+      .send({ ...sampleListing, title: "Visit Listing" });
+    pid = create.body.id;
+  });
+
+  test("requires auth", async () => {
+    expect((await request(app).post("/visits").send({ property_id: pid, slot: soon() })).status).toBe(401);
+  });
+
+  test("owner can't book their own listing; rejects past/invalid slots", async () => {
+    expect((await request(app).post("/visits").set("x-test-user", USER_A)
+      .send({ property_id: pid, slot: soon() })).status).toBe(400);
+    expect((await request(app).post("/visits").set("x-test-user", USER_B)
+      .send({ property_id: pid, slot: "not-a-date" })).status).toBe(400);
+    expect((await request(app).post("/visits").set("x-test-user", USER_B)
+      .send({ property_id: pid, slot: new Date(Date.now() - 86400000).toISOString() })).status).toBe(400);
+  });
+
+  test("full lifecycle: book → both see it → owner confirms → notifies requester", async () => {
+    const book = await request(app).post("/visits").set("x-test-user", USER_B)
+      .send({ property_id: pid, slot: soon(), note: "Evening works best" });
+    expect(book.status).toBe(201);
+    expect(book.body.status).toBe("pending");
+    const vid = book.body.id;
+
+    // owner sees it with role=owner; requester sees it with role=requester
+    const ownerList = await request(app).get("/visits").set("x-test-user", USER_A);
+    expect(ownerList.body.find((v) => v.id === vid)?.role).toBe("owner");
+    const reqList = await request(app).get("/visits").set("x-test-user", USER_B);
+    expect(reqList.body.find((v) => v.id === vid)?.role).toBe("requester");
+    expect(reqList.body.find((v) => v.id === vid)?.property_title).toBe("Visit Listing");
+
+    // requester can't respond; owner can confirm
+    expect((await request(app).post(`/visits/${vid}/respond`).set("x-test-user", USER_B)
+      .send({ status: "confirmed" })).status).toBe(404);
+    const respond = await request(app).post(`/visits/${vid}/respond`).set("x-test-user", USER_A)
+      .send({ status: "confirmed" });
+    expect(respond.status).toBe(200);
+    expect(respond.body.status).toBe("confirmed");
+
+    // requester got a notification
+    const notifs = await request(app).get("/notifications").set("x-test-user", USER_B);
+    expect(notifs.body.notifications.some((n) => n.type === "visit")).toBe(true);
+
+    // can't respond again (no longer pending)
+    expect((await request(app).post(`/visits/${vid}/respond`).set("x-test-user", USER_A)
+      .send({ status: "declined" })).status).toBe(404);
+  });
+
+  test("either party can cancel", async () => {
+    const book = await request(app).post("/visits").set("x-test-user", USER_B)
+      .send({ property_id: pid, slot: soon() });
+    const vid = book.body.id;
+    const cancel = await request(app).post(`/visits/${vid}/cancel`).set("x-test-user", USER_A);
+    expect(cancel.status).toBe(200);
+    expect(cancel.body.status).toBe("cancelled");
+    // cancelling again is a no-op 404
+    expect((await request(app).post(`/visits/${vid}/cancel`).set("x-test-user", USER_B)).status).toBe(404);
   });
 });
 

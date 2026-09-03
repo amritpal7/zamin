@@ -2,7 +2,7 @@ import { useTheme } from "../../src/context/ThemeContext";
 import React, { useState, useCallback } from "react";
 import {
   View, Text, ScrollView, Pressable, Dimensions,
-  Linking, Alert, ActivityIndicator, Share, StyleSheet,
+  Linking, Alert, ActivityIndicator, Share, StyleSheet, Modal,
 } from "react-native";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { useAuth } from "@clerk/clerk-expo";
@@ -88,6 +88,51 @@ function ImageSlider({ images, color }) {
   );
 }
 
+// Slot picker for requesting a viewing (day + time-of-day → ISO). Mirrors the
+// chat VisitModal, but books a first-class visit via POST /visits.
+function VisitBookingModal({ onClose, onSubmit }) {
+  const [day, setDay] = useState(0);
+  const [slot, setSlot] = useState(1);
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const days = [...Array(6)].map((_, i) => { const d = new Date(); d.setDate(d.getDate() + i); return d; });
+  const slots = [{ label: "Morning", h: 10 }, { label: "Afternoon", h: 14 }, { label: "Evening", h: 17 }];
+  const confirm = async () => {
+    const d = new Date(days[day]); d.setHours(slots[slot].h, 0, 0, 0);
+    setBusy(true);
+    try { await onSubmit(d.toISOString(), note.trim()); } finally { setBusy(false); }
+  };
+  return (
+    <Modal transparent animationType="slide" visible onRequestClose={onClose}>
+      <Pressable onPress={onClose} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" }}>
+        <Pressable onPress={() => {}} style={{ backgroundColor: C.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 36 }}>
+          <Text style={{ color: C.fg, fontFamily: FONT_HEAD, fontSize: 20, marginBottom: 14 }}>Schedule a visit</Text>
+          <Text style={{ color: C.fgDim, fontFamily: FONT, fontSize: 12, marginBottom: 8 }}>DAY</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
+            {days.map((d, i) => (
+              <Pressable key={i} onPress={() => setDay(i)} style={{ paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, marginRight: 8, backgroundColor: day === i ? C.amber : C.glassBg, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder }}>
+                <Text style={{ color: day === i ? C.ink : C.fg, fontFamily: FONT_MED, fontSize: 12 }}>{i === 0 ? "Today" : i === 1 ? "Tomorrow" : d.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+          <Text style={{ color: C.fgDim, fontFamily: FONT, fontSize: 12, marginBottom: 8 }}>TIME</Text>
+          <View style={{ flexDirection: "row", gap: 8, marginBottom: 20 }}>
+            {slots.map((s, i) => (
+              <Pressable key={i} onPress={() => setSlot(i)} style={{ flex: 1, paddingVertical: 12, borderRadius: 14, alignItems: "center", backgroundColor: slot === i ? C.amber : C.glassBg, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder }}>
+                <Text style={{ color: slot === i ? C.ink : C.fg, fontFamily: FONT_MED, fontSize: 12 }}>{s.label}</Text>
+                <Text style={{ color: slot === i ? C.ink : C.fgDim, fontFamily: FONT, fontSize: 10, marginTop: 2 }}>{s.h > 12 ? s.h - 12 : s.h} {s.h >= 12 ? "PM" : "AM"}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <Pressable disabled={busy} onPress={confirm} style={{ backgroundColor: C.amber, borderRadius: 100, paddingVertical: 14, alignItems: "center", opacity: busy ? 0.6 : 1 }}>
+            <Text style={{ color: C.ink, fontFamily: FONT_MED, fontSize: 15 }}>{busy ? "Sending…" : "Request visit →"}</Text>
+          </Pressable>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
 export default function PropertyDetail() {
   useTheme();
   const { id }  = useLocalSearchParams();
@@ -99,6 +144,7 @@ export default function PropertyDetail() {
   const [p,       setP]       = useState(() => SEED_PROPERTIES.find(x => String(x.id) === String(id)) || null);
   const [saved,   setSaved]   = useState(false);
   const [loading, setLoading] = useState(!p);
+  const [visitOpen, setVisitOpen] = useState(false);
 
   // Re-fetch whenever the screen regains focus (e.g. returning from the editor),
   // so edits show up immediately on the already-open detail screen.
@@ -115,6 +161,19 @@ export default function PropertyDetail() {
     setSaved(v => !v);
     try { saved ? await api.unsaveProperty(id) : await api.saveProperty(id); }
     catch { setSaved(v => !v); }
+  };
+
+  const bookVisit = async (slot, note) => {
+    try {
+      await api.createVisit(p.id, slot, note);
+      setVisitOpen(false);
+      Alert.alert("Visit requested", "The owner will confirm your viewing. Track it under Visits.", [
+        { text: "View my visits", onPress: () => router.push("/visits") },
+        { text: "OK" },
+      ]);
+    } catch (e) {
+      Alert.alert("Couldn't request visit", e.message || "Please try again.");
+    }
   };
 
   const call = () => {
@@ -358,8 +417,21 @@ export default function PropertyDetail() {
             </View>
           </GlassCard>
 
+          {/* Schedule a visit — non-owners, active owner only */}
+          {!isOwn && p.owner_active !== false && (
+            <Pressable
+              onPress={() => { if (!isSignedIn) { router.push("/sign-in"); return; } setVisitOpen(true); }}
+              style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: C.glassBg, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder, borderRadius: 16, paddingVertical: 14, marginBottom: 14 }}
+            >
+              <Icon name="clock" size={17} color={C.amberText} strokeWidth={1.7} />
+              <Text style={{ color: C.amberText, fontSize: 15, fontFamily: FONT_MED }}>Schedule a visit</Text>
+            </Pressable>
+          )}
+
         </View>
       </ScrollView>
+
+      {visitOpen && <VisitBookingModal onClose={() => setVisitOpen(false)} onSubmit={bookVisit} />}
 
       {/* ── Sticky dark action panel (Screen 3) ── */}
       <View style={{

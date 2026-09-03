@@ -70,7 +70,8 @@ Three pillars we judge every change against:
       that splits on zoom.
 - [x] **Saved-search alerts** (2026-08-27) — `saved_searches` + a real `notifications` store; new
       matching listing → in-app notification (+ push). Discover "Save this search" + manager screen.
-- [ ] **In-app visit scheduling** (request/confirm viewing slots).
+- [x] **In-app visit scheduling** (2026-09-04) — `visits` table + `/visits` API (book → confirm/
+      decline → cancel, with notifications); "Schedule a visit" on the listing + a Visits screen.
 - [ ] **Price insights** (avg ₹/sqft for area, price history, "good deal" flag).
 - [ ] **Reviews / reporting** — rate owners, flag suspicious listings, moderation queue.
 

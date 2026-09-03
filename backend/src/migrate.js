@@ -52,6 +52,24 @@ async function migrate(pool) {
     )`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(clerk_user_id, created_at DESC)`);
 
+  // In-app visit scheduling: a first-class booking (distinct from the informal
+  // in-chat visit *proposal*). requester books a slot, owner confirms/declines,
+  // either party can cancel.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS visits (
+      id           UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+      property_id  UUID NOT NULL,
+      requester_id VARCHAR(255) NOT NULL,
+      owner_id     VARCHAR(255) NOT NULL,
+      slot         TIMESTAMPTZ NOT NULL,
+      note         VARCHAR(500),
+      status       VARCHAR(20) NOT NULL DEFAULT 'pending',
+      created_at   TIMESTAMPTZ DEFAULT NOW(),
+      updated_at   TIMESTAMPTZ DEFAULT NOW()
+    )`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_visits_owner ON visits(owner_id, slot)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_visits_requester ON visits(requester_id, slot)`);
+
   // Binds a presigned upload `base` to the user who requested it, so /process
   // can only be triggered for keys that caller actually presigned (prevents
   // overwriting another user's listing images).
