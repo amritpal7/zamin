@@ -9,6 +9,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
+import * as Location from "expo-location";
 import { C, FONT, FONT_MED, FONT_HEAD } from "../../src/theme";
 import { Icon } from "../../src/components/Icon";
 import NeoButton from "../../src/components/NeoButton";
@@ -83,7 +84,16 @@ const EMPTY_FORM = {
   furnishing: "", totalFloors: 0, floorNumber: 0, facing: "",
   landType: "", washrooms: 0, commFurnishing: "",
   amenities: [], location: "", contactPhone: "", images: [],
+  locationVisibility: "exact",
+  photoGeo: {}, // (local uri | hosted url) → { lat, lng, at, source:'camera' } for on-site capture
 };
+
+// Location privacy options shown on the listing (per-property override of the global default).
+const VISIBILITY_OPTIONS = [
+  { key: "exact",       label: "Exact",       icon: "📍", hint: "Show the precise pin on the map" },
+  { key: "approximate", label: "Approximate", icon: "⭕", hint: "Show a ~400m area circle, not the exact spot" },
+  { key: "hidden",      label: "Hidden",      icon: "🚫", hint: "No map pin — locality text only" },
+];
 
 function formatPrice(amount, unit) { return amount ? `${amount} ${unit}` : ""; }
 function formatArea(amount, unit)  { return amount ? `${amount} ${unit}` : ""; }
@@ -328,7 +338,33 @@ function SegmentPicker({ options, value, onChange, color }) {
 const MAX_IMAGES = 8;
 const MAX_IMAGE_MB = 8;
 
-function PhotoPicker({ images, onChange }) {
+function PhotoPicker({ images, onChange, geo = {}, onGeo }) {
+  // On-site capture: open the camera AND record the live GPS fix at shutter time. A photo
+  // taken on the property site (near the pin) earns the "Verified on-site" badge server-side.
+  const captureOnSite = async () => {
+    try {
+      if (images.length >= MAX_IMAGES) {
+        Alert.alert("Photo limit reached", `You can add up to ${MAX_IMAGES} photos.`);
+        return;
+      }
+      const camPerm = await ImagePicker.requestCameraPermissionsAsync();
+      if (!camPerm.granted) { Alert.alert("Camera needed", "Allow camera access to take on-site photos."); return; }
+      const locPerm = await Location.requestForegroundPermissionsAsync();
+      if (locPerm.status !== "granted") { Alert.alert("Location needed", "On-site photos need location access to prove the photo was taken at the property."); return; }
+
+      const res = await ImagePicker.launchCameraAsync({ mediaTypes: ["images"], quality: 0.7, exif: false });
+      if (res.canceled || !res.assets?.[0]) return;
+      const uri = res.assets[0].uri;
+
+      // Capture the fix now (high accuracy — we're standing at the property).
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      onChange([...images, uri]);
+      onGeo?.(uri, { lat: loc.coords.latitude, lng: loc.coords.longitude, at: new Date().toISOString(), source: "camera" });
+    } catch (e) {
+      Alert.alert("Couldn't capture photo", e.message || "Please try again.");
+    }
+  };
+
   const pick = async () => {
     try {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -386,12 +422,28 @@ function PhotoPicker({ images, onChange }) {
           <Icon name="plus" size={22} color={C.amber} strokeWidth={2} />
           <Text style={{ color: C.amberText, fontSize: 10, fontFamily: FONT_MED }}>Add photo</Text>
         </Pressable>
+        <Pressable
+          onPress={captureOnSite}
+          style={{
+            width: 92, height: 92, borderRadius: 16,
+            borderWidth: 1.5, borderColor: C.green + "88", borderStyle: "dashed",
+            backgroundColor: C.green + "12", alignItems: "center", justifyContent: "center", gap: 5,
+          }}
+        >
+          <Icon name="image" size={20} color={C.green} strokeWidth={2} />
+          <Text style={{ color: C.green, fontSize: 10, fontFamily: FONT_MED, textAlign: "center" }}>On-site{"\n"}photo</Text>
+        </Pressable>
         {images.map((uri, i) => (
           <View key={uri + i} style={{ width: 92, height: 92, borderRadius: 16, overflow: "hidden", borderWidth: 1.5, borderColor: C.glassBorder }}>
             <Image source={uri} style={{ width: "100%", height: "100%" }} contentFit="cover" cachePolicy="memory-disk" />
             {i === 0 && (
               <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "rgba(0,0,0,0.6)", paddingVertical: 2, alignItems: "center" }}>
                 <Text style={{ color: "#fff", fontSize: 9, fontFamily: FONT_MED }}>COVER</Text>
+              </View>
+            )}
+            {geo[uri] && (
+              <View style={{ position: "absolute", top: 4, left: 4, backgroundColor: C.green, borderRadius: 8, paddingHorizontal: 5, paddingVertical: 1 }}>
+                <Text style={{ color: "#fff", fontSize: 8, fontFamily: FONT_MED }}>📍 On-site</Text>
               </View>
             )}
             <Pressable
@@ -477,6 +529,13 @@ export default function Post() {
           location:     p.location    || "",
           contactPhone: p.owner_phone || "",
           images:       p.images      || [],
+          locationVisibility: p.location_visibility || "exact",
+          // Seed capture geo from the server (owner sees full metadata for their own listing).
+          photoGeo: Object.fromEntries(
+            (p.photo_geo || [])
+              .filter(g => g && g.url && g.source === "camera" && g.lat != null)
+              .map(g => [g.url, { lat: g.lat, lng: g.lng, at: g.at, source: "camera" }])
+          ),
         });
       })
       .catch(() => Alert.alert("Error", "Could not load property for editing."))
@@ -494,14 +553,25 @@ export default function Post() {
       let k = 0;
       const finalImages = [];
       const finalThumbs = [];
+      const localToUrl = {}; // local uri → hosted url, to re-key capture geo after upload
       for (const u of form.images) {
         if (isLocal(u)) {
           const pair = uploaded[k++];
-          if (pair) { finalImages.push(pair.url); finalThumbs.push(pair.thumb); }
+          if (pair) { finalImages.push(pair.url); finalThumbs.push(pair.thumb); localToUrl[u] = pair.url; }
         } else {
           finalImages.push(u);
           // our stored images expose a matching _thumb; external URLs fall back to themselves
           finalThumbs.push(u.includes("/media/") ? u.replace(/\.jpg$/, "_thumb.jpg") : u);
+        }
+      }
+
+      // On-site capture geo, keyed by the FINAL hosted url (local uris re-mapped post-upload).
+      // The server recomputes on_site/on_site_verified — these coords are only a claim.
+      const photoGeoOut = [];
+      for (const [key, g] of Object.entries(form.photoGeo || {})) {
+        const url = isLocal(key) ? localToUrl[key] : key;
+        if (url && finalImages.includes(url) && g?.lat != null && g?.lng != null) {
+          photoGeoOut.push({ url, lat: g.lat, lng: g.lng, at: g.at || null, source: "camera" });
         }
       }
 
@@ -514,6 +584,8 @@ export default function Post() {
         baths: form.baths > 0 ? form.baths : null,
         tags:  buildTags(form),
         location:    form.location,
+        location_visibility: form.locationVisibility,
+        photo_geo:   photoGeoOut,
         owner_phone: form.contactPhone || null,
         images:      finalImages,
         thumbnails:  finalThumbs,
@@ -669,7 +741,12 @@ export default function Post() {
             <InputField labelText="Title" icon="text" value={form.title} onChange={v => set("title", v)} placeholder="e.g. 3BHK Flat in Bandra West" />
             <InputField labelText="Description" icon="menu" value={form.description} onChange={v => set("description", v)} placeholder="Describe the property, nearby landmarks, condition…" multiline />
 
-            <PhotoPicker images={form.images} onChange={v => set("images", v)} />
+            <PhotoPicker
+              images={form.images}
+              onChange={v => set("images", v)}
+              geo={form.photoGeo}
+              onGeo={(uri, g) => setForm(f => ({ ...f, photoGeo: { ...f.photoGeo, [uri]: g } }))}
+            />
 
             <PriceField
               amount={form.priceAmount} unit={form.priceUnit}
@@ -773,15 +850,38 @@ export default function Post() {
             <InputField labelText="Address / Locality" icon="pin" value={form.location} onChange={v => set("location", v)} placeholder="e.g. Andheri West, Mumbai — 400053" />
             <InputField labelText="WhatsApp / Contact Number" icon="phone" value={form.contactPhone} onChange={v => set("contactPhone", v.replace(/[^0-9+\s\-]/g, ""))} placeholder="e.g. 98765 43210" keyboardType="phone-pad" />
 
-            {/* Map placeholder — glass card */}
-            <View style={{
-              backgroundColor: C.card, borderRadius: 22, borderWidth: 1, borderColor: C.glassBorder,
-              shadowColor: C.shadow, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.12, shadowRadius: 16, elevation: 4,
-              height: 160, alignItems: "center", justifyContent: "center",
-            }}>
-              <Text style={{ fontSize: 36 }}>📍</Text>
-              <Text style={{ color: C.amberText, fontWeight: "700", marginTop: 10, fontFamily: FONT }}>Map pin coming soon</Text>
-              <Text style={{ color: C.muted, fontSize: 11, fontFamily: FONT, marginTop: 4 }}>Location shown to signed-in users only</Text>
+            {/* Location privacy — how precisely the pin is shown to other users */}
+            <View>
+              <Text style={{ color: C.text, fontWeight: "700", fontSize: 14, fontFamily: FONT, marginBottom: 8 }}>Location privacy</Text>
+              <View style={{ gap: 8 }}>
+                {VISIBILITY_OPTIONS.map(opt => {
+                  const active = form.locationVisibility === opt.key;
+                  return (
+                    <Pressable
+                      key={opt.key}
+                      onPress={() => set("locationVisibility", opt.key)}
+                      style={{
+                        flexDirection: "row", alignItems: "center", gap: 12,
+                        backgroundColor: active ? C.amber + "1f" : C.card,
+                        borderRadius: 16, borderWidth: 1, borderColor: active ? C.amber : C.glassBorder,
+                        paddingVertical: 12, paddingHorizontal: 14,
+                      }}
+                    >
+                      <Text style={{ fontSize: 20 }}>{opt.icon}</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: active ? C.amberText : C.text, fontWeight: "700", fontSize: 13, fontFamily: FONT }}>{opt.label}</Text>
+                        <Text style={{ color: C.muted, fontSize: 11, fontFamily: FONT, marginTop: 1 }}>{opt.hint}</Text>
+                      </View>
+                      <View style={{ width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: active ? C.amber : C.muted, alignItems: "center", justifyContent: "center" }}>
+                        {active && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: C.amber }} />}
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <Text style={{ color: C.muted, fontSize: 11, fontFamily: FONT, marginTop: 8 }}>
+                Set a default for all your listings in Settings → Privacy.
+              </Text>
             </View>
 
             <View style={{ flexDirection: "row", gap: 10 }}>

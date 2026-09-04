@@ -12,6 +12,51 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-04 (feature: on-site geotagged photo capture — Phase 2 of maps)
+- **Added:** in-app **on-site photo capture** with live GPS → a server-authoritative
+  **"Verified on-site" badge**. Owners tap "On-site photo" in Post/Edit; the app opens the
+  camera and records the GPS fix at shutter time. A camera photo within ~150m of the listing
+  pin counts as on-site; ≥1 on-site photo earns the badge. Fights fake listings (which reuse
+  stock/downloaded images).
+  - Backend: `photoTrust.js` `computePhotoTrust({existing,incoming,images,lat,lng})` — merges
+    existing + newly-captured per-photo geo, scopes to photos still on the listing, computes
+    per-photo `on_site` (Haversine ≤150m, **camera source only**), and **auto-pins** the listing
+    from the first on-site capture when it has no coords (so app-made listings finally get a pin).
+    `on_site` is never trusted from the client. Columns `photo_geo JSONB` + `on_site_verified`
+    (`migrate.js`); wired into POST + PUT.
+  - **Privacy:** capture coordinates are sensitive → `locationPrivacy.sanitizePhotoGeo` strips
+    `photo_geo` to `[{url,on_site}]` for non-owners (owner sees full). Verified by test.
+  - Client: `post.js` "On-site photo" button (`expo-image-picker` camera + `expo-location`),
+    per-photo "📍 On-site" chip in the composer, capture geo threaded through the presigned
+    upload (re-keyed local uri → hosted url) into `photo_geo`; edit seeds geo from the server.
+    Property detail shows a **"📍 On-site verified"** chip (`property/[id].js`).
+  - **Validated:** 74/74 API tests (6 `photoTrust` unit + 2 integration: badge + auto-pin,
+    capture coords hidden from non-owners, client can't fake `on_site`, gallery ≠ verified).
+    iOS bundle 0 errors. **Camera + GPS need a device/dev build to exercise the capture UI.**
+
+### 2026-09-04 (feature: location privacy — Phase 1 of maps)
+- **Added:** owner-controlled **location privacy**, server-enforced. Each listing has a
+  `location_visibility` (`exact` | `approximate` | `hidden`); non-owners never receive true
+  coordinates unless `exact`. Closes a real leak — `GET /properties` is public and previously
+  emitted exact lat/lng to everyone (the client "sign in to view" was cosmetic).
+  - Backend: `locationPrivacy.js` `redactLocation(row, viewerId)` — `approximate` returns a
+    **deterministic ~400m jitter** (seeded by property id, stable across requests; true coords
+    never sent) + `location_precision`/`location_radius_m`; `hidden` nulls lat/lng **and**
+    `distance_km` (no proximity leak); owner always sees own exact. Applied in `GET /properties`
+    (list + geo) and `GET /properties/:id`. Column added in `migrate.js`; enum validated.
+  - Global default: `PUT /properties/location-visibility` bulk-updates all the owner's listings
+    and stores the default in Clerk `publicMetadata` (`setLocationDefault`, backend-only so it
+    can't be spoofed); new listings inherit it unless they override per-listing.
+  - Client: Post/Edit gains a per-listing privacy selector (`post.js`); Settings → Privacy has a
+    global default selector (`settings.js`); Map draws a **circle** (not a pin) for `approximate`
+    and omits `hidden` listings (`map.js`, via `Circle`); property detail shows an honest
+    precision subtitle (`property/[id].js`); `useApi.setLocationVisibility`.
+  - Ripple checked: list, detail, geo "near me" (distance coarsened/omitted), map clustering
+    (`withCoords` already drops null-coord/hidden rows), create + edit, owner-self view.
+  - **Validated:** 66/66 API tests (incl. 6 unit + 4 consumer-perspective integration tests:
+    approximate jitter within radius & deterministic, hidden nulls coords in both `/:id` and the
+    public list, owner-sees-exact, bulk update, 400 on bad enum). iOS bundle 0 errors.
+
 ### 2026-09-04 (fix: handle email-code 2FA at sign-in)
 - **Fixed:** username+password sign-in now handles `needs_second_factor`. On this Clerk instance,
   enabling email as a verifiable identifier (required for add/verify-email + `reset_password_email_code`)

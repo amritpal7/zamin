@@ -69,6 +69,14 @@ Three pillars we judge every change against:
 - [x] **Map clustering** (2026-09-03) — grid clustering in a pure helper (`src/utils/cluster.js`),
       no extra native dep; Map tab loads live listings, collapses nearby pins into a count bubble
       that splits on zoom.
+- [x] **Maps — Phase 1: location privacy** (2026-09-04) — server-enforced `location_visibility`
+      (exact/approximate/hidden); ~400m deterministic jitter circle for approximate; per-listing +
+      global default.
+- [~] **Maps — Phase 2: on-site geotagged capture** (2026-09-04) — in-app camera + live GPS →
+      server-authoritative "Verified on-site" badge (photo within ~150m of the pin; auto-pins the
+      listing). Capture coords redacted for non-owners. ⏳ **Camera/GPS UI needs device testing.**
+      *(Phase 3):* price-bubble markers, "search this area" + synced list↔map, drop-a-pin/reverse-geocode
+      on post, satellite/parcel boundary for Land, "what's nearby", get-directions.
 - [x] **Saved-search alerts** (2026-08-27) — `saved_searches` + a real `notifications` store; new
       matching listing → in-app notification (+ push). Discover "Save this search" + manager screen.
 - [x] **In-app visit scheduling** (2026-09-04) — `visits` table + `/visits` API (book → confirm/

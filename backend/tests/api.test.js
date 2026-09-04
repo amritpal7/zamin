@@ -160,6 +160,93 @@ describe("verified trust badge (server-authoritative)", () => {
   });
 });
 
+describe("location privacy (server-enforced)", () => {
+  const coords = { latitude: 19.076, longitude: 72.8777 };
+
+  test("approximate → other users get jittered coords, never the true ones", async () => {
+    const created = await request(app).post("/properties").set("x-test-user", USER_A)
+      .send({ ...sampleListing, title: "Approx listing", ...coords, location_visibility: "approximate" });
+    expect(created.status).toBe(201);
+    const id = created.body.id;
+
+    // Consumer view (a DIFFERENT user): jittered + flagged, true coords withheld.
+    const other = await request(app).get(`/properties/${id}`).set("x-test-user", USER_B);
+    expect(other.body.location_precision).toBe("approximate");
+    expect(other.body.location_radius_m).toBeGreaterThan(0);
+    expect(other.body.latitude).not.toBe(coords.latitude);
+    expect(other.body.longitude).not.toBe(coords.longitude);
+
+    // Owner still sees exact.
+    const owner = await request(app).get(`/properties/${id}`).set("x-test-user", USER_A);
+    expect(owner.body.location_precision).toBe("exact");
+    expect(Number(owner.body.latitude)).toBeCloseTo(coords.latitude, 4);
+  });
+
+  test("hidden → no coordinates leave the server for other users", async () => {
+    const created = await request(app).post("/properties").set("x-test-user", USER_A)
+      .send({ ...sampleListing, title: "Hidden listing", ...coords, location_visibility: "hidden" });
+    const id = created.body.id;
+
+    const other = await request(app).get(`/properties/${id}`).set("x-test-user", USER_B);
+    expect(other.body.location_precision).toBe("hidden");
+    expect(other.body.latitude).toBeNull();
+    expect(other.body.longitude).toBeNull();
+    expect(other.body.location).toBe(sampleListing.location); // locality text still shown
+
+    // And in the public list, too (the consumer path most likely to leak).
+    const list = await request(app).get("/properties").set("x-test-user", USER_B);
+    const row = list.body.find((p) => p.id === id);
+    expect(row.latitude).toBeNull();
+  });
+
+  test("invalid location_visibility → 400", async () => {
+    const res = await request(app).post("/properties").set("x-test-user", USER_A)
+      .send({ ...sampleListing, location_visibility: "nope" });
+    expect(res.status).toBe(400);
+  });
+
+  test("bulk PUT /location-visibility updates all the owner's listings", async () => {
+    await request(app).post("/properties").set("x-test-user", USER_A).send({ ...sampleListing, ...coords });
+    const res = await request(app).put("/properties/location-visibility").set("x-test-user", USER_A)
+      .send({ visibility: "hidden" });
+    expect(res.status).toBe(200);
+    expect(res.body.updated).toBeGreaterThan(0);
+    // every one of A's listings now reads hidden to another user
+    const list = await request(app).get("/properties").set("x-test-user", USER_B);
+    const mine = list.body.filter((p) => p.clerk_user_id === USER_A);
+    expect(mine.length).toBeGreaterThan(0);
+    expect(mine.every((p) => p.location_precision === "hidden")).toBe(true);
+  });
+});
+
+describe("on-site photo verification", () => {
+  test("camera photo at the pin → on_site_verified, auto-pins the listing", async () => {
+    const created = await request(app).post("/properties").set("x-test-user", USER_A).send({
+      ...sampleListing, title: "On-site listing", latitude: null, longitude: null,
+      images: ["p1.jpg"],
+      photo_geo: [{ url: "p1.jpg", source: "camera", lat: 12.9716, lng: 77.5946, at: "2026-09-04T10:00:00Z" }],
+    });
+    expect(created.status).toBe(201);
+    expect(created.body.on_site_verified).toBe(true);
+    // auto-pinned from the on-site capture
+    expect(Number(created.body.latitude)).toBeCloseTo(12.9716, 3);
+
+    // A different viewer sees the badge but NOT the raw capture coordinates.
+    const other = await request(app).get(`/properties/${created.body.id}`).set("x-test-user", USER_B);
+    expect(other.body.on_site_verified).toBe(true);
+    expect(other.body.photo_geo[0]).toEqual({ url: "p1.jpg", on_site: true });
+    expect(other.body.photo_geo[0].lat).toBeUndefined();
+  });
+
+  test("gallery-only photos → not verified; a client cannot fake on_site", async () => {
+    const created = await request(app).post("/properties").set("x-test-user", USER_A).send({
+      ...sampleListing, title: "Gallery listing", images: ["g1.jpg"],
+      photo_geo: [{ url: "g1.jpg", source: "gallery", lat: 12.9716, lng: 77.5946, on_site: true }],
+    });
+    expect(created.body.on_site_verified).toBe(false);
+  });
+});
+
 describe("in-app visit scheduling", () => {
   let pid;               // USER_A's listing
   const soon = () => new Date(Date.now() + 86400000).toISOString(); // tomorrow

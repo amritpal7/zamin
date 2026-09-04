@@ -365,7 +365,9 @@ export default function PropertyDetail() {
             <View style={{ padding: 18 }}>
               <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                 <Text style={{ color: C.muted, fontSize: 11, fontWeight: "700", fontFamily: FONT, letterSpacing: 1, textTransform: "uppercase" }}>Location</Text>
-                {!isSignedIn && <Chip label="🔒 Sign in to view" color={C.red} />}
+                {p.on_site_verified
+                  ? <Chip label="📍 On-site verified" color={C.green} />
+                  : (!isSignedIn && <Chip label="🔒 Sign in to view" color={C.red} />)}
               </View>
 
               {isSignedIn ? (
@@ -373,7 +375,13 @@ export default function PropertyDetail() {
                   <Text style={{ fontSize: 28 }}>📍</Text>
                   <View>
                     <Text style={{ color: C.text, fontWeight: "700", fontSize: 14, fontFamily: FONT }}>{p.location}</Text>
-                    <Text style={{ color: C.muted, fontSize: 11, fontFamily: FONT, marginTop: 2 }}>Tap to open in Maps</Text>
+                    <Text style={{ color: C.muted, fontSize: 11, fontFamily: FONT, marginTop: 2 }}>
+                      {p.location_precision === "hidden"
+                        ? "Exact location hidden by owner"
+                        : p.location_precision === "approximate"
+                          ? "Approximate area shown for privacy"
+                          : "Tap to open in Maps"}
+                    </Text>
                   </View>
                 </View>
               ) : (
