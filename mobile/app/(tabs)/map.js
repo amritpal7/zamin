@@ -1,7 +1,7 @@
 import { useTheme } from "../../src/context/ThemeContext";
-import React, { useState, useRef, useCallback, useMemo } from "react";
+import React, { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { View, Text, ScrollView, Pressable, Platform, StyleSheet, Modal } from "react-native";
-import { useRouter, useFocusEffect } from "expo-router";
+import { useRouter, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useAuth } from "@clerk/clerk-expo";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { C, FONT, FONT_MED, FONT_HEAD } from "../../src/theme";
@@ -49,6 +49,11 @@ export default function MapScreen() {
   const [region, setRegion] = useState(INITIAL_REGION);
   const [sheet, setSheet] = useState(null); // property tapped on the map → action sheet
 
+  // A listing's "view on map" deep-links here with lat/lng (+ t nonce for repeat taps).
+  const params = useLocalSearchParams();
+  const focusLat = parseFloat(params.lat), focusLng = parseFloat(params.lng);
+  const hasFocus = Number.isFinite(focusLat) && Number.isFinite(focusLng);
+
   // Load real listings on focus; fall back to seed if the API is unreachable.
   useFocusEffect(useCallback(() => {
     let cancelled = false;
@@ -90,6 +95,16 @@ export default function MapScreen() {
 
   const openDetails = (p) => { setSheet(null); router.push(`/property/${p.id}`); };
 
+  // Center on the pin when arriving from a listing's "view on map". The timeout lets the
+  // MapView mount on the first navigation into the tab; repeat taps re-fire via the `t` nonce.
+  useEffect(() => {
+    if (!hasFocus) return;
+    const r = { latitude: focusLat, longitude: focusLng, latitudeDelta: 0.01, longitudeDelta: 0.01 };
+    setRegion(r);
+    const id = setTimeout(() => mapRef.current?.animateToRegion(r, 500), 350);
+    return () => clearTimeout(id);
+  }, [params.lat, params.lng, params.t]);
+
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
       {/* Inline header */}
@@ -117,7 +132,7 @@ export default function MapScreen() {
             <MapView
               ref={mapRef}
               style={{ flex: 1 }}
-              initialRegion={INITIAL_REGION}
+              initialRegion={hasFocus ? { latitude: focusLat, longitude: focusLng, latitudeDelta: 0.01, longitudeDelta: 0.01 } : INITIAL_REGION}
               onRegionChangeComplete={setRegion}
             >
               {clusters.map((c) =>

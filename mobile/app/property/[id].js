@@ -1,7 +1,7 @@
 import { useTheme } from "../../src/context/ThemeContext";
 import React, { useState, useCallback } from "react";
 import {
-  View, Text, ScrollView, Pressable, Dimensions,
+  View, Text, ScrollView, Pressable, Dimensions, Platform,
   Linking, Alert, ActivityIndicator, Share, StyleSheet, Modal,
 } from "react-native";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
@@ -194,13 +194,21 @@ export default function PropertyDetail() {
     );
   };
 
-  // Open the listing's location in the device Maps app. Uses coordinates when the owner
-  // shares them (exact/approximate), else falls back to a text search of the locality.
+  // Show the listing's location. On device → jump to the in-app Map tab and center on the
+  // pin. On web (map is stubbed) → open Google Maps. Uses coords when the owner shares them
+  // (exact/approximate), else falls back to a locality text search on the external map.
   const openInMaps = () => {
     if (!isSignedIn) { router.push("/sign-in"); return; }
     if (p?.location_precision === "hidden") return; // owner hid the exact spot
     const lat = p?.latitude ?? p?.lat, lng = p?.longitude ?? p?.lng;
-    const query = (lat != null && lng != null) ? `${lat},${lng}` : encodeURIComponent(p?.location || "");
+    const hasCoords = lat != null && lng != null;
+
+    if (Platform.OS !== "web" && hasCoords) {
+      // Jump to the Map tab and locate this property (t forces a re-focus on repeat taps).
+      router.push({ pathname: "/(tabs)/map", params: { lat: String(lat), lng: String(lng), focus: String(p.id), t: String(Date.now()) } });
+      return;
+    }
+    const query = hasCoords ? `${lat},${lng}` : encodeURIComponent(p?.location || "");
     if (!query) { Alert.alert("No location", "This listing has no map location yet."); return; }
     Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`).catch(() =>
       Alert.alert("Maps", "Couldn't open Maps.")
@@ -396,8 +404,8 @@ export default function PropertyDetail() {
                       {p.location_precision === "hidden"
                         ? "Exact location hidden by owner"
                         : p.location_precision === "approximate"
-                          ? "Approximate area — tap to open in Maps"
-                          : "Tap to open in Maps"}
+                          ? "Approximate area — tap to view on map"
+                          : "Tap to view on map"}
                     </Text>
                   </View>
                   {p.location_precision !== "hidden" && <Icon name="forward" size={16} color={C.amberText} />}
