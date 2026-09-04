@@ -12,6 +12,71 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-04 (fix: handle email-code 2FA at sign-in)
+- **Fixed:** username+password sign-in now handles `needs_second_factor`. On this Clerk instance,
+  enabling email as a verifiable identifier (required for add/verify-email + `reset_password_email_code`)
+  also forces an **email verification code as a second factor** for any account with a verified email —
+  and there is **no dashboard toggle** to separate the two (Multi-factor has no email option; turning
+  off "Sign in with email address" disables the email identifier entirely, breaking verify + reset;
+  `sign_in.second_factor.required=false` is reported but the step is enforced regardless). Previously
+  `sign-in.js` only handled `status==="complete"`, so verified-email users hit a dead-end error and
+  couldn't log in.
+  - `mobile/app/sign-in.js`: after `attemptFirstFactor(password)`, on `needs_second_factor` we find the
+    `email_code` factor, `prepareSecondFactor({ strategy:"email_code", emailAddressId })`, and show a new
+    **emailMfa** stage (code input + resend cooldown + back). `submitEmailMfa` calls
+    `attemptSecondFactor({ strategy:"email_code", code })` → `setActive`. Verified against the SDK types
+    (`EmailCodeSecondFactorConfig = { strategy, emailAddressId? }`, `EmailCodeAttempt = { strategy, code }`).
+  - **UX note:** username-only accounts still log in with no code; only users who *chose* to verify an
+    email get the login code (which doubles as real 2FA — an acceptable, coherent tradeoff).
+  - **Validated (E2E vs live Clerk Frontend API, testing-token):** full flow PASS —
+    signup(username) → add&verify email(424242) → password reset → **login: password → needs_second_factor
+    → prepareSecondFactor(email_code) → attemptSecondFactor(424242) → complete**. iOS bundle 0 errors.
+  - Guardrail added to `docs/BUGLOG.md` (email verification ⇒ enforced email 2FA on this plan).
+
+### 2026-09-04 (change: single "Add & verify email" action)
+- **Changed:** collapsed the redundant two-button email block in Settings into one contextual
+  action. Previously a user with no email saw both "Add email & verify" *and* "Add email" — the
+  latter (`isChangingEmail=true`) was functionally identical when there was no existing address,
+  just confusing. Now: no email → single **"Add & verify email"**; email but unverified →
+  **"Verify email"** + "Change email"; verified → "Change email" only.
+  - `mobile/app/settings.js`: rewrote the `emailStage === "idle"` block; the "Change email"
+    (secondary) button now renders only when `primaryEmail` exists. Aligned the `addEmail`-stage
+    heading to "Add & verify email". The underlying add→code→verify flow is unchanged (Clerk still
+    requires the code step to prove ownership — that's what earns the badge / powers reset).
+  - Validated: iOS bundle compiles (HTTP 200, ~9.7 MB, 0 errors).
+- **Note (blocker, config-side):** live Clerk config has `email_address.enabled=false`, so
+  `createEmailAddress()` and `reset_password_email_code` do not work yet. Enabling Email (verify
+  code, optional) + Reset-password email code in the Clerk dashboard is the prerequisite for both
+  the add/verify flow and `forgot-password.js`. (Owner flipping this in dashboard.)
+- **Fixed (denormalization ripple): reconcile-on-verify.** The Verified badge on *listings* reads
+  the denormalized `properties.verified` column, previously re-synced only by the reconcile worker
+  (every `RECONCILE_INTERVAL_MS`, default 6h, + on boot). A newly-verified owner's listings would
+  therefore show no badge for up to 6h. Now propagated immediately:
+  - `backend/src/clerkUsers.js`: new `reconcileOwner(pool, clerkUserId)` — single-owner reconcile
+    (one Clerk call, only touches that owner's rows). `reconcileOwners` (all-owners sweep) unchanged.
+  - `backend/src/routes/properties.js`: new **`POST /properties/reconcile-me`** (`requireAuth`) —
+    safe self-serve; reconciles only the caller's own listings. (Distinct from the admin-only
+    `/reconcile-owners` which fans out over everyone.)
+  - `mobile/src/hooks/useApi.js`: `reconcileMe()`.
+  - `mobile/app/settings.js`: `confirmEmailCode` now `await user.reload()` (updates the in-place
+    "Verified" badge) then fires `api.reconcileMe()` (best-effort) after a successful verify.
+  - Validated: backend syntax OK; 56/56 API tests pass; iOS bundle compiles (0 errors);
+    `POST /properties/reconcile-me` → 401 unauthenticated (auth enforced), `GET /properties` → 200.
+- **Clerk config (done by owner):** email **sign-up disabled**, but email **sign-in + email
+  verification code enabled** — enough for `createEmailAddress()`/verify in Settings and for
+  `reset_password_email_code`. (There was no "optional email at signup" toggle; disabling email
+  signup achieves the same goal — username-first onboarding preserved.)
+- **Tested (E2E against live Clerk Frontend API, via testing-token to bypass bot protection):**
+  (1) signup username+password → `complete`, no email required ✅; (2) add+verify email (test code
+  424242) → `verification.status: verified` ✅; (3) password reset email code → `needs_new_password`
+  → `reset_password` → `complete`, old password 401 ✅.
+- **⚠️ Guardrail found — email verification must NOT be a second factor.** With Clerk's email code
+  enabled as **Multi-factor (2FA)**, any account with a *verified email* returns `needs_second_factor`
+  at login, and `sign-in.js` only handles `status === "complete"` → **verified users get locked out**
+  (username-only accounts log in fine). Fix: in Clerk → Multi-factor, keep "Email verification code"
+  **OFF as a 2FA method** (email verify for the badge + `reset_password_email_code` do NOT need it).
+  If 2FA is ever wanted, `sign-in.js` must add `prepareSecondFactor`/`attemptSecondFactor` first.
+
 ### 2026-09-04 (feature: in-app visit scheduling)
 - **Added:** first-class **visit booking** (distinct from the informal in-chat visit *proposal*).
   A buyer requests a viewing slot from the listing; the owner confirms/declines; either party can

@@ -27,7 +27,8 @@ export default function SignIn() {
   const [method,       setMethod]       = useState("username");
   const [code,         setCode]         = useState("");
   const [phoneHint,    setPhoneHint]    = useState("");
-  // stage: "credentials" | "phoneCode"
+  const [emailHint,    setEmailHint]    = useState("");
+  // stage: "credentials" | "phoneCode" | "emailMfa"
   const [stage,        setStage]        = useState("credentials");
   const [error,        setError]        = useState("");
   const [loading,      setLoading]      = useState(false);
@@ -70,11 +71,56 @@ export default function SignIn() {
       if (result.status === "complete") {
         await setActive({ session: result.createdSessionId });
         router.replace("/(tabs)/discover");
+      } else if (result.status === "needs_second_factor") {
+        // Accounts with a verified email are protected by an email-code 2nd factor.
+        // Send the code and switch to the MFA stage. (Clerk enforces this whenever a
+        // verified email exists; username-only accounts never hit this branch.)
+        const emailFactor = (result.supportedSecondFactors ?? []).find(f => f.strategy === "email_code");
+        if (!emailFactor) { setError("This account needs a second factor we can't complete here."); return; }
+        await signIn.prepareSecondFactor({ strategy: "email_code", emailAddressId: emailFactor.emailAddressId });
+        factorRef.current = emailFactor;
+        setEmailHint(emailFactor.safeIdentifier ?? "your email");
+        setCode("");
+        startCooldown();
+        setStage("emailMfa");
       } else {
         setError("Sign in could not be completed. Please try again.");
       }
     } catch (e) {
       setError(e.errors?.[0]?.message || "Sign in failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ── Second factor: email code (for accounts with a verified email) ──
+  const submitEmailMfa = async () => {
+    if (!isLoaded) return;
+    try {
+      setLoading(true);
+      setError("");
+      const result = await signIn.attemptSecondFactor({ strategy: "email_code", code });
+      if (result.status === "complete") {
+        await setActive({ session: result.createdSessionId });
+        router.replace("/(tabs)/discover");
+      } else {
+        setError("Verification failed. Please try again.");
+      }
+    } catch (e) {
+      setError(e.errors?.[0]?.message || "Verification failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resendEmailMfa = async () => {
+    if (!isLoaded || resendCooldown > 0 || !factorRef.current) return;
+    try {
+      setLoading(true); setError(""); setCode("");
+      await signIn.prepareSecondFactor({ strategy: "email_code", emailAddressId: factorRef.current.emailAddressId });
+      startCooldown();
+    } catch (e) {
+      setError(e.errors?.[0]?.message || "Failed to resend code");
     } finally {
       setLoading(false);
     }
@@ -226,6 +272,26 @@ export default function SignIn() {
             </Pressable>
             <Pressable onPress={() => { setStage("credentials"); setError(""); setCode(""); }} style={{ marginTop: 12, alignItems: "center" }}>
               <Text style={{ color: C.muted, fontSize: 13, fontFamily: FONT }}>← Wrong number?</Text>
+            </Pressable>
+          </>
+        )}
+
+        {stage === "emailMfa" && (
+          <>
+            <View style={{ backgroundColor: C.amber + "18", borderRadius: 16, padding: 16, marginBottom: 20 }}>
+              <Text style={{ color: C.amberText, fontSize: 13, fontFamily: FONT, fontWeight: "600" }}>
+                🔐 Two-step verification — we sent a code to {emailHint}
+              </Text>
+            </View>
+            <NeoInput label="Email Code" value={code} onChangeText={setCode} placeholder="123456" keyboardType="numeric" />
+            <NeoButton full title={loading ? "Verifying…" : "Verify →"} fill={C.amber} fg={C.ink} onPress={submitEmailMfa} disabled={loading} />
+            <Pressable onPress={resendEmailMfa} disabled={resendCooldown > 0 || loading} style={{ marginTop: 14, alignItems: "center" }}>
+              <Text style={{ color: resendCooldown > 0 ? C.muted : C.amber, fontSize: 13, fontFamily: FONT, fontWeight: "600" }}>
+                {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend code →"}
+              </Text>
+            </Pressable>
+            <Pressable onPress={() => { setStage("credentials"); setError(""); setCode(""); }} style={{ marginTop: 12, alignItems: "center" }}>
+              <Text style={{ color: C.muted, fontSize: 13, fontFamily: FONT }}>← Back</Text>
             </Pressable>
           </>
         )}
