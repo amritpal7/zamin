@@ -475,12 +475,26 @@ function PhotoPicker({ images, onChange, geo = {}, onGeo }) {
 
 // Map pin picker — lets a REMOTE owner set the exact lat/lng (on-site capture auto-pins
 // instead). Three ways: geocode the typed address, use current GPS, or tap/drag on the map.
-function PinPicker({ address, lat, lng, onChange }) {
+function PinPicker({ address, lat, lng, onChange, onAddress }) {
   const [busy, setBusy] = useState(false);
   const hasPin = lat != null && lng != null;
   const region = hasPin
     ? { latitude: lat, longitude: lng, latitudeDelta: 0.01, longitudeDelta: 0.01 }
     : { latitude: 20.5937, longitude: 78.9629, latitudeDelta: 12, longitudeDelta: 12 }; // India
+
+  // Reverse-geocode a dropped/dragged pin into a readable address (fills the field when empty).
+  const reverseFill = async (la, ln) => {
+    try {
+      const r = await Location.reverseGeocodeAsync({ latitude: la, longitude: ln });
+      const a = r?.[0]; if (!a) return;
+      const parts = [a.name || a.street, a.district || a.subregion || a.city, a.region, a.postalCode].filter(Boolean);
+      const txt = [...new Set(parts)].join(", ");
+      if (txt) onAddress?.(txt);
+    } catch { /* best-effort */ }
+  };
+
+  // Set the pin; `reverse=true` (map tap / drag / current location) also fills the address.
+  const setPin = (la, ln, reverse) => { onChange(la, ln); if (reverse) reverseFill(la, ln); };
 
   const geocodeAddress = async () => {
     if (!address?.trim()) { Alert.alert("Address needed", "Type the address first, then tap Find address."); return; }
@@ -488,7 +502,7 @@ function PinPicker({ address, lat, lng, onChange }) {
       setBusy(true);
       const res = await Location.geocodeAsync(address.trim());
       if (!res?.length) { Alert.alert("Not found", "Couldn't locate that address. Try a nearby landmark, or drop the pin by tapping the map."); return; }
-      onChange(res[0].latitude, res[0].longitude);
+      setPin(res[0].latitude, res[0].longitude, false); // keep the user's typed address
     } catch (e) {
       Alert.alert("Couldn't find address", e.message || "Try again or drop the pin manually.");
     } finally { setBusy(false); }
@@ -500,7 +514,7 @@ function PinPicker({ address, lat, lng, onChange }) {
       const perm = await Location.requestForegroundPermissionsAsync();
       if (perm.status !== "granted") { Alert.alert("Location needed", "Allow location to use your current position."); return; }
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-      onChange(loc.coords.latitude, loc.coords.longitude);
+      setPin(loc.coords.latitude, loc.coords.longitude, true);
     } catch (e) {
       Alert.alert("Couldn't get location", e.message || "Try again.");
     } finally { setBusy(false); }
@@ -518,12 +532,12 @@ function PinPicker({ address, lat, lng, onChange }) {
       </View>
       {MapView ? (
         <View style={{ height: 200, borderRadius: 18, overflow: "hidden", borderWidth: 1, borderColor: C.glassBorder }}>
-          <MapView style={{ flex: 1 }} region={region} onPress={(e) => onChange(e.nativeEvent.coordinate.latitude, e.nativeEvent.coordinate.longitude)}>
+          <MapView style={{ flex: 1 }} region={region} onPress={(e) => setPin(e.nativeEvent.coordinate.latitude, e.nativeEvent.coordinate.longitude, true)}>
             {hasPin && (
               <Marker
                 coordinate={{ latitude: lat, longitude: lng }}
                 draggable
-                onDragEnd={(e) => onChange(e.nativeEvent.coordinate.latitude, e.nativeEvent.coordinate.longitude)}
+                onDragEnd={(e) => setPin(e.nativeEvent.coordinate.latitude, e.nativeEvent.coordinate.longitude, true)}
               />
             )}
           </MapView>
@@ -938,6 +952,7 @@ export default function Post() {
               lat={form.latitude}
               lng={form.longitude}
               onChange={(la, ln) => setForm(f => ({ ...f, latitude: la, longitude: ln }))}
+              onAddress={(txt) => setForm(f => (f.location?.trim() ? f : { ...f, location: txt }))}
             />
 
             <InputField labelText="WhatsApp / Contact Number" icon="phone" value={form.contactPhone} onChange={v => set("contactPhone", v.replace(/[^0-9+\s\-]/g, ""))} placeholder="e.g. 98765 43210" keyboardType="phone-pad" />
