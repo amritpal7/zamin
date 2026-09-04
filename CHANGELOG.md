@@ -12,6 +12,30 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-04 (UX: map pin action sheet + posting-patience overlay)
+- **Added — property action sheet** (`mobile/app/(tabs)/map.js`): tapping a property — either a
+  **map pin** or a **card in the list** below the map — no longer navigates immediately. It opens a
+  bottom sheet with two choices: **"View more details"** (→ property screen) and **"Locate on map"**
+  (centers + zooms the map onto the pin; hidden only when the listing has no shown coordinates).
+  Gives the user control instead of a forced navigation. (Cluster bubbles still zoom-to-split.)
+- **Added — posting-patience overlay** (`mobile/app/(tabs)/post.js`): while a listing is being
+  posted/edited (photo upload + processing can take several seconds), a full-screen blocking
+  Modal shows a spinner + "Posting… please stay on this screen; no need to tap again." It swallows
+  all touches so impatient re-taps do nothing, and `save()` early-returns if already in flight.
+  Message adapts when photos are uploading vs. not.
+  - Validated: iOS bundle compiles (0 errors).
+
+### 2026-09-04 (change: usernames are permanent — remove edit from Settings)
+- **Changed:** usernames can no longer be changed after signup. In Settings → Edit profile the
+  editable username field is replaced with a **read-only, locked** display ("@handle 🔒 — permanent");
+  `saveProfile` now only updates first/last name (dropped `username` from `user.update`). First/last
+  name and all other profile fields (photo, email, password) remain editable.
+  - `mobile/app/settings.js`: removed the username `TextInput` + `username`/`setUsername` state +
+    its `startEdit` seed; kept the username shown read-only.
+  - Ripple checked: the only other `username` writes are **signup** (sets it) and **sign-in**
+    (enters it to log in) — both intentionally kept. Settings was the sole change path.
+  - Validated: iOS bundle compiles (0 errors).
+
 ### 2026-09-04 (chore: upgrade Expo SDK 54 → 57, so current Expo Go can run the app)
 - **Changed:** upgraded to **Expo SDK 57** (RN 0.81→**0.86.3**, React 19.1→**19.2.3**,
   expo-router 6→57, react-native-maps 1.20→1.27, all `expo-*` → ~57). Reason: iOS Expo Go only

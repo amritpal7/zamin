@@ -2,7 +2,7 @@ import { useTheme } from "../../src/context/ThemeContext";
 import React, { useState, useEffect } from "react";
 import {
   View, Text, ScrollView, Pressable, Alert,
-  KeyboardAvoidingView, Platform, ActivityIndicator, TextInput, StyleSheet,
+  KeyboardAvoidingView, Platform, ActivityIndicator, TextInput, StyleSheet, Modal,
 } from "react-native";
 import { Image } from "expo-image";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -543,6 +543,7 @@ export default function Post() {
   }, [editId]);
 
   const save = async () => {
+    if (loading) return; // guard against impatient double-taps while a save is in flight
     try {
       setLoading(true);
 
@@ -941,6 +942,26 @@ export default function Post() {
 
       </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Blocking overlay while saving — prevents impatient re-taps and sets expectations.
+          Photo upload + processing can take several seconds; the Modal swallows all touches. */}
+      {loading && (
+        <Modal transparent animationType="fade" visible onRequestClose={() => {}}>
+          <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center", padding: 32 }}>
+            <View style={{ backgroundColor: C.bg, borderRadius: 24, padding: 26, alignItems: "center", gap: 14, width: "100%", maxWidth: 320, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder }}>
+              <ActivityIndicator size="large" color={C.amber} />
+              <Text style={{ color: C.fg, fontFamily: FONT_HEAD, fontSize: 20, letterSpacing: -0.3, textAlign: "center" }}>
+                {isEditing ? "Saving your changes…" : "Posting your property…"}
+              </Text>
+              <Text style={{ color: C.fgDim, fontFamily: FONT, fontSize: 13, textAlign: "center", lineHeight: 19 }}>
+                {form.images.length > 0
+                  ? "Uploading your photos — this can take a few seconds. Please stay on this screen; no need to tap again."
+                  : "Almost there — please hold on a moment. No need to tap again."}
+              </Text>
+            </View>
+          </View>
+        </Modal>
+      )}
     </View>
   );
 }

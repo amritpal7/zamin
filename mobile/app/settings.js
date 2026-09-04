@@ -173,7 +173,6 @@ export default function Settings() {
   const [saving,    setSaving]    = useState(false);
   const [firstName, setFirstName] = useState("");
   const [lastName,  setLastName]  = useState("");
-  const [username,  setUsername]  = useState("");
 
   const [emailStage,      setEmailStage]      = useState("idle");
   const [isChangingEmail, setIsChangingEmail] = useState(false);
@@ -196,7 +195,6 @@ export default function Settings() {
   const startEdit = () => {
     setFirstName(user?.firstName || "");
     setLastName(user?.lastName  || "");
-    setUsername(user?.username ?? user?.unsafeMetadata?.username ?? "");
     setEditing(true);
   };
 
@@ -221,15 +219,12 @@ export default function Settings() {
   };
 
   const saveProfile = async () => {
-    const handle = username.replace(/^@/, "").toLowerCase();
-    if (!handle) { Alert.alert("Required", "Username cannot be empty."); return; }
     try {
       setSaving(true);
-      // Username is a native Clerk field now (not metadata). Name is optional.
+      // Username is permanent (set at signup) — not editable here. Only name is updated.
       await user.update({
         firstName: firstName.trim(),
         lastName:  lastName.trim(),
-        username:  handle,
       });
       setEditing(false);
     } catch (e) {
@@ -408,17 +403,12 @@ export default function Settings() {
 
                 <View style={{ marginBottom: 12 }}>
                   <Text style={{ color: C.fgDim, fontSize: 11, fontFamily: FONT, marginBottom: 6, letterSpacing: 0.8, textTransform: "uppercase" }}>Username</Text>
-                  <View style={{ flexDirection: "row", alignItems: "stretch", backgroundColor: C.glassBg, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder, overflow: "hidden" }}>
-                    <View style={{ paddingHorizontal: 14, backgroundColor: C.chipBg, alignItems: "center", justifyContent: "center" }}>
-                      <Text style={{ color: C.amberText, fontFamily: FONT_MED, fontSize: 15 }}>@</Text>
-                    </View>
-                    <TextInput
-                      value={username}
-                      onChangeText={v => setUsername(v.replace(/^@/, "").replace(/[^a-z0-9_.]/gi, "").toLowerCase())}
-                      placeholder="yourhandle" placeholderTextColor={C.fgFaint}
-                      style={{ flex: 1, paddingHorizontal: 14, paddingVertical: 12, color: C.fg, fontSize: 14, fontFamily: FONT }}
-                    />
+                  <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: C.chipBg, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder, paddingHorizontal: 14, paddingVertical: 12, opacity: 0.7 }}>
+                    <Text style={{ color: C.amberText, fontFamily: FONT_MED, fontSize: 15, marginRight: 2 }}>@</Text>
+                    <Text style={{ flex: 1, color: C.fgDim, fontSize: 14, fontFamily: FONT }}>{uname || "—"}</Text>
+                    <Text style={{ fontSize: 12 }}>🔒</Text>
                   </View>
+                  <Text style={{ color: C.fgFaint, fontSize: 10, fontFamily: FONT, marginTop: 5 }}>Your username is permanent and can't be changed.</Text>
                 </View>
 
                 <View style={{ flexDirection: "row", gap: 10, marginTop: 4 }}>
