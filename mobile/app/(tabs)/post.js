@@ -15,6 +15,14 @@ import { Icon } from "../../src/components/Icon";
 import NeoButton from "../../src/components/NeoButton";
 import { useApi } from "../../src/hooks/useApi";
 
+// react-native-maps is web-stubbed; only load the native picker on device.
+let MapView, Marker;
+if (Platform.OS !== "web") {
+  const Maps = require("react-native-maps");
+  MapView = Maps.default;
+  Marker  = Maps.Marker;
+}
+
 const TYPES  = ["House", "Apartment", "Land", "Commercial"];
 const STEPS  = ["Details", "Amenities", "Location", "Review"];
 
@@ -85,6 +93,7 @@ const EMPTY_FORM = {
   landType: "", washrooms: 0, commFurnishing: "",
   amenities: [], location: "", contactPhone: "", images: [],
   locationVisibility: "exact",
+  latitude: null, longitude: null, // map pin (set via address geocode / current location / drag)
   photoGeo: {}, // (local uri | hosted url) → { lat, lng, at, source:'camera' } for on-site capture
 };
 
@@ -464,6 +473,75 @@ function PhotoPicker({ images, onChange, geo = {}, onGeo }) {
   );
 }
 
+// Map pin picker — lets a REMOTE owner set the exact lat/lng (on-site capture auto-pins
+// instead). Three ways: geocode the typed address, use current GPS, or tap/drag on the map.
+function PinPicker({ address, lat, lng, onChange }) {
+  const [busy, setBusy] = useState(false);
+  const hasPin = lat != null && lng != null;
+  const region = hasPin
+    ? { latitude: lat, longitude: lng, latitudeDelta: 0.01, longitudeDelta: 0.01 }
+    : { latitude: 20.5937, longitude: 78.9629, latitudeDelta: 12, longitudeDelta: 12 }; // India
+
+  const geocodeAddress = async () => {
+    if (!address?.trim()) { Alert.alert("Address needed", "Type the address first, then tap Find address."); return; }
+    try {
+      setBusy(true);
+      const res = await Location.geocodeAsync(address.trim());
+      if (!res?.length) { Alert.alert("Not found", "Couldn't locate that address. Try a nearby landmark, or drop the pin by tapping the map."); return; }
+      onChange(res[0].latitude, res[0].longitude);
+    } catch (e) {
+      Alert.alert("Couldn't find address", e.message || "Try again or drop the pin manually.");
+    } finally { setBusy(false); }
+  };
+
+  const useCurrent = async () => {
+    try {
+      setBusy(true);
+      const perm = await Location.requestForegroundPermissionsAsync();
+      if (perm.status !== "granted") { Alert.alert("Location needed", "Allow location to use your current position."); return; }
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      onChange(loc.coords.latitude, loc.coords.longitude);
+    } catch (e) {
+      Alert.alert("Couldn't get location", e.message || "Try again.");
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <View>
+      <Text style={{ color: C.text, fontWeight: "700", fontSize: 14, fontFamily: FONT, marginBottom: 2 }}>Pin the exact location</Text>
+      <Text style={{ color: C.muted, fontSize: 11, fontFamily: FONT, marginBottom: 10 }}>
+        So buyers can find and navigate to the property. (On-site photos set this automatically.)
+      </Text>
+      <View style={{ flexDirection: "row", gap: 8, marginBottom: 10 }}>
+        <NeoButton title={busy ? "…" : "📍 Find address"} small fill={C.cardAlt} fg={C.text} onPress={geocodeAddress} disabled={busy} style={{ flex: 1 }} />
+        <NeoButton title="Use my location" small fill={C.cardAlt} fg={C.text} onPress={useCurrent} disabled={busy} style={{ flex: 1 }} />
+      </View>
+      {MapView ? (
+        <View style={{ height: 200, borderRadius: 18, overflow: "hidden", borderWidth: 1, borderColor: C.glassBorder }}>
+          <MapView style={{ flex: 1 }} region={region} onPress={(e) => onChange(e.nativeEvent.coordinate.latitude, e.nativeEvent.coordinate.longitude)}>
+            {hasPin && (
+              <Marker
+                coordinate={{ latitude: lat, longitude: lng }}
+                draggable
+                onDragEnd={(e) => onChange(e.nativeEvent.coordinate.latitude, e.nativeEvent.coordinate.longitude)}
+              />
+            )}
+          </MapView>
+        </View>
+      ) : (
+        <View style={{ height: 80, borderRadius: 18, borderWidth: 1, borderColor: C.glassBorder, alignItems: "center", justifyContent: "center", backgroundColor: C.card }}>
+          <Text style={{ color: C.muted, fontSize: 12, fontFamily: FONT }}>Interactive map picker available in the mobile app</Text>
+        </View>
+      )}
+      <Text style={{ color: hasPin ? C.green : C.amberText, fontSize: 11, fontFamily: FONT, marginTop: 8 }}>
+        {hasPin
+          ? `✓ Pinned at ${Number(lat).toFixed(5)}, ${Number(lng).toFixed(5)} — tap the map or drag the pin to adjust.`
+          : "No pin set yet — without it your listing won't appear on the map."}
+      </Text>
+    </View>
+  );
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function Post() {
@@ -530,6 +608,8 @@ export default function Post() {
           contactPhone: p.owner_phone || "",
           images:       p.images      || [],
           locationVisibility: p.location_visibility || "exact",
+          latitude:  p.latitude  ?? null,
+          longitude: p.longitude ?? null,
           // Seed capture geo from the server (owner sees full metadata for their own listing).
           photoGeo: Object.fromEntries(
             (p.photo_geo || [])
@@ -586,6 +666,8 @@ export default function Post() {
         tags:  buildTags(form),
         location:    form.location,
         location_visibility: form.locationVisibility,
+        latitude:    form.latitude,
+        longitude:   form.longitude,
         photo_geo:   photoGeoOut,
         owner_phone: form.contactPhone || null,
         images:      finalImages,
@@ -849,6 +931,15 @@ export default function Post() {
         {step === 3 && (
           <View style={{ gap: 16 }}>
             <InputField labelText="Address / Locality" icon="pin" value={form.location} onChange={v => set("location", v)} placeholder="e.g. Andheri West, Mumbai — 400053" />
+
+            {/* Map pin — remote owners set the exact spot here (on-site capture auto-pins) */}
+            <PinPicker
+              address={form.location}
+              lat={form.latitude}
+              lng={form.longitude}
+              onChange={(la, ln) => setForm(f => ({ ...f, latitude: la, longitude: ln }))}
+            />
+
             <InputField labelText="WhatsApp / Contact Number" icon="phone" value={form.contactPhone} onChange={v => set("contactPhone", v.replace(/[^0-9+\s\-]/g, ""))} placeholder="e.g. 98765 43210" keyboardType="phone-pad" />
 
             {/* Location privacy — how precisely the pin is shown to other users */}

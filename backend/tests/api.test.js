@@ -219,6 +219,25 @@ describe("location privacy (server-enforced)", () => {
   });
 });
 
+describe("manual location pin (remote posting)", () => {
+  test("create stores the owner-set pin; PUT can move it", async () => {
+    const created = await request(app).post("/properties").set("x-test-user", USER_A)
+      .send({ ...sampleListing, title: "Remote pin", latitude: 28.6139, longitude: 77.2090 });
+    expect(created.status).toBe(201);
+    expect(Number(created.body.latitude)).toBeCloseTo(28.6139, 4);
+
+    // Owner moves the pin via edit.
+    const moved = await request(app).put(`/properties/${created.body.id}`).set("x-test-user", USER_A)
+      .send({ ...sampleListing, title: "Remote pin", latitude: 19.2183, longitude: 72.9781 });
+    expect(moved.status).toBe(200);
+    expect(Number(moved.body.latitude)).toBeCloseTo(19.2183, 4);
+
+    // A non-owner (exact visibility) sees the moved pin on the public read.
+    const seen = await request(app).get(`/properties/${created.body.id}`).set("x-test-user", USER_B);
+    expect(Number(seen.body.latitude)).toBeCloseTo(19.2183, 4);
+  });
+});
+
 describe("on-site photo verification", () => {
   test("camera photo at the pin → on_site_verified, auto-pins the listing", async () => {
     const created = await request(app).post("/properties").set("x-test-user", USER_A).send({

@@ -12,6 +12,21 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-05 (feature: set the map pin for remote listings — Maps Phase 3, part 1)
+- **Added:** remote owners (not posting on-site) can now set a listing's exact **map pin**, so it
+  appears on the map and buyers can locate/navigate to it. Previously only on-site photo capture
+  auto-pinned; a typed address set no coordinates, so the listing never showed on the map.
+  - `mobile/app/(tabs)/post.js`: new **`PinPicker`** in the Location step — three ways to set the pin:
+    **Find address** (`Location.geocodeAsync` on the typed address), **Use my location**
+    (`getCurrentPositionAsync`), and **tap/drag** a draggable marker on a mini map (device only; web
+    shows a notice). Shows the resolved coords + a clear "no pin → won't appear on the map" hint.
+    `latitude`/`longitude` added to the form, edit-load, and create/update payloads.
+  - `backend/src/routes/properties.js`: **PUT now accepts a pin update** (`latitude`/`longitude`) —
+    a manually-set pin wins, else the stored one is kept; `computePhotoTrust` re-evaluates on-site
+    against the chosen pin. (Create already accepted coords.)
+  - Validated: 75/75 API tests (new: create stores the owner pin, PUT moves it, non-owner sees it);
+    iOS + web bundles compile (0 errors). Map picker drag/tap needs a device.
+
 ### 2026-09-04 (fix: tapping the location in property detail now shows it on the map)
 - **Fixed:** the "Tap to view on map" row on the property detail screen was a plain `View` with
   no handler — tapping did nothing. Now a `Pressable` (`property/[id].js`): on **device** it jumps
