@@ -6,8 +6,9 @@ const crypto = require("crypto");
 const { upload } = require("../upload");
 const { putObject, presignPut } = require("../storage");
 const { thumbnailQueue } = require("../queue");
-const { validateProperty, isUuid } = require("../validation");
-const { reconcileOwner, reconcileOwners, getUser } = require("../clerkUsers");
+const { validateProperty, isUuid, LOCATION_VISIBILITIES } = require("../validation");
+const { reconcileOwner, reconcileOwners, getUser, setLocationDefault } = require("../clerkUsers");
+const { redactLocation } = require("../locationPrivacy");
 const { notifyListingMatch } = require("../notify");
 
 const MAX_IMAGES = 8;
@@ -172,7 +173,32 @@ router.get("/", async (req, res) => {
     }
 
     const { rows } = await pool.query(query, params);
-    res.json(rows);
+    // Enforce per-listing location privacy before anything leaves the server. The
+    // owner (viewerId) always sees their own exact coords. getAuth is safe on this
+    // public route — it returns null userId when unauthenticated.
+    const { userId } = getAuth(req);
+    res.json(rows.map((r) => redactLocation(r, userId)));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /properties/location-visibility — set the owner's location privacy in bulk:
+// updates ALL their listings and stores the default in Clerk for future listings.
+router.put("/location-visibility", requireAuth, async (req, res) => {
+  try {
+    const { visibility } = req.body || {};
+    if (!LOCATION_VISIBILITIES.includes(visibility))
+      return res.status(400).json({ error: `visibility must be one of: ${LOCATION_VISIBILITIES.join(", ")}` });
+    const { userId } = getAuth(req);
+    const { rowCount } = await pool.query(
+      "UPDATE properties SET location_visibility = $1, updated_at = NOW() WHERE clerk_user_id = $2",
+      [visibility, userId]
+    );
+    // Best-effort: persist the default for new listings (never fails the bulk update).
+    let defaultSaved = false;
+    try { defaultSaved = await setLocationDefault(userId, visibility); } catch { /* keep false */ }
+    res.json({ updated: rowCount, default: visibility, defaultSaved });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -200,17 +226,20 @@ router.put("/:id", requireAuth, async (req, res) => {
     const errors = validateProperty(req.body, { forUpdate: true });
     if (errors.length) return res.status(400).json({ error: errors.join("; "), errors });
     const { userId } = getAuth(req);
-    const { title, description, type, status, price, area, beds, baths, location, tags, img, color, owner_phone, images, thumbnails } = req.body;
+    const { title, description, type, status, price, area, beds, baths, location, tags, img, color, owner_phone, images, thumbnails, location_visibility } = req.body;
+    // null → keep the existing visibility (COALESCE); a valid enum → update it.
+    const visibility = LOCATION_VISIBILITIES.includes(location_visibility) ? location_visibility : null;
     const { rows } = await pool.query(
       `UPDATE properties
        SET title=$1, description=$2, type=$3, status=$4, price=$5, area=$6,
            beds=$7, baths=$8, location=$9, tags=$10, img=$11, color=$12,
-           owner_phone=$13, images=$14, thumbnails=$15, updated_at=NOW()
-       WHERE id=$16 AND clerk_user_id=$17
+           owner_phone=$13, images=$14, thumbnails=$15,
+           location_visibility=COALESCE($16, location_visibility), updated_at=NOW()
+       WHERE id=$17 AND clerk_user_id=$18
        RETURNING *`,
       [title, description, type, status, price, area,
        beds || null, baths || null, location, tags || null, img || "🏠", color || "#f0a500",
-       owner_phone || null, images || [], thumbnails || [],
+       owner_phone || null, images || [], thumbnails || [], visibility,
        req.params.id, userId]
     );
     if (!rows[0]) return res.status(404).json({ error: "Not found or not owner" });
@@ -225,7 +254,8 @@ router.get("/:id", async (req, res) => {
   try {
     const { rows } = await pool.query("SELECT * FROM properties WHERE id = $1", [req.params.id]);
     if (!rows[0]) return res.status(404).json({ error: "Not found" });
-    res.json(rows[0]);
+    const { userId } = getAuth(req);
+    res.json(redactLocation(rows[0], userId));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -237,21 +267,25 @@ router.post("/", requireAuth, async (req, res) => {
     const errors = validateProperty(req.body);
     if (errors.length) return res.status(400).json({ error: errors.join("; "), errors });
     const { userId } = getAuth(req);
-    const { title, description, type, status, price, area, beds, baths, location, latitude, longitude, tags, img, color, owner_name, owner_phone, owner_avatar, owner_image, images, thumbnails } = req.body;
+    const { title, description, type, status, price, area, beds, baths, location, latitude, longitude, tags, img, color, owner_name, owner_phone, owner_avatar, owner_image, images, thumbnails, location_visibility } = req.body;
 
     // The trust badge is server-authoritative: derive it from the owner's Clerk
     // account (verified email/phone), never from the client — a client must not be
     // able to self-assign a "verified" badge. Falls back to false if Clerk is
-    // unreachable; the scheduled reconcile heals it.
-    let verified = false;
-    try { verified = (await getUser(userId)).verified === true; } catch { /* keep false */ }
+    // unreachable; the scheduled reconcile heals it. Same call also yields the owner's
+    // default location visibility (used when the listing doesn't specify one).
+    let verified = false, ownerDefault = null;
+    try { const u = await getUser(userId); verified = u.verified === true; ownerDefault = u.locationDefault; } catch { /* keep defaults */ }
+    const visibility = LOCATION_VISIBILITIES.includes(location_visibility)
+      ? location_visibility
+      : (LOCATION_VISIBILITIES.includes(ownerDefault) ? ownerDefault : "exact");
 
     const { rows } = await pool.query(
       `INSERT INTO properties
-        (clerk_user_id, owner_name, owner_phone, owner_avatar, owner_image, title, description, type, status, price, area, beds, baths, location, latitude, longitude, tags, img, color, images, thumbnails, verified)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
+        (clerk_user_id, owner_name, owner_phone, owner_avatar, owner_image, title, description, type, status, price, area, beds, baths, location, latitude, longitude, tags, img, color, images, thumbnails, verified, location_visibility)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
        RETURNING *`,
-      [userId, owner_name, owner_phone, owner_avatar, owner_image || null, title, description, type, status, price, area, beds, baths, location, latitude, longitude, tags, img || "🏠", color || "#f0a500", images || [], thumbnails || [], verified]
+      [userId, owner_name, owner_phone, owner_avatar, owner_image || null, title, description, type, status, price, area, beds, baths, location, latitude, longitude, tags, img || "🏠", color || "#f0a500", images || [], thumbnails || [], verified, visibility]
     );
     // Notify users whose saved search matches this new listing (best-effort; never fails create).
     try { await notifyListingMatch(pool, rows[0]); } catch (e) { console.error("saved-search notify failed:", e.message); }

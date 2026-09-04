@@ -8,6 +8,9 @@ async function migrate(pool) {
   await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS owner_image TEXT`);
   // Trust badge: owner-level, server-authoritative (synced from Clerk verification).
   await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS verified BOOLEAN DEFAULT false`);
+  // Location privacy: how precisely a listing's coordinates are exposed to non-owners.
+  // 'exact' | 'approximate' (jittered ~400m circle) | 'hidden'. Enforced server-side.
+  await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS location_visibility VARCHAR(20) DEFAULT 'exact'`);
 
   // messages: denormalized sender identity so the inbox/chat can show who wrote.
   await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS sender_name VARCHAR(255)`);

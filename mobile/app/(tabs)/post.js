@@ -83,7 +83,15 @@ const EMPTY_FORM = {
   furnishing: "", totalFloors: 0, floorNumber: 0, facing: "",
   landType: "", washrooms: 0, commFurnishing: "",
   amenities: [], location: "", contactPhone: "", images: [],
+  locationVisibility: "exact",
 };
+
+// Location privacy options shown on the listing (per-property override of the global default).
+const VISIBILITY_OPTIONS = [
+  { key: "exact",       label: "Exact",       icon: "📍", hint: "Show the precise pin on the map" },
+  { key: "approximate", label: "Approximate", icon: "⭕", hint: "Show a ~400m area circle, not the exact spot" },
+  { key: "hidden",      label: "Hidden",      icon: "🚫", hint: "No map pin — locality text only" },
+];
 
 function formatPrice(amount, unit) { return amount ? `${amount} ${unit}` : ""; }
 function formatArea(amount, unit)  { return amount ? `${amount} ${unit}` : ""; }
@@ -477,6 +485,7 @@ export default function Post() {
           location:     p.location    || "",
           contactPhone: p.owner_phone || "",
           images:       p.images      || [],
+          locationVisibility: p.location_visibility || "exact",
         });
       })
       .catch(() => Alert.alert("Error", "Could not load property for editing."))
@@ -514,6 +523,7 @@ export default function Post() {
         baths: form.baths > 0 ? form.baths : null,
         tags:  buildTags(form),
         location:    form.location,
+        location_visibility: form.locationVisibility,
         owner_phone: form.contactPhone || null,
         images:      finalImages,
         thumbnails:  finalThumbs,
@@ -773,15 +783,38 @@ export default function Post() {
             <InputField labelText="Address / Locality" icon="pin" value={form.location} onChange={v => set("location", v)} placeholder="e.g. Andheri West, Mumbai — 400053" />
             <InputField labelText="WhatsApp / Contact Number" icon="phone" value={form.contactPhone} onChange={v => set("contactPhone", v.replace(/[^0-9+\s\-]/g, ""))} placeholder="e.g. 98765 43210" keyboardType="phone-pad" />
 
-            {/* Map placeholder — glass card */}
-            <View style={{
-              backgroundColor: C.card, borderRadius: 22, borderWidth: 1, borderColor: C.glassBorder,
-              shadowColor: C.shadow, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.12, shadowRadius: 16, elevation: 4,
-              height: 160, alignItems: "center", justifyContent: "center",
-            }}>
-              <Text style={{ fontSize: 36 }}>📍</Text>
-              <Text style={{ color: C.amberText, fontWeight: "700", marginTop: 10, fontFamily: FONT }}>Map pin coming soon</Text>
-              <Text style={{ color: C.muted, fontSize: 11, fontFamily: FONT, marginTop: 4 }}>Location shown to signed-in users only</Text>
+            {/* Location privacy — how precisely the pin is shown to other users */}
+            <View>
+              <Text style={{ color: C.text, fontWeight: "700", fontSize: 14, fontFamily: FONT, marginBottom: 8 }}>Location privacy</Text>
+              <View style={{ gap: 8 }}>
+                {VISIBILITY_OPTIONS.map(opt => {
+                  const active = form.locationVisibility === opt.key;
+                  return (
+                    <Pressable
+                      key={opt.key}
+                      onPress={() => set("locationVisibility", opt.key)}
+                      style={{
+                        flexDirection: "row", alignItems: "center", gap: 12,
+                        backgroundColor: active ? C.amber + "1f" : C.card,
+                        borderRadius: 16, borderWidth: 1, borderColor: active ? C.amber : C.glassBorder,
+                        paddingVertical: 12, paddingHorizontal: 14,
+                      }}
+                    >
+                      <Text style={{ fontSize: 20 }}>{opt.icon}</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: active ? C.amberText : C.text, fontWeight: "700", fontSize: 13, fontFamily: FONT }}>{opt.label}</Text>
+                        <Text style={{ color: C.muted, fontSize: 11, fontFamily: FONT, marginTop: 1 }}>{opt.hint}</Text>
+                      </View>
+                      <View style={{ width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: active ? C.amber : C.muted, alignItems: "center", justifyContent: "center" }}>
+                        {active && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: C.amber }} />}
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <Text style={{ color: C.muted, fontSize: 11, fontFamily: FONT, marginTop: 8 }}>
+                Set a default for all your listings in Settings → Privacy.
+              </Text>
             </View>
 
             <View style={{ flexDirection: "row", gap: 10 }}>

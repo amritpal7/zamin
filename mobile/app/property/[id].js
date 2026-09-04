@@ -373,7 +373,13 @@ export default function PropertyDetail() {
                   <Text style={{ fontSize: 28 }}>📍</Text>
                   <View>
                     <Text style={{ color: C.text, fontWeight: "700", fontSize: 14, fontFamily: FONT }}>{p.location}</Text>
-                    <Text style={{ color: C.muted, fontSize: 11, fontFamily: FONT, marginTop: 2 }}>Tap to open in Maps</Text>
+                    <Text style={{ color: C.muted, fontSize: 11, fontFamily: FONT, marginTop: 2 }}>
+                      {p.location_precision === "hidden"
+                        ? "Exact location hidden by owner"
+                        : p.location_precision === "approximate"
+                          ? "Approximate area shown for privacy"
+                          : "Tap to open in Maps"}
+                    </Text>
                   </View>
                 </View>
               ) : (

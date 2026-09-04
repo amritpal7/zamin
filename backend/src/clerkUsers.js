@@ -27,7 +27,9 @@ async function getUser(id) {
     const verified =
       (u.email_addresses || []).some((e) => e.verification?.status === "verified") ||
       (u.phone_numbers || []).some((p) => p.verification?.status === "verified");
-    return { reliable: true, exists: true, imageUrl: u.has_image ? u.image_url : null, name, avatar, verified };
+    // Owner's default location visibility for new listings (set in Settings). null = unset.
+    const locationDefault = u.public_metadata?.default_location_visibility || null;
+    return { reliable: true, exists: true, imageUrl: u.has_image ? u.image_url : null, name, avatar, verified, locationDefault };
   } catch {
     return { reliable: false, exists: true, imageUrl: null, name: null, avatar: null, verified: false };
   }
@@ -35,6 +37,18 @@ async function getUser(id) {
 
 async function userExists(id) {
   return (await getUser(id)).exists;
+}
+
+// Persist the owner's default location visibility in Clerk publicMetadata (backend-only,
+// so a client can't spoof it). New listings inherit this unless they override per-property.
+async function setLocationDefault(id, visibility) {
+  if (!id || !SECRET) return false;
+  const res = await fetch(`https://api.clerk.com/v1/users/${id}/metadata`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${SECRET}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ public_metadata: { default_location_visibility: visibility } }),
+  });
+  return res.ok;
 }
 
 // Backfill denormalized sender identity on messages that predate the feature
@@ -115,4 +129,4 @@ async function reconcileOwners(pool) {
   return { checked: rows.length, active, inactive, skipped };
 }
 
-module.exports = { getUser, userExists, reconcileOwner, reconcileOwners, backfillMessageSenders };
+module.exports = { getUser, userExists, setLocationDefault, reconcileOwner, reconcileOwners, backfillMessageSenders };

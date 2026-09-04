@@ -4,6 +4,7 @@
 
 const TYPES = ["House", "Apartment", "Land", "Commercial"];
 const STATUSES = ["For Sale", "For Rent"];
+const LOCATION_VISIBILITIES = ["exact", "approximate", "hidden"];
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -51,6 +52,8 @@ function validateProperty(body = {}, { forUpdate = false } = {}) {
   // Enums
   if (!TYPES.includes(b.type)) errors.push(`type must be one of: ${TYPES.join(", ")}`);
   if (!STATUSES.includes(b.status)) errors.push(`status must be one of: ${STATUSES.join(", ")}`);
+  if (b.location_visibility != null && !LOCATION_VISIBILITIES.includes(b.location_visibility))
+    errors.push(`location_visibility must be one of: ${LOCATION_VISIBILITIES.join(", ")}`);
 
   // Optional strings
   optStr("description", 5000);
@@ -84,4 +87,4 @@ function validateMessage(body = {}) {
   return errors;
 }
 
-module.exports = { validateProperty, validateMessage, isUuid, TYPES, STATUSES };
+module.exports = { validateProperty, validateMessage, isUuid, TYPES, STATUSES, LOCATION_VISIBILITIES };

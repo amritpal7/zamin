@@ -11,11 +11,12 @@ import { SEED_PROPERTIES } from "../../src/data/properties";
 import { useApi } from "../../src/hooks/useApi";
 import { clusterProperties, withCoords } from "../../src/utils/cluster";
 
-let MapView, Marker;
+let MapView, Marker, Circle;
 if (Platform.OS !== "web") {
   const Maps = require("react-native-maps");
   MapView = Maps.default;
   Marker  = Maps.Marker;
+  Circle  = Maps.Circle;
 }
 
 // India-wide starting view; clustering re-computes as the user pans/zooms.
@@ -117,6 +118,24 @@ export default function MapScreen() {
                       <Text style={styles.clusterCount}>{c.count}</Text>
                     </View>
                   </Marker>
+                ) : c.property.location_precision === "approximate" ? (
+                  // Owner chose to show only an approximate area → draw a circle, no exact pin.
+                  <React.Fragment key={c.key}>
+                    <Circle
+                      center={{ latitude: c.lat, longitude: c.lng }}
+                      radius={c.property.location_radius_m || 400}
+                      strokeColor={C.amber}
+                      fillColor={C.amber + "33"}
+                      strokeWidth={1.5}
+                    />
+                    <Marker
+                      coordinate={{ latitude: c.lat, longitude: c.lng }}
+                      title={c.property.title}
+                      description="Approximate area"
+                      opacity={0}
+                      onPress={() => router.push(`/property/${c.property.id}`)}
+                    />
+                  </React.Fragment>
                 ) : (
                   <Marker
                     key={c.key}

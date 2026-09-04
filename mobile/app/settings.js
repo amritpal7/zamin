@@ -2,7 +2,7 @@
 // Editorial serif header, hairline SVG icons, glass section cards, accent-color toggles.
 // All business logic (Clerk profile/email/password flows + theme switching) preserved.
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, ScrollView, Pressable, TextInput, Alert, ActivityIndicator, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { useUser, useClerk } from "@clerk/clerk-expo";
@@ -19,6 +19,14 @@ const THEME_MODES = [
   { key: "dark",   label: "Dark",   icon: "moon" },
   { key: "light",  label: "Light",  icon: "sparkle" },
   { key: "system", label: "System", icon: "globe" },
+];
+
+// Default location privacy applied to ALL of the owner's listings (per-listing override
+// lives in the Post/Edit flow). Server-enforced — see backend/src/locationPrivacy.js.
+const LOCATION_VIS_MODES = [
+  { key: "exact",       label: "Exact",  hint: "Precise pin" },
+  { key: "approximate", label: "Approx", hint: "~400m area" },
+  { key: "hidden",      label: "Hidden", hint: "No pin" },
 ];
 
 // ── Reusable bits ────────────────────────────────────────────────────────
@@ -175,6 +183,9 @@ export default function Settings() {
   const [emailError,      setEmailError]      = useState("");
   const [pendingEmailId,  setPendingEmailId]  = useState(null);
 
+  const [locVis,    setLocVis]    = useState("exact");
+  const [locSaving, setLocSaving] = useState(false);
+
   const [pwStage,   setPwStage]   = useState("idle");
   const [currentPw, setCurrentPw] = useState("");
   const [newPw,     setNewPw]     = useState("");
@@ -308,6 +319,28 @@ export default function Settings() {
       setPwError(e.errors?.[0]?.message || "Could not change password.");
     } finally {
       setPwLoading(false);
+    }
+  };
+
+  // Reflect the saved default (stored in Clerk publicMetadata by the backend).
+  useEffect(() => {
+    const d = user?.publicMetadata?.default_location_visibility;
+    if (d) setLocVis(d);
+  }, [user?.publicMetadata?.default_location_visibility]);
+
+  // Apply a location-privacy default to ALL the user's listings + remember it for new ones.
+  const applyLocationVisibility = async (v) => {
+    const prev = locVis;
+    setLocVis(v); setLocSaving(true);
+    try {
+      const res = await api.setLocationVisibility(v);
+      await user?.reload?.().catch(() => {});
+      Alert.alert("Location privacy updated", `Applied to ${res.updated} listing${res.updated === 1 ? "" : "s"} and set as your default.`);
+    } catch (e) {
+      setLocVis(prev);
+      Alert.alert("Error", e.message || "Could not update location privacy.");
+    } finally {
+      setLocSaving(false);
     }
   };
 
@@ -534,6 +567,41 @@ export default function Settings() {
                     </View>
                   </View>
                 )}
+              </GlassCard>
+            </View>
+
+            {/* ─── PRIVACY: default location visibility for all listings ─── */}
+            <SectionLabel>Privacy</SectionLabel>
+            <View style={{ paddingHorizontal: 18, marginBottom: 14 }}>
+              <GlassCard>
+                <View style={{ padding: 18 }}>
+                  <Text style={{ color: C.fg, fontFamily: FONT_HEAD, fontSize: 18, letterSpacing: -0.3 }}>Location on the map</Text>
+                  <Text style={{ color: C.fgDim, fontSize: 12, fontFamily: FONT, marginTop: 2, marginBottom: 16 }}>
+                    How precisely your listings' location is shown to other users. Applies to all your listings.
+                  </Text>
+                  <View style={{ flexDirection: "row", gap: 8, opacity: locSaving ? 0.5 : 1 }}>
+                    {LOCATION_VIS_MODES.map(m => {
+                      const active = locVis === m.key;
+                      return (
+                        <Pressable
+                          key={m.key}
+                          disabled={locSaving}
+                          onPress={() => applyLocationVisibility(m.key)}
+                          style={{
+                            flex: 1, paddingVertical: 12, borderRadius: 16,
+                            backgroundColor: active ? C.amber : C.chipBg,
+                            borderWidth: StyleSheet.hairlineWidth,
+                            borderColor: active ? "transparent" : C.glassBorder,
+                            alignItems: "center", gap: 3,
+                          }}
+                        >
+                          <Text style={{ color: active ? C.ink : C.fg, fontFamily: FONT_MED, fontSize: 13 }}>{m.label}</Text>
+                          <Text style={{ color: active ? C.ink : C.fgDim, fontSize: 10, fontFamily: FONT }}>{m.hint}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
               </GlassCard>
             </View>
 
