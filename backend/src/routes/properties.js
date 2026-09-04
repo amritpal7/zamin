@@ -227,7 +227,7 @@ router.put("/:id", requireAuth, async (req, res) => {
     const errors = validateProperty(req.body, { forUpdate: true });
     if (errors.length) return res.status(400).json({ error: errors.join("; "), errors });
     const { userId } = getAuth(req);
-    const { title, description, type, status, price, area, beds, baths, location, tags, img, color, owner_phone, images, thumbnails, location_visibility, photo_geo } = req.body;
+    const { title, description, type, status, price, area, beds, baths, location, tags, img, color, owner_phone, images, thumbnails, location_visibility, photo_geo, latitude, longitude } = req.body;
     // null → keep the existing visibility (COALESCE); a valid enum → update it.
     const visibility = LOCATION_VISIBILITIES.includes(location_visibility) ? location_visibility : null;
 
@@ -236,11 +236,14 @@ router.put("/:id", requireAuth, async (req, res) => {
     // enforced by the UPDATE's WHERE, but we must confirm the row exists + read its state first.
     const cur = await pool.query("SELECT photo_geo, latitude, longitude FROM properties WHERE id=$1 AND clerk_user_id=$2", [req.params.id, userId]);
     if (!cur.rows[0]) return res.status(404).json({ error: "Not found or not owner" });
+    // Owner can move the pin from the editor (manual pin wins); else keep the stored one.
+    const pinLat = Number.isFinite(Number(latitude))  ? Number(latitude)  : cur.rows[0].latitude;
+    const pinLng = Number.isFinite(Number(longitude)) ? Number(longitude) : cur.rows[0].longitude;
     const trust = computePhotoTrust({
       existing: Array.isArray(cur.rows[0].photo_geo) ? cur.rows[0].photo_geo : [],
       incoming: Array.isArray(photo_geo) ? photo_geo : [],
       images: images || [],
-      lat: cur.rows[0].latitude, lng: cur.rows[0].longitude,
+      lat: pinLat, lng: pinLng,
     });
 
     const { rows } = await pool.query(
