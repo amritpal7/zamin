@@ -30,17 +30,27 @@ function jitter(lat, lng, seed) {
   return { lat: lat + dLat, lng: lng + dLng };
 }
 
+// Strip raw capture coordinates from photo_geo for non-owners, leaving only what's safe
+// to show publicly ({url, on_site}). Owners keep the full metadata.
+function sanitizePhotoGeo(row) {
+  if (!Array.isArray(row.photo_geo)) return row;
+  return { ...row, photo_geo: row.photo_geo.map((g) => ({ url: g.url, on_site: !!g.on_site })) };
+}
+
 // Return a privacy-adjusted shallow copy of a property row for `viewerId`.
 function redactLocation(row, viewerId) {
   if (!row) return row;
   const vis = row.location_visibility || "exact";
   const isOwner = viewerId && row.clerk_user_id === viewerId;
 
-  if (vis === "exact" || isOwner) {
+  if (isOwner) {
     return { ...row, location_precision: "exact" };
   }
+  if (vis === "exact") {
+    return sanitizePhotoGeo({ ...row, location_precision: "exact" });
+  }
 
-  const out = { ...row };
+  const out = sanitizePhotoGeo({ ...row });
   if (vis === "hidden") {
     out.latitude = null;
     out.longitude = null;

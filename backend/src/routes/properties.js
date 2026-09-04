@@ -9,6 +9,7 @@ const { thumbnailQueue } = require("../queue");
 const { validateProperty, isUuid, LOCATION_VISIBILITIES } = require("../validation");
 const { reconcileOwner, reconcileOwners, getUser, setLocationDefault } = require("../clerkUsers");
 const { redactLocation } = require("../locationPrivacy");
+const { computePhotoTrust } = require("../photoTrust");
 const { notifyListingMatch } = require("../notify");
 
 const MAX_IMAGES = 8;
@@ -226,24 +227,39 @@ router.put("/:id", requireAuth, async (req, res) => {
     const errors = validateProperty(req.body, { forUpdate: true });
     if (errors.length) return res.status(400).json({ error: errors.join("; "), errors });
     const { userId } = getAuth(req);
-    const { title, description, type, status, price, area, beds, baths, location, tags, img, color, owner_phone, images, thumbnails, location_visibility } = req.body;
+    const { title, description, type, status, price, area, beds, baths, location, tags, img, color, owner_phone, images, thumbnails, location_visibility, photo_geo } = req.body;
     // null → keep the existing visibility (COALESCE); a valid enum → update it.
     const visibility = LOCATION_VISIBILITIES.includes(location_visibility) ? location_visibility : null;
+
+    // Recompute on-site trust from the existing per-photo geo (for retained photos) merged
+    // with any newly-captured geo, scoped to the photos still on the listing. Ownership is
+    // enforced by the UPDATE's WHERE, but we must confirm the row exists + read its state first.
+    const cur = await pool.query("SELECT photo_geo, latitude, longitude FROM properties WHERE id=$1 AND clerk_user_id=$2", [req.params.id, userId]);
+    if (!cur.rows[0]) return res.status(404).json({ error: "Not found or not owner" });
+    const trust = computePhotoTrust({
+      existing: Array.isArray(cur.rows[0].photo_geo) ? cur.rows[0].photo_geo : [],
+      incoming: Array.isArray(photo_geo) ? photo_geo : [],
+      images: images || [],
+      lat: cur.rows[0].latitude, lng: cur.rows[0].longitude,
+    });
+
     const { rows } = await pool.query(
       `UPDATE properties
        SET title=$1, description=$2, type=$3, status=$4, price=$5, area=$6,
            beds=$7, baths=$8, location=$9, tags=$10, img=$11, color=$12,
            owner_phone=$13, images=$14, thumbnails=$15,
-           location_visibility=COALESCE($16, location_visibility), updated_at=NOW()
-       WHERE id=$17 AND clerk_user_id=$18
+           location_visibility=COALESCE($16, location_visibility),
+           photo_geo=$17, on_site_verified=$18, latitude=$19, longitude=$20, updated_at=NOW()
+       WHERE id=$21 AND clerk_user_id=$22
        RETURNING *`,
       [title, description, type, status, price, area,
        beds || null, baths || null, location, tags || null, img || "🏠", color || "#f0a500",
        owner_phone || null, images || [], thumbnails || [], visibility,
+       JSON.stringify(trust.photo_geo), trust.on_site_verified, trust.latitude, trust.longitude,
        req.params.id, userId]
     );
     if (!rows[0]) return res.status(404).json({ error: "Not found or not owner" });
-    res.json(rows[0]);
+    res.json(redactLocation(rows[0], userId));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -267,7 +283,16 @@ router.post("/", requireAuth, async (req, res) => {
     const errors = validateProperty(req.body);
     if (errors.length) return res.status(400).json({ error: errors.join("; "), errors });
     const { userId } = getAuth(req);
-    const { title, description, type, status, price, area, beds, baths, location, latitude, longitude, tags, img, color, owner_name, owner_phone, owner_avatar, owner_image, images, thumbnails, location_visibility } = req.body;
+    const { title, description, type, status, price, area, beds, baths, location, latitude, longitude, tags, img, color, owner_name, owner_phone, owner_avatar, owner_image, images, thumbnails, location_visibility, photo_geo } = req.body;
+
+    // On-site photo verification (server-authoritative): compute per-photo on_site from the
+    // capture GPS, auto-pin the listing from the first on-site capture when no pin was sent,
+    // and derive the listing-level badge. Never trust an on_site flag from the client.
+    const trust = computePhotoTrust({
+      incoming: Array.isArray(photo_geo) ? photo_geo : [],
+      images: images || [],
+      lat: latitude, lng: longitude,
+    });
 
     // The trust badge is server-authoritative: derive it from the owner's Clerk
     // account (verified email/phone), never from the client — a client must not be
@@ -282,10 +307,10 @@ router.post("/", requireAuth, async (req, res) => {
 
     const { rows } = await pool.query(
       `INSERT INTO properties
-        (clerk_user_id, owner_name, owner_phone, owner_avatar, owner_image, title, description, type, status, price, area, beds, baths, location, latitude, longitude, tags, img, color, images, thumbnails, verified, location_visibility)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
+        (clerk_user_id, owner_name, owner_phone, owner_avatar, owner_image, title, description, type, status, price, area, beds, baths, location, latitude, longitude, tags, img, color, images, thumbnails, verified, location_visibility, photo_geo, on_site_verified)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)
        RETURNING *`,
-      [userId, owner_name, owner_phone, owner_avatar, owner_image || null, title, description, type, status, price, area, beds, baths, location, latitude, longitude, tags, img || "🏠", color || "#f0a500", images || [], thumbnails || [], verified, visibility]
+      [userId, owner_name, owner_phone, owner_avatar, owner_image || null, title, description, type, status, price, area, beds, baths, location, trust.latitude, trust.longitude, tags, img || "🏠", color || "#f0a500", images || [], thumbnails || [], verified, visibility, JSON.stringify(trust.photo_geo), trust.on_site_verified]
     );
     // Notify users whose saved search matches this new listing (best-effort; never fails create).
     try { await notifyListingMatch(pool, rows[0]); } catch (e) { console.error("saved-search notify failed:", e.message); }

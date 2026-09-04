@@ -112,6 +112,8 @@ Three tables. Clerk owns identity; we key everything by `clerk_user_id VARCHAR(2
 | owner_active | BOOLEAN | false = owner's Clerk account no longer exists (reconciled). **Soft-hide:** false rows are excluded from `GET /properties` + `GET /saved` (data retained, reachable by direct id) |
 | owner_image | TEXT | owner's Clerk profile photo URL (denormalized; set on create + reconcile) |
 | location_visibility | VARCHAR | `exact` \| `approximate` \| `hidden`. **Server-enforced privacy** (`locationPrivacy.js`): reads redact non-owners' coords — `approximate` returns a deterministic ~400m jitter (+`location_precision`/`location_radius_m`), `hidden` returns null lat/lng and null `distance_km`. Owner always sees exact. Per-listing (Post/Edit) with a global default in Clerk `publicMetadata.default_location_visibility` (bulk-set via `PUT /properties/location-visibility`) |
+| photo_geo | JSONB | Per-photo capture metadata `[{url,lat,lng,at,source,on_site}]` for on-site verification (`photoTrust.js`). **Server-authoritative** `on_site` (camera photo within ~150m of the pin; auto-pins the listing from the first on-site capture when no pin). **Capture coords are redacted for non-owners** → they see only `[{url,on_site}]` (`locationPrivacy.sanitizePhotoGeo`) |
+| on_site_verified | BOOLEAN | derived: ≥1 on-site photo → **"Verified on-site" badge**. Anti-fraud (fake listings reuse stock photos). Client can't self-assign |
 | created_at, updated_at | TIMESTAMPTZ | |
 
 Indexes: `type`, `status`, `clerk_user_id`.

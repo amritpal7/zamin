@@ -12,6 +12,28 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-04 (feature: on-site geotagged photo capture — Phase 2 of maps)
+- **Added:** in-app **on-site photo capture** with live GPS → a server-authoritative
+  **"Verified on-site" badge**. Owners tap "On-site photo" in Post/Edit; the app opens the
+  camera and records the GPS fix at shutter time. A camera photo within ~150m of the listing
+  pin counts as on-site; ≥1 on-site photo earns the badge. Fights fake listings (which reuse
+  stock/downloaded images).
+  - Backend: `photoTrust.js` `computePhotoTrust({existing,incoming,images,lat,lng})` — merges
+    existing + newly-captured per-photo geo, scopes to photos still on the listing, computes
+    per-photo `on_site` (Haversine ≤150m, **camera source only**), and **auto-pins** the listing
+    from the first on-site capture when it has no coords (so app-made listings finally get a pin).
+    `on_site` is never trusted from the client. Columns `photo_geo JSONB` + `on_site_verified`
+    (`migrate.js`); wired into POST + PUT.
+  - **Privacy:** capture coordinates are sensitive → `locationPrivacy.sanitizePhotoGeo` strips
+    `photo_geo` to `[{url,on_site}]` for non-owners (owner sees full). Verified by test.
+  - Client: `post.js` "On-site photo" button (`expo-image-picker` camera + `expo-location`),
+    per-photo "📍 On-site" chip in the composer, capture geo threaded through the presigned
+    upload (re-keyed local uri → hosted url) into `photo_geo`; edit seeds geo from the server.
+    Property detail shows a **"📍 On-site verified"** chip (`property/[id].js`).
+  - **Validated:** 74/74 API tests (6 `photoTrust` unit + 2 integration: badge + auto-pin,
+    capture coords hidden from non-owners, client can't fake `on_site`, gallery ≠ verified).
+    iOS bundle 0 errors. **Camera + GPS need a device/dev build to exercise the capture UI.**
+
 ### 2026-09-04 (feature: location privacy — Phase 1 of maps)
 - **Added:** owner-controlled **location privacy**, server-enforced. Each listing has a
   `location_visibility` (`exact` | `approximate` | `hidden`); non-owners never receive true

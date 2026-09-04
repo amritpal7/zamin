@@ -365,7 +365,9 @@ export default function PropertyDetail() {
             <View style={{ padding: 18 }}>
               <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                 <Text style={{ color: C.muted, fontSize: 11, fontWeight: "700", fontFamily: FONT, letterSpacing: 1, textTransform: "uppercase" }}>Location</Text>
-                {!isSignedIn && <Chip label="🔒 Sign in to view" color={C.red} />}
+                {p.on_site_verified
+                  ? <Chip label="📍 On-site verified" color={C.green} />
+                  : (!isSignedIn && <Chip label="🔒 Sign in to view" color={C.red} />)}
               </View>
 
               {isSignedIn ? (
