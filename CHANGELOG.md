@@ -12,6 +12,13 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-04 (fix: tapping the location in property detail now opens Maps)
+- **Fixed:** the "Tap to open in Maps" row on the property detail screen was a plain `View` with
+  no handler — tapping did nothing. It's now a `Pressable` (`property/[id].js`) that opens the
+  device Maps app via `Linking` — using the listing's coordinates when shared (exact/approximate),
+  else a text search of the locality. Disabled for `hidden`-location listings (owner's choice).
+  Added a chevron affordance. Validated: iOS bundle compiles (0 errors).
+
 ### 2026-09-04 (UX: map pin action sheet + posting-patience overlay)
 - **Added — property action sheet** (`mobile/app/(tabs)/map.js`): tapping a property — either a
   **map pin** or a **card in the list** below the map — no longer navigates immediately. It opens a
