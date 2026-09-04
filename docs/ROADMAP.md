@@ -75,8 +75,10 @@ Three pillars we judge every change against:
 - [~] **Maps — Phase 2: on-site geotagged capture** (2026-09-04) — in-app camera + live GPS →
       server-authoritative "Verified on-site" badge (photo within ~150m of the pin; auto-pins the
       listing). Capture coords redacted for non-owners. ⏳ **Camera/GPS UI needs device testing.**
-      *(Phase 3):* price-bubble markers, "search this area" + synced list↔map, drop-a-pin/reverse-geocode
-      on post, satellite/parcel boundary for Land, "what's nearby", get-directions.
+- [~] **Maps — Phase 3** — ✅ (2026-09-05) drop-a-pin for remote listings (geocode / current
+      location / drag), **price-bubble markers**, **"search this area"**, **reverse-geocode** pin→address.
+      *Remaining:* synced list↔map highlight, satellite + parcel boundary for Land, "what's nearby"
+      (schools/metro/etc.), get-directions.
 - [x] **Saved-search alerts** (2026-08-27) — `saved_searches` + a real `notifications` store; new
       matching listing → in-app notification (+ push). Discover "Save this search" + manager screen.
 - [x] **In-app visit scheduling** (2026-09-04) — `visits` table + `/visits` API (book → confirm/

@@ -22,6 +22,13 @@ if (Platform.OS !== "web") {
 // India-wide starting view; clustering re-computes as the user pans/zooms.
 const INITIAL_REGION = { latitude: 16.5, longitude: 75, latitudeDelta: 9, longitudeDelta: 9 };
 
+// Compact price label for a map pin. Stored prices are usually strings ("₹85 L").
+const priceLabel = (p) => {
+  const v = p?.price;
+  if (v == null || v === "") return "—";
+  return typeof v === "number" ? `₹${v}` : String(v);
+};
+
 const glassCard = () => ({
   backgroundColor: C.glassBg,
   borderRadius: 20,
@@ -95,6 +102,20 @@ export default function MapScreen() {
 
   const openDetails = (p) => { setSheet(null); router.push(`/property/${p.id}`); };
 
+  // "Search this area" — re-query listings near the current map center. Radius ≈ half the
+  // visible span (deg → km). Falls back silently if the API is unreachable.
+  const [searching, setSearching] = useState(false);
+  const searchThisArea = async () => {
+    try {
+      setSearching(true);
+      const radiusKm = Math.min(500, Math.max(1, Math.round(region.latitudeDelta * 111 / 2)));
+      const data = await apiRef.current.getProperties({ lat: region.latitude, lng: region.longitude, radius: radiusKm });
+      setProperties(Array.isArray(data) ? data : []);
+    } catch { /* keep current results */ } finally {
+      setSearching(false);
+    }
+  };
+
   // Center on the pin when arriving from a listing's "view on map". The timeout lets the
   // MapView mount on the first navigation into the tab; repeat taps re-fire via the `t` nonce.
   useEffect(() => {
@@ -146,32 +167,28 @@ export default function MapScreen() {
                       <Text style={styles.clusterCount}>{c.count}</Text>
                     </View>
                   </Marker>
-                ) : c.property.location_precision === "approximate" ? (
-                  // Owner chose to show only an approximate area → draw a circle, no exact pin.
+                ) : (
+                  // Single listing → a price-bubble pin (approximate also draws its area circle).
                   <React.Fragment key={c.key}>
-                    <Circle
-                      center={{ latitude: c.lat, longitude: c.lng }}
-                      radius={c.property.location_radius_m || 400}
-                      strokeColor={C.amber}
-                      fillColor={C.amber + "33"}
-                      strokeWidth={1.5}
-                    />
+                    {c.property.location_precision === "approximate" && (
+                      <Circle
+                        center={{ latitude: c.lat, longitude: c.lng }}
+                        radius={c.property.location_radius_m || 400}
+                        strokeColor={C.amber}
+                        fillColor={C.amber + "33"}
+                        strokeWidth={1.5}
+                      />
+                    )}
                     <Marker
                       coordinate={{ latitude: c.lat, longitude: c.lng }}
-                      title={c.property.title}
-                      description="Approximate area"
-                      opacity={0}
+                      anchor={{ x: 0.5, y: 1 }}
                       onPress={() => setSheet(c.property)}
-                    />
+                    >
+                      <View style={styles.priceBubble}>
+                        <Text style={styles.priceText} numberOfLines={1}>{priceLabel(c.property)}</Text>
+                      </View>
+                    </Marker>
                   </React.Fragment>
-                ) : (
-                  <Marker
-                    key={c.key}
-                    coordinate={{ latitude: c.lat, longitude: c.lng }}
-                    title={c.property.title}
-                    description={typeof c.property.price === "number" ? `₹${c.property.price}` : String(c.property.price || "")}
-                    onPress={() => setSheet(c.property)}
-                  />
                 )
               )}
             </MapView>
@@ -185,6 +202,26 @@ export default function MapScreen() {
                 <Text style={{ color: C.fgDim, fontSize: 11, fontFamily: FONT }}>(Native map on device)</Text>
               )}
             </View>
+          )}
+
+          {/* Search-this-area — re-query listings around the current map center */}
+          {isSignedIn && MapView && (
+            <Pressable
+              onPress={searchThisArea}
+              disabled={searching}
+              style={{
+                position: "absolute", top: 12, alignSelf: "center",
+                flexDirection: "row", alignItems: "center", gap: 6,
+                backgroundColor: C.bg, borderRadius: 100, paddingHorizontal: 14, paddingVertical: 8,
+                borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder,
+                shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 5, elevation: 4,
+              }}
+            >
+              <Icon name="search" size={14} color={C.amber} strokeWidth={2} />
+              <Text style={{ color: C.fg, fontFamily: FONT_MED, fontSize: 12 }}>
+                {searching ? "Searching…" : "Search this area"}
+              </Text>
+            </Pressable>
           )}
         </View>
 
@@ -282,6 +319,26 @@ const styles = StyleSheet.create({
     color: C.ink,
     fontFamily: FONT_MED,
     fontSize: 14,
+    fontWeight: "700",
+  },
+  priceBubble: {
+    backgroundColor: C.amber,
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderWidth: 1.5,
+    borderColor: "#fff",
+    maxWidth: 120,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.28,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  priceText: {
+    color: C.ink,
+    fontFamily: FONT_MED,
+    fontSize: 12,
     fontWeight: "700",
   },
 });

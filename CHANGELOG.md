@@ -12,6 +12,17 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-05 (feature: Maps Phase 3 — price pins, "search this area", reverse-geocode)
+- **Price-bubble markers** (`mobile/app/(tabs)/map.js`): single-listing pins now render the price
+  (e.g. `₹85 L`) in a bubble instead of a generic marker — far more scannable (Zillow/Airbnb style).
+  Approximate listings still draw their area circle behind the bubble; clusters still show the count.
+- **"Search this area"**: a floating button on the map re-queries listings around the current map
+  center (radius ≈ half the visible span) via the existing geo search, updating the pins + list.
+- **Reverse-geocode the pin → address** (`post.js` `PinPicker`): tapping/dragging the map pin or
+  using current location now reverse-geocodes (`Location.reverseGeocodeAsync`) and auto-fills the
+  Address field **when it's empty** (never clobbers what the owner typed).
+- Validated: iOS + web bundles compile (0 errors). Map interactions need a device.
+
 ### 2026-09-05 (feature: set the map pin for remote listings — Maps Phase 3, part 1)
 - **Added:** remote owners (not posting on-site) can now set a listing's exact **map pin**, so it
   appears on the map and buyers can locate/navigate to it. Previously only on-site photo capture
