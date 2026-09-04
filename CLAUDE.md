@@ -9,6 +9,10 @@ lives in the linked docs; this is the map + the rules + the runbook.
 - **`CHANGELOG.md`** — what changed and why. Newest first.
 - **`docs/BUGLOG.md`** — bugs + root causes + **recurring patterns/guardrails**. Skim the
   guardrails table before UI/messaging work; add an entry whenever you fix a bug.
+- **`vibe-check/AGENTS.md`** — **security rules to follow while writing code** (secrets, DB, auth,
+  input/output, SSRF, headers, CORS, rate limiting, payments, errors, password hashing, deps).
+  Also: `vibe-check/AI-CHECKLIST.MD` (automated audit prompt) + `vibe-check/manual-checklist.md`
+  (manual tests). From github.com/benavlabs/vibe-check.
 
 ## What Zamin is (one line)
 Zero-brokerage property marketplace. Expo/React Native (iOS/Android/web) + Express API +

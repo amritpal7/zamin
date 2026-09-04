@@ -12,6 +12,14 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-05 (chore: add vibe-check security toolkit)
+- **Added `vibe-check/`** (from github.com/benavlabs/vibe-check) — a security checklist for
+  AI/"vibe"-coded apps, in three layers: `AGENTS.md` (rules the AI follows while coding),
+  `AI-CHECKLIST.MD` (automated whole-project audit prompt), `manual-checklist.md` (manual tests).
+  Cloned into the repo root (nested `.git` removed so it's tracked here).
+- **`CLAUDE.md`**: added a pointer under "Read these first" to `vibe-check/AGENTS.md` so the agent
+  applies these security rules (the existing working guide is kept; not overwritten).
+
 ### 2026-09-05 (feature: Maps Phase 3 — price pins, "search this area", reverse-geocode)
 - **Price-bubble markers** (`mobile/app/(tabs)/map.js`): single-listing pins now render the price
   (e.g. `₹85 L`) in a bubble instead of a generic marker — far more scannable (Zillow/Airbnb style).
