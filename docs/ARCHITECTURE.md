@@ -244,7 +244,8 @@ Base path through nginx: `/api`. Direct: `http://localhost:4000`.
 | POST | `/properties/presign` | 🔒 | Get presigned upload URLs (direct-to-storage) |
 | POST | `/properties/process` | 🔒 | Enqueue resize/thumbnail job for uploaded originals |
 | POST | `/properties/upload` | 🔒 | (legacy/alt) multipart upload path |
-| POST | `/properties/reconcile-owners` | 🔒 | Check each owner against Clerk, set `owner_active` (should be admin/scheduled/webhook in prod) |
+| POST | `/properties/reconcile-owners` | 🔒 | Admin-only. Check **every** owner against Clerk, set `owner_active`/`verified` (fans out one Clerk call per owner; also scheduled in the worker) |
+| POST | `/properties/reconcile-me` | 🔒 | Self-serve. Reconcile **only the caller's own** listings from Clerk (one call). Used after verifying email to propagate the trust badge to their listings immediately |
 
 ### Saved (`routes/saved.js`)
 | Method | Path | Purpose |

@@ -13,6 +13,7 @@ import * as ImagePicker from "expo-image-picker";
 import { C, FONT, FONT_MED, FONT_HEAD, FONT_HEAD_ITALIC } from "../src/theme";
 import { Icon } from "../src/components/Icon";
 import { useTheme } from "../src/context/ThemeContext";
+import { useApi } from "../src/hooks/useApi";
 
 const THEME_MODES = [
   { key: "dark",   label: "Dark",   icon: "moon" },
@@ -157,6 +158,7 @@ export default function Settings() {
   const { mode, setTheme } = useTheme();
   const { user, isLoaded } = useUser();
   const { signOut } = useClerk();
+  const api = useApi();
 
   const [editing,   setEditing]   = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -263,6 +265,11 @@ export default function Settings() {
         const oldEmails = user.emailAddresses.filter(e => e.id !== result.id);
         await Promise.allSettled(oldEmails.map(e => e.destroy()));
       }
+      // Refresh local Clerk state so the "Verified" badge updates in-place, then
+      // propagate the trust badge to this owner's listings NOW (best-effort) instead
+      // of waiting up to RECONCILE_INTERVAL_MS for the scheduled sweep.
+      await user.reload().catch(() => {});
+      api.reconcileMe().catch(() => {});
       setEmailStage("idle"); setNewEmail(""); setEmailCode("");
       Alert.alert(
         isChangingEmail ? "Email Changed" : "Email Verified",
@@ -419,6 +426,9 @@ export default function Settings() {
 
               {emailStage === "idle" && (
                 <View style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.line, padding: 14, gap: 10 }}>
+                  {/* Primary action, contextual:
+                      · no email      → one action: add + verify in a single flow
+                      · email, unverified → verify the existing address */}
                   {!isVerified && (
                     <Pressable
                       onPress={() => primaryEmail
@@ -428,22 +438,24 @@ export default function Settings() {
                       style={{ backgroundColor: C.amber, borderRadius: 100, paddingVertical: 11, alignItems: "center" }}
                     >
                       <Text style={{ color: C.ink, fontFamily: FONT_MED, fontSize: 13 }}>
-                        {primaryEmail ? "Send verification code" : "Add email & verify"}
+                        {primaryEmail ? "Verify email" : "Add & verify email"}
                       </Text>
                     </Pressable>
                   )}
-                  <Pressable onPress={() => startEmailChange(true)} style={{ backgroundColor: C.chipBg, borderRadius: 100, paddingVertical: 11, alignItems: "center" }}>
-                    <Text style={{ color: C.fg, fontFamily: FONT_MED, fontSize: 13 }}>
-                      {primaryEmail ? "Change email" : "Add email"}
-                    </Text>
-                  </Pressable>
+                  {/* Secondary: replace an existing email — only shown once one exists,
+                      so a brand-new user sees a single unambiguous action. */}
+                  {primaryEmail && (
+                    <Pressable onPress={() => startEmailChange(true)} style={{ backgroundColor: C.chipBg, borderRadius: 100, paddingVertical: 11, alignItems: "center" }}>
+                      <Text style={{ color: C.fg, fontFamily: FONT_MED, fontSize: 13 }}>Change email</Text>
+                    </Pressable>
+                  )}
                 </View>
               )}
 
               {emailStage === "addEmail" && (
                 <View style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.line, padding: 18 }}>
                   <Text style={{ color: C.fg, fontFamily: FONT_MED, fontSize: 13, marginBottom: 10 }}>
-                    {isChangingEmail ? "Change email address" : "Add email"}
+                    {isChangingEmail ? "Change email address" : "Add & verify email"}
                   </Text>
                   {!!emailError && (
                     <View style={{ backgroundColor: C.red + "18", borderRadius: 12, padding: 10, marginBottom: 10 }}>

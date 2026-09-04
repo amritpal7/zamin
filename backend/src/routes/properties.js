@@ -7,7 +7,7 @@ const { upload } = require("../upload");
 const { putObject, presignPut } = require("../storage");
 const { thumbnailQueue } = require("../queue");
 const { validateProperty, isUuid } = require("../validation");
-const { reconcileOwners, getUser } = require("../clerkUsers");
+const { reconcileOwner, reconcileOwners, getUser } = require("../clerkUsers");
 const { notifyListingMatch } = require("../notify");
 
 const MAX_IMAGES = 8;
@@ -115,6 +115,20 @@ router.post("/reconcile-owners", requireAuth, async (req, res) => {
     const { userId } = getAuth(req);
     if (!ADMIN_IDS.includes(userId)) return res.status(403).json({ error: "Admins only" });
     const result = await reconcileOwners(pool);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /properties/reconcile-me — reconcile ONLY the authenticated user's own
+// listings from Clerk (one API call). Lets a user propagate a just-changed account
+// state (e.g. email verified → trust badge) to their listings immediately, instead
+// of waiting for the scheduled sweep. Safe self-serve: only touches the caller's rows.
+router.post("/reconcile-me", requireAuth, async (req, res) => {
+  try {
+    const { userId } = getAuth(req);
+    const result = await reconcileOwner(pool, userId);
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });

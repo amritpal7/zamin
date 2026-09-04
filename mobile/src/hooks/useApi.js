@@ -34,6 +34,9 @@ export function useApi() {
     getProperty: (id) => request(`/properties/${id}`),
     getMyProperties: () => request("/properties/mine"),
     createProperty: (data) => request("/properties", { method: "POST", body: JSON.stringify(data) }),
+    // Re-sync the caller's own listings from Clerk (e.g. after verifying email →
+    // propagate the trust badge to their listings immediately).
+    reconcileMe: () => request("/properties/reconcile-me", { method: "POST" }),
     updateProperty: (id, data) => request(`/properties/${id}`, { method: "PUT", body: JSON.stringify(data) }),
     deleteProperty: (id) => request(`/properties/${id}`, { method: "DELETE" }),
 

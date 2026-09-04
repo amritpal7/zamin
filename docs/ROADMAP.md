@@ -22,11 +22,12 @@ Three pillars we judge every change against:
 
 - [ ] **Auth polish (username-first).** Done: username/phone toggle, profile username fix.
       Next: decide final Clerk password policy (relax zxcvbn + HIBP for dev; re-tighten for prod).
-- [ ] **Add + verify email/phone in Profile settings** (moved out of signup by design).
-      **Unblocks password reset** — the reset flow (`forgot-password.js`) already exists but
-      can't work until accounts have a verified contact method.
-- [ ] **Password reset — DEFERRED (UI already built):** turn it on once add-email/phone lands.
-      Enable "reset password" + a contact method in Clerk. Tracked here so we don't lose it.
+- [x] **Add + verify email in Profile settings** (2026-09-04) — single "Add & verify email" action;
+      reconcile-on-verify propagates the trust badge to the owner's listings immediately.
+- [x] **Password reset** (2026-09-04) — `forgot-password.js` works end-to-end via
+      `reset_password_email_code`. Verified E2E vs live Clerk (signup→verify→reset→login).
+      **Caveat:** on this Clerk plan, having a verified email forces an `email_code` **2FA** at login
+      (no toggle to disable). `sign-in.js` now handles `needs_second_factor`. See BUGLOG guardrail.
 - [x] **Owner liveness / flag deleted accounts:** DONE — `owner_active` flag on properties,
       reconciled against Clerk (deleted account → 404 → flagged), surfaced in listings, detail,
       chat, and inbox. **Now automated**: the worker runs a scheduled reconcile every

@@ -56,6 +56,33 @@ async function backfillMessageSenders(pool) {
   return { senders: rows.length, filled };
 }
 
+// Reconcile a SINGLE owner's listings from Clerk (one API call). Used to propagate
+// a just-changed account state (e.g. email verified → trust badge) to the owner's
+// denormalized property rows immediately, instead of waiting for the scheduled sweep.
+// Safe to expose per-user: it only touches rows owned by `clerkUserId`.
+async function reconcileOwner(pool, clerkUserId) {
+  if (!clerkUserId || clerkUserId.startsWith("seed_user_")) return { updated: 0, skipped: 1 };
+  const u = await getUser(clerkUserId);
+  if (!u.reliable) return { updated: 0, skipped: 1 };   // transient Clerk error → leave data as-is
+  if (!u.exists) {
+    const { rowCount } = await pool.query(
+      "UPDATE properties SET owner_active = false WHERE clerk_user_id = $1", [clerkUserId]
+    );
+    return { updated: rowCount, inactive: true };
+  }
+  const { rowCount } = await pool.query(
+    `UPDATE properties
+       SET owner_active = true,
+           owner_image  = $1,
+           owner_name   = COALESCE($2, owner_name),
+           owner_avatar = COALESCE($3, owner_avatar),
+           verified     = $4
+     WHERE clerk_user_id = $5`,
+    [u.imageUrl, u.name, u.avatar, u.verified, clerkUserId]
+  );
+  return { updated: rowCount, verified: u.verified };
+}
+
 // Reconcile every distinct real owner: update owner_active + owner_image from Clerk.
 // Skips rows on transient errors so a Clerk hiccup never wipes stored data.
 async function reconcileOwners(pool) {
@@ -88,4 +115,4 @@ async function reconcileOwners(pool) {
   return { checked: rows.length, active, inactive, skipped };
 }
 
-module.exports = { getUser, userExists, reconcileOwners, backfillMessageSenders };
+module.exports = { getUser, userExists, reconcileOwner, reconcileOwners, backfillMessageSenders };
