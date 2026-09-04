@@ -1,7 +1,7 @@
 import { useTheme } from "../../src/context/ThemeContext";
-import React, { useState, useRef, useCallback, useMemo } from "react";
-import { View, Text, ScrollView, Pressable, Platform, StyleSheet } from "react-native";
-import { useRouter, useFocusEffect } from "expo-router";
+import React, { useState, useRef, useCallback, useMemo, useEffect } from "react";
+import { View, Text, ScrollView, Pressable, Platform, StyleSheet, Modal } from "react-native";
+import { useRouter, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useAuth } from "@clerk/clerk-expo";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { C, FONT, FONT_MED, FONT_HEAD } from "../../src/theme";
@@ -47,6 +47,12 @@ export default function MapScreen() {
   const [selected, setSelected] = useState(null);
   const [properties, setProperties] = useState(SEED_PROPERTIES);
   const [region, setRegion] = useState(INITIAL_REGION);
+  const [sheet, setSheet] = useState(null); // property tapped on the map → action sheet
+
+  // A listing's "view on map" deep-links here with lat/lng (+ t nonce for repeat taps).
+  const params = useLocalSearchParams();
+  const focusLat = parseFloat(params.lat), focusLng = parseFloat(params.lng);
+  const hasFocus = Number.isFinite(focusLat) && Number.isFinite(focusLng);
 
   // Load real listings on focus; fall back to seed if the API is unreachable.
   useFocusEffect(useCallback(() => {
@@ -77,6 +83,28 @@ export default function MapScreen() {
     mapRef.current?.animateToRegion(next, 350);
   };
 
+  // "Locate on map" — center + zoom the map onto a single property's pin.
+  const locateOnMap = (p) => {
+    const lat = p.lat ?? p.latitude, lng = p.lng ?? p.longitude;
+    setSheet(null);
+    if (lat == null || lng == null) return;
+    const next = { latitude: lat, longitude: lng, latitudeDelta: 0.01, longitudeDelta: 0.01 };
+    setRegion(next);
+    mapRef.current?.animateToRegion(next, 450);
+  };
+
+  const openDetails = (p) => { setSheet(null); router.push(`/property/${p.id}`); };
+
+  // Center on the pin when arriving from a listing's "view on map". The timeout lets the
+  // MapView mount on the first navigation into the tab; repeat taps re-fire via the `t` nonce.
+  useEffect(() => {
+    if (!hasFocus) return;
+    const r = { latitude: focusLat, longitude: focusLng, latitudeDelta: 0.01, longitudeDelta: 0.01 };
+    setRegion(r);
+    const id = setTimeout(() => mapRef.current?.animateToRegion(r, 500), 350);
+    return () => clearTimeout(id);
+  }, [params.lat, params.lng, params.t]);
+
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
       {/* Inline header */}
@@ -104,7 +132,7 @@ export default function MapScreen() {
             <MapView
               ref={mapRef}
               style={{ flex: 1 }}
-              initialRegion={INITIAL_REGION}
+              initialRegion={hasFocus ? { latitude: focusLat, longitude: focusLng, latitudeDelta: 0.01, longitudeDelta: 0.01 } : INITIAL_REGION}
               onRegionChangeComplete={setRegion}
             >
               {clusters.map((c) =>
@@ -133,7 +161,7 @@ export default function MapScreen() {
                       title={c.property.title}
                       description="Approximate area"
                       opacity={0}
-                      onPress={() => router.push(`/property/${c.property.id}`)}
+                      onPress={() => setSheet(c.property)}
                     />
                   </React.Fragment>
                 ) : (
@@ -142,7 +170,7 @@ export default function MapScreen() {
                     coordinate={{ latitude: c.lat, longitude: c.lng }}
                     title={c.property.title}
                     description={typeof c.property.price === "number" ? `₹${c.property.price}` : String(c.property.price || "")}
-                    onPress={() => router.push(`/property/${c.property.id}`)}
+                    onPress={() => setSheet(c.property)}
                   />
                 )
               )}
@@ -170,7 +198,7 @@ export default function MapScreen() {
             return (
               <Pressable
                 key={p.id}
-                onPress={() => { setSelected(p.id); router.push(`/property/${p.id}`); }}
+                onPress={() => { setSelected(p.id); setSheet(p); }}
                 style={[glassCard(), {
                   padding: 14, flexDirection: "row", alignItems: "center", gap: 12,
                   backgroundColor: active ? C.amber : C.glassBg,
@@ -192,6 +220,43 @@ export default function MapScreen() {
           })}
         </View>
       </ScrollView>
+
+      {/* Map pin tap → action sheet: view details or locate on map */}
+      {sheet && (
+        <Modal transparent animationType="fade" visible onRequestClose={() => setSheet(null)}>
+          <Pressable onPress={() => setSheet(null)} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" }}>
+            <Pressable onPress={() => {}} style={{ backgroundColor: C.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: insets.bottom + 20, gap: 12, borderTopWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder }}>
+              <View style={{ alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: C.glassBorder, marginBottom: 4 }} />
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 4 }}>
+                <Text style={{ fontSize: 26 }}>{sheet.img || "🏠"}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text numberOfLines={1} style={{ color: C.fg, fontFamily: FONT_MED, fontSize: 15 }}>{sheet.title}</Text>
+                  <Text numberOfLines={1} style={{ color: C.fgDim, fontFamily: FONT, fontSize: 12, marginTop: 2 }}>{sheet.location}</Text>
+                </View>
+                <Text style={{ color: C.amber, fontFamily: FONT_MED, fontSize: 14 }}>
+                  {typeof sheet.price === "number" ? `₹${sheet.price}` : sheet.price}
+                </Text>
+              </View>
+
+              <Pressable onPress={() => openDetails(sheet)} style={{ flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: C.amber, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 16 }}>
+                <Icon name="search" size={18} color={C.ink} strokeWidth={2} />
+                <Text style={{ color: C.ink, fontFamily: FONT_MED, fontSize: 14 }}>View more details</Text>
+              </Pressable>
+
+              {((sheet.lat ?? sheet.latitude) != null && (sheet.lng ?? sheet.longitude) != null) && (
+                <Pressable onPress={() => locateOnMap(sheet)} style={{ flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: C.chipBg, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 16, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder }}>
+                  <Icon name="pin" size={18} color={C.fg} strokeWidth={2} />
+                  <Text style={{ color: C.fg, fontFamily: FONT_MED, fontSize: 14 }}>Locate on map</Text>
+                </Pressable>
+              )}
+
+              <Pressable onPress={() => setSheet(null)} style={{ alignItems: "center", paddingVertical: 8 }}>
+                <Text style={{ color: C.fgDim, fontFamily: FONT, fontSize: 13 }}>Cancel</Text>
+              </Pressable>
+            </Pressable>
+          </Pressable>
+        </Modal>
+      )}
     </View>
   );
 }
