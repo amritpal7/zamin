@@ -12,7 +12,22 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
-### 2026-09-04 (feature: on-site geotagged photo capture — Phase 2 of maps)
+### 2026-09-04 (chore: upgrade Expo SDK 54 → 57, so current Expo Go can run the app)
+- **Changed:** upgraded to **Expo SDK 57** (RN 0.81→**0.86.3**, React 19.1→**19.2.3**,
+  expo-router 6→57, react-native-maps 1.20→1.27, all `expo-*` → ~57). Reason: iOS Expo Go only
+  supports the latest SDK (57); the project was on 54, so the app couldn't open on-device without
+  Xcode/EAS. Now it loads in Expo Go over the tunnel — no Xcode, no paid Apple account.
+  - `mobile/package.json` + lockfile via `expo install --fix`.
+  - `mobile/app.json`: moved the deprecated top-level `splash` into the `expo-splash-screen`
+    plugin config (SDK 57 schema).
+  - Tests: jest-expo 57 split out the RN preset → added `@react-native/jest-preset@0.86.3`
+    (+ bumped `react-test-renderer` to 19.2) so `npm test` runs.
+  - Ops: rebuilt the mobile image so the baked `node_modules` matches SDK 57 (the compose
+    anonymous `node_modules` volume must be dropped — `docker compose rm -sfv mobile` — for a
+    recreate to pick up new deps; a plain `--force-recreate` reuses the stale volume).
+  - `mobile/eas.json`: dev-build profiles (kept for the future device/EAS path).
+  - **Validated:** manifest `sdkVersion: 57.0.0`; iOS bundle compiles (0 errors); `expo-doctor`
+    21/21; mobile tests 23/23. Backend untouched.
 - **Added:** in-app **on-site photo capture** with live GPS → a server-authoritative
   **"Verified on-site" badge**. Owners tap "On-site photo" in Post/Edit; the app opens the
   camera and records the GPS fix at shutter time. A camera photo within ~150m of the listing
