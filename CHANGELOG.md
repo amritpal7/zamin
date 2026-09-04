@@ -12,6 +12,20 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-05 (security: implement audit action items)
+- **Ran the `vibe-check` audit** (findings in `security/AUDIT_SUMMARY.md`) and fixed the action items:
+- **Deployment hardening** (`docker-compose.yml`): bound Postgres `5432`, MinIO `9000`/`9001`, and
+  API `4000` to **`127.0.0.1`** (verified closed on the LAN IP; nginx `:80` + Metro `:8081` stay
+  LAN-exposed for the phone). Parameterized DB/MinIO creds + `NODE_ENV` as `${VAR:-default}` so prod
+  overrides via `.env`; DB healthcheck now reads container env.
+- **Dependencies → 0 vulnerabilities:** `sharp` 0.33.5 → **0.35.4** (libvips CVEs); `qs` pinned via
+  `overrides` `^6.16.0` (clears transitive `qs`/`body-parser` moderates, no express-5 bump).
+- **Build fix:** added **`backend/.dockerignore`** — the image build was `COPY . .`-ing a stale host
+  `node_modules` over the fresh `npm install` (why the sharp bump kept reverting to 0.33.5).
+- **File uploads:** nginx `client_max_body_size` 50M → **16M** (server-side cap on presigned PUTs).
+- Verified: API 200 via nginx, object-storage proxy alive, `npm audit` clean, 75/75 backend tests,
+  sharp 0.35.4 in the running container. Data-store ports confirmed closed on the LAN IP.
+
 ### 2026-09-05 (chore: add vibe-check security toolkit)
 - **Added `vibe-check/`** (from github.com/benavlabs/vibe-check) — a security checklist for
   AI/"vibe"-coded apps, in three layers: `AGENTS.md` (rules the AI follows while coding),
