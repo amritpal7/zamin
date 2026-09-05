@@ -239,7 +239,7 @@ Base path through nginx: `/api`. Direct: `http://localhost:4000`.
 ### Properties (`routes/properties.js`)
 | Method | Path | Auth | Purpose |
 |--------|------|------|---------|
-| GET | `/properties` | public | List; filters: `type`, `status`, `search`. **Geo:** `lat`+`lng`(+`radius` km, default 25, clamp 1–500) → Haversine distance in plain SQL (no PostGIS), within-radius rows nearest-first with a `distance_km` field; null lat/lng excluded. Non-geo = newest-first, no `distance_km` |
+| GET | `/properties` | public | List (paginated): `?limit`(1–100,def 24)`&offset` + `?type&status&search` + geo `?lat&lng&radius`. Returns `{items,total,limit,offset,hasMore}`; per-listing location redacted |
 | GET | `/properties/:id` | public | Single property |
 | GET | `/properties/:id/insights` | public | Price insights: listing ₹/sqft vs area median of comparable listings (same type+status+locality) → verdict good_deal/at_market/above_market/insufficient (`insights.js`) |
 | POST | `/properties/:id/report` | 🔒 | Flag a listing (dedup per reporter); auto-hides (`flagged`) after 3 distinct reporters |
