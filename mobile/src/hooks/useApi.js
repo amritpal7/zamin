@@ -117,6 +117,12 @@ export function useApi() {
     getBlockStatus: (userId) => request(`/users/${userId}/block`),
     reportUser: (userId, reason, property_id) =>
       request(`/users/${userId}/report`, { method: "POST", body: JSON.stringify({ reason, property_id }) }),
+    reportListing: (id, reason) =>
+      request(`/properties/${id}/report`, { method: "POST", body: JSON.stringify({ reason }) }),
+
+    // Owner reviews
+    getReviews: (userId) => request(`/users/${userId}/reviews`),
+    postReview: (userId, body) => request(`/users/${userId}/reviews`, { method: "POST", body: JSON.stringify(body) }),
 
     // Push notifications
     registerPush: (token) => request("/push/register", { method: "POST", body: JSON.stringify({ token }) }),

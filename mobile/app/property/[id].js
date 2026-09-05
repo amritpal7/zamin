@@ -5,7 +5,7 @@ import {
   Linking, Alert, ActivityIndicator, Share, StyleSheet, Modal,
 } from "react-native";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
-import { useAuth } from "@clerk/clerk-expo";
+import { useAuth, useUser } from "@clerk/clerk-expo";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { C, FONT, FONT_MED, FONT_HEAD } from "../../src/theme";
@@ -181,12 +181,46 @@ function VisitBookingModal({ onClose, onSubmit }) {
   );
 }
 
+// Rate an owner (1–5 stars + optional text). Shown only when the viewer is eligible
+// (had a confirmed visit with the owner).
+function ReviewModal({ initial, onClose, onSubmit }) {
+  const [rating, setRating] = useState(initial?.rating || 5);
+  const [text, setText] = useState(initial?.text || "");
+  const [busy, setBusy] = useState(false);
+  const submit = async () => { setBusy(true); try { await onSubmit(rating, text.trim()); } finally { setBusy(false); } };
+  return (
+    <Modal transparent animationType="slide" visible onRequestClose={onClose}>
+      <Pressable onPress={onClose} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" }}>
+        <Pressable onPress={() => {}} style={{ backgroundColor: C.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 36 }}>
+          <Text style={{ color: C.fg, fontFamily: FONT_HEAD, fontSize: 20, marginBottom: 14 }}>Rate this owner</Text>
+          <View style={{ flexDirection: "row", gap: 8, marginBottom: 16 }}>
+            {[1, 2, 3, 4, 5].map(n => (
+              <Pressable key={n} onPress={() => setRating(n)}>
+                <Text style={{ fontSize: 34, color: n <= rating ? C.amber : C.line }}>★</Text>
+              </Pressable>
+            ))}
+          </View>
+          <TextInput
+            value={text} onChangeText={setText} placeholder="Share a bit about your experience (optional)"
+            placeholderTextColor={C.muted} multiline
+            style={{ backgroundColor: C.glassBg, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder, padding: 14, minHeight: 80, color: C.fg, fontFamily: FONT, fontSize: 14, marginBottom: 16, textAlignVertical: "top" }}
+          />
+          <Pressable disabled={busy} onPress={submit} style={{ backgroundColor: C.amber, borderRadius: 100, paddingVertical: 14, alignItems: "center", opacity: busy ? 0.6 : 1 }}>
+            <Text style={{ color: C.ink, fontFamily: FONT_MED, fontSize: 15 }}>{busy ? "Submitting…" : "Submit review"}</Text>
+          </Pressable>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
 export default function PropertyDetail() {
   useTheme();
   const { id }  = useLocalSearchParams();
   const router  = useRouter();
   const insets  = useSafeAreaInsets();
   const { isSignedIn, userId } = useAuth();
+  const { user } = useUser();
   const api     = useApi();
 
   const [p,       setP]       = useState(() => SEED_PROPERTIES.find(x => String(x.id) === String(id)) || null);
@@ -194,7 +228,9 @@ export default function PropertyDetail() {
   const [loading, setLoading] = useState(!p);
   const [nearby,  setNearby]  = useState([]);
   const [insights, setInsights] = useState(null);
+  const [reviews, setReviews] = useState(null);
   const [visitOpen, setVisitOpen] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
 
   // Re-fetch whenever the screen regains focus (e.g. returning from the editor),
   // so edits show up immediately on the already-open detail screen.
@@ -206,6 +242,37 @@ export default function PropertyDetail() {
         api.getSaved().then(list => setSaved(list.some(x => String(x.id) === String(id)))).catch(() => {});
     }, [id, isSignedIn])
   );
+
+  // Owner reviews (rating + recent reviews + whether I can review). Refetch when owner changes.
+  const ownerId = p?.clerk_user_id;
+  const loadReviews = useCallback(() => {
+    if (!isSignedIn || !ownerId) { setReviews(null); return; }
+    api.getReviews(ownerId).then(setReviews).catch(() => {});
+  }, [isSignedIn, ownerId]);
+  useEffect(loadReviews, [loadReviews]);
+
+  const submitReview = async (rating, text) => {
+    try {
+      const name = [user?.firstName, user?.lastName].filter(Boolean).join(" ") || user?.username || "User";
+      const avatar = ((user?.firstName?.[0] || "") + (user?.lastName?.[0] || "")).toUpperCase() || (user?.username?.[0] || "U").toUpperCase();
+      await api.postReview(ownerId, { rating, text, reviewer_name: name, reviewer_avatar: avatar });
+      setReviewOpen(false);
+      loadReviews();
+    } catch (e) {
+      Alert.alert("Couldn't submit", e.message || "Try again.");
+    }
+  };
+
+  const reportListing = () => {
+    if (!isSignedIn) { router.push("/sign-in"); return; }
+    Alert.alert("Report this listing?", "Flag it for moderation if it looks fake, a scam, or a duplicate.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Report", style: "destructive", onPress: async () => {
+        try { const r = await api.reportListing(id, "Reported from listing"); Alert.alert("Thanks", r.hidden ? "This listing has been hidden pending review." : "Report received — our team will review it."); }
+        catch (e) { Alert.alert("Error", e.message || "Could not report."); }
+      } },
+    ]);
+  };
 
   // Load "what's nearby" once we have (shown) coordinates. Best-effort; silent on failure.
   useEffect(() => {
@@ -478,6 +545,42 @@ export default function PropertyDetail() {
             );
           })()}
 
+          {/* Owner reviews */}
+          {isSignedIn && reviews && (
+            <GlassCard>
+              <View style={{ padding: 18 }}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                  <Text style={{ color: C.muted, fontSize: 11, fontWeight: "700", fontFamily: FONT, letterSpacing: 1, textTransform: "uppercase" }}>Owner reviews</Text>
+                  {reviews.count > 0 && (
+                    <Text style={{ color: C.text, fontSize: 14, fontFamily: FONT_MED }}>
+                      ★ {reviews.average} <Text style={{ color: C.muted, fontSize: 12 }}>({reviews.count})</Text>
+                    </Text>
+                  )}
+                </View>
+
+                {reviews.count === 0 && (
+                  <Text style={{ color: C.muted, fontSize: 13, fontFamily: FONT }}>No reviews yet.</Text>
+                )}
+
+                {(reviews.reviews || []).slice(0, 5).map((r, i) => (
+                  <View key={i} style={{ paddingVertical: 8, borderTopWidth: i ? StyleSheet.hairlineWidth : 0, borderTopColor: C.line }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 }}>
+                      <Text style={{ color: C.text, fontSize: 13, fontFamily: FONT_MED }}>{r.reviewer_name || "User"}</Text>
+                      <Text style={{ color: C.amber, fontSize: 12 }}>{"★".repeat(r.rating)}<Text style={{ color: C.line }}>{"★".repeat(5 - r.rating)}</Text></Text>
+                    </View>
+                    {!!r.text && <Text style={{ color: C.muted, fontSize: 13, fontFamily: FONT, lineHeight: 19 }}>{r.text}</Text>}
+                  </View>
+                ))}
+
+                {reviews.canReview && (
+                  <Pressable onPress={() => setReviewOpen(true)} style={{ marginTop: 12, backgroundColor: C.chipBg, borderRadius: 100, paddingVertical: 10, alignItems: "center", borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder }}>
+                    <Text style={{ color: C.text, fontFamily: FONT_MED, fontSize: 13 }}>{reviews.myReview ? "Edit your review" : "Leave a review"}</Text>
+                  </Pressable>
+                )}
+              </View>
+            </GlassCard>
+          )}
+
           {/* Location */}
           <GlassCard>
             <View style={{ padding: 18 }}>
@@ -561,6 +664,9 @@ export default function PropertyDetail() {
                       <Text style={{ color: C.amberText, fontSize: 11, fontFamily: FONT_MED }}>✓ Verified</Text>
                     </View>
                   )}
+                  {reviews?.count > 0 && (
+                    <Text style={{ color: C.amberText, fontSize: 12, fontFamily: FONT_MED }}>★ {reviews.average} ({reviews.count})</Text>
+                  )}
                 </View>
                 <Text style={{ color: (!isOwn && p.owner_active === false) ? C.red : C.muted, fontSize: 12, marginTop: 2, fontFamily: FONT }}>
                   {isOwn ? "Your listing" : (p.owner_active === false ? "⚠ No longer available" : "Property Owner")}
@@ -588,10 +694,18 @@ export default function PropertyDetail() {
             </Pressable>
           )}
 
+          {/* Report listing — non-owners */}
+          {!isOwn && (
+            <Pressable onPress={reportListing} style={{ alignItems: "center", paddingVertical: 10 }}>
+              <Text style={{ color: C.muted, fontSize: 12, fontFamily: FONT }}>⚠ Report this listing</Text>
+            </Pressable>
+          )}
+
         </View>
       </ScrollView>
 
       {visitOpen && <VisitBookingModal onClose={() => setVisitOpen(false)} onSubmit={bookVisit} />}
+      {reviewOpen && <ReviewModal initial={reviews?.myReview} onClose={() => setReviewOpen(false)} onSubmit={submitReview} />}
 
       {/* ── Sticky dark action panel (Screen 3) ── */}
       <View style={{

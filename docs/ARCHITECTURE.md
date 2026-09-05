@@ -241,6 +241,9 @@ Base path through nginx: `/api`. Direct: `http://localhost:4000`.
 | GET | `/properties` | public | List; filters: `type`, `status`, `search`. **Geo:** `lat`+`lng`(+`radius` km, default 25, clamp 1–500) → Haversine distance in plain SQL (no PostGIS), within-radius rows nearest-first with a `distance_km` field; null lat/lng excluded. Non-geo = newest-first, no `distance_km` |
 | GET | `/properties/:id` | public | Single property |
 | GET | `/properties/:id/insights` | public | Price insights: listing ₹/sqft vs area median of comparable listings (same type+status+locality) → verdict good_deal/at_market/above_market/insufficient (`insights.js`) |
+| POST | `/properties/:id/report` | 🔒 | Flag a listing (dedup per reporter); auto-hides (`flagged`) after 3 distinct reporters |
+| GET | `/properties/moderation` | 🔒 admin | Moderation queue: reported listings + reporter counts/reasons |
+| POST | `/properties/:id/moderate` | 🔒 admin | Hide/restore a listing (`flagged`) |
 | GET | `/properties/mine` | 🔒 | Current user's listings |
 | POST | `/properties` | 🔒 | Create listing |
 | PUT | `/properties/:id` | 🔒 owner | Update listing |
