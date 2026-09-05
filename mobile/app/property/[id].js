@@ -193,6 +193,7 @@ export default function PropertyDetail() {
   const [saved,   setSaved]   = useState(false);
   const [loading, setLoading] = useState(!p);
   const [nearby,  setNearby]  = useState([]);
+  const [insights, setInsights] = useState(null);
   const [visitOpen, setVisitOpen] = useState(false);
 
   // Re-fetch whenever the screen regains focus (e.g. returning from the editor),
@@ -200,6 +201,7 @@ export default function PropertyDetail() {
   useFocusEffect(
     useCallback(() => {
       api.getProperty(id).then(setP).catch(() => {}).finally(() => setLoading(false));
+      api.getInsights(id).then(setInsights).catch(() => {});
       if (isSignedIn)
         api.getSaved().then(list => setSaved(list.some(x => String(x.id) === String(id)))).catch(() => {});
     }, [id, isSignedIn])
@@ -447,6 +449,34 @@ export default function PropertyDetail() {
               </View>
             </GlassCard>
           )}
+
+          {/* Price insights */}
+          {insights && insights.verdict !== "insufficient" && (() => {
+            const V = {
+              good_deal:    { label: "Good deal",     color: C.green },
+              at_market:    { label: "Fairly priced", color: C.amberText },
+              above_market: { label: "Above market",  color: C.red },
+            }[insights.verdict] || { label: "", color: C.muted };
+            const d = insights.deltaPct;
+            const deltaText = d === 0 ? "at the area median" : `${Math.abs(d)}% ${d < 0 ? "below" : "above"} the area median`;
+            return (
+              <GlassCard>
+                <View style={{ padding: 18 }}>
+                  <Text style={{ color: C.muted, fontSize: 11, fontWeight: "700", fontFamily: FONT, letterSpacing: 1, textTransform: "uppercase", marginBottom: 12 }}>Price insights</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                    <View style={{ backgroundColor: V.color + "22", borderRadius: 100, paddingHorizontal: 12, paddingVertical: 5 }}>
+                      <Text style={{ color: V.color, fontSize: 13, fontWeight: "800", fontFamily: FONT }}>{V.label}</Text>
+                    </View>
+                    <Text style={{ color: C.text, fontSize: 13, fontFamily: FONT }}>{deltaText}</Text>
+                  </View>
+                  <Text style={{ color: C.muted, fontSize: 12, fontFamily: FONT, lineHeight: 18 }}>
+                    ₹{insights.pricePerSqft.toLocaleString()}/sqft here · area median ₹{insights.areaMedianPerSqft.toLocaleString()}/sqft
+                    {insights.area ? ` in ${insights.area}` : ""} · from {insights.sampleSize} similar {insights.status === "For Rent" ? "rentals" : "listings"}
+                  </Text>
+                </View>
+              </GlassCard>
+            );
+          })()}
 
           {/* Location */}
           <GlassCard>

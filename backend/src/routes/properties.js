@@ -10,6 +10,7 @@ const { validateProperty, isUuid, LOCATION_VISIBILITIES } = require("../validati
 const { reconcileOwner, reconcileOwners, getUser, setLocationDefault } = require("../clerkUsers");
 const { redactLocation } = require("../locationPrivacy");
 const { computePhotoTrust } = require("../photoTrust");
+const { computeInsights, MIN_SAMPLE } = require("../insights");
 const { notifyListingMatch } = require("../notify");
 
 const MAX_IMAGES = 8;
@@ -275,6 +276,47 @@ router.get("/:id", async (req, res) => {
     if (!rows[0]) return res.status(404).json({ error: "Not found" });
     const { userId } = getAuth(req);
     res.json(redactLocation(rows[0], userId));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /properties/:id/insights — price context for a listing: its ₹/sqft vs the
+// median ₹/sqft of comparable listings (same type + status) in its locality (falls
+// back to city if the locality sample is too small). Public; no coordinates exposed.
+router.get("/:id/insights", async (req, res) => {
+  try {
+    if (!isUuid(req.params.id)) return res.status(400).json({ error: "Invalid property id" });
+    const { rows } = await pool.query("SELECT * FROM properties WHERE id = $1", [req.params.id]);
+    const listing = rows[0];
+    if (!listing) return res.status(404).json({ error: "Not found" });
+
+    // "Bandra West, Mumbai" → locality "Bandra West", city "Mumbai".
+    const parts = String(listing.location || "").split(",").map((s) => s.trim()).filter(Boolean);
+    const locality = parts[0] || null;
+    const city = parts.length > 1 ? parts[parts.length - 1] : null;
+
+    const comparablesFor = async (term) => {
+      if (!term) return [];
+      const { rows: c } = await pool.query(
+        `SELECT price, area FROM properties
+         WHERE id <> $1 AND type = $2 AND status = $3
+           AND owner_active IS DISTINCT FROM false
+           AND location ILIKE $4`,
+        [listing.id, listing.type, listing.status, `%${term}%`]
+      );
+      return c;
+    };
+
+    // Prefer locality; broaden to city only if locality is too sparse.
+    let areaLabel = locality;
+    let comps = await comparablesFor(locality);
+    if (comps.length < MIN_SAMPLE && city && city !== locality) {
+      const cityComps = await comparablesFor(city);
+      if (cityComps.length > comps.length) { comps = cityComps; areaLabel = city; }
+    }
+
+    res.json(computeInsights(listing, comps, areaLabel));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

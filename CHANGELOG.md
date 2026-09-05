@@ -12,6 +12,19 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-05 (feature: price insights — "good deal" vs area median)
+- **Added:** price context on listings. `GET /properties/:id/insights` computes the listing's
+  **₹/sqft** and compares it to the **median ₹/sqft of comparable listings** (same `type` + `status`,
+  same locality — falls back to city if the locality sample is thin), returning a verdict:
+  **good_deal** (≤ 90% of median) / **at_market** / **above_market** (≥ 110%) / **insufficient**
+  (< 3 comparables), plus `deltaPct` and `sampleSize`.
+  - `backend/src/insights.js`: price/area parsing (mirrors `mobile/src/utils/property.js` — Cr/L/K,
+    sq ft/acres/etc.) + median-based verdict. Route in `properties.js` (public, no coords exposed).
+  - `mobile`: `useApi.getInsights`; property detail shows a **Price insights** card
+    (verdict chip + "X% below/above the area median · ₹/sqft here vs area median · from N similar").
+  - Validated: 86/86 backend tests (6 unit parsing/verdict + 2 integration: good-deal vs comps,
+    insufficient + 400 on bad id); iOS + web bundles compile (0 errors).
+
 ### 2026-09-05 (security: implement audit action items)
 - **Ran the `vibe-check` audit** (findings in `security/AUDIT_SUMMARY.md`) and fixed the action items:
 - **Deployment hardening** (`docker-compose.yml`): bound Postgres `5432`, MinIO `9000`/`9001`, and

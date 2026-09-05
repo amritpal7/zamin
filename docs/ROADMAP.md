@@ -84,7 +84,8 @@ Three pillars we judge every change against:
       matching listing → in-app notification (+ push). Discover "Save this search" + manager screen.
 - [x] **In-app visit scheduling** (2026-09-04) — `visits` table + `/visits` API (book → confirm/
       decline → cancel, with notifications); "Schedule a visit" on the listing + a Visits screen.
-- [ ] **Price insights** (avg ₹/sqft for area, price history, "good deal" flag).
+- [~] **Price insights** (2026-09-05) — ✅ area **median ₹/sqft** comparison + **good-deal/at-market/
+      above-market** verdict on the listing (`GET /properties/:id/insights`, `insights.js`). *Next:* price history.
 - [ ] **Reviews / reporting** — rate owners, flag suspicious listings, moderation queue.
 
 ## Postponed (revisit later — not blocking)
