@@ -106,7 +106,7 @@ The plan for taking chat further, tiered by user value. Tier 1 foundation is don
 - [x] **Push notifications** (2026-08-12) — `expo-notifications` + Expo Push; message replies
       notify the recipient, taps open the chat, in-chat banners suppressed. Needs a **dev build**
       to actually receive (Expo Go SDK 53+ dropped remote push); no-ops safely in Expo Go/web.
-- [ ] `@socket.io/redis-adapter` once we run multiple API instances (Redis already available).
+- [x] `@socket.io/redis-adapter` (2026-09-06) — Socket.io fan-out via Redis pub/sub for multi-instance realtime.
 
 **Tier 2 — move the deal forward (marketplace differentiators)**
 - [x] **📅 Schedule a visit + 💰 Make an offer** (2026-08-18) — unified **proposal** system
