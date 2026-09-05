@@ -56,8 +56,8 @@ Three pillars we judge every change against:
       closed; `@socket.io/redis-adapter` when we run multiple API instances; then Tier-2
       marketplace actions (schedule a visit, make an offer, photo attachments).
 - [ ] **Push notifications** (Expo + FCM/APNs) for new messages & saved-listing price drops.
-- [ ] **Migration tooling** — replace the hand-rolled `migrate()` with a real tool
-      (node-pg-migrate / drizzle / prisma-migrate).
+- [x] **Migration tooling** (2026-09-06) — adopted **node-pg-migrate**; boot/tests run `runMigrations()`;
+      baseline migration reuses the existing idempotent SQL. Future changes = new migration files.
 
 ## Medium term (1–3 months)
 

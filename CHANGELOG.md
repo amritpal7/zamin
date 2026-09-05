@@ -12,6 +12,16 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-06 (infra: migration tooling — node-pg-migrate)
+- **Replaced the hand-rolled boot-time `migrate()` runner with node-pg-migrate** (versioned, ordered,
+  each migration runs once, tracked in `pgmigrations`). Boot + tests now call `runMigrations()`
+  (`src/runMigrations.js`); `npm run migrate[:up|:down]` scripts added.
+  - **Baseline migration** (`migrations/1725600000000_baseline.js`) *reuses* `src/migrate.js`'s exact
+    idempotent SQL via `pgm.db` — zero transcription risk; applying it on an already-migrated DB is a
+    safe no-op. Future schema changes go in NEW migration files, not by editing `migrate.js`.
+  - Validated: boot applies + records the baseline; **fresh-DB path** (init.sql → migrations) builds
+    the full schema (all columns + tables verified); 94/94 backend tests; re-run is a no-op.
+
 ### 2026-09-06 (infra: Socket.io Redis adapter — multi-instance realtime)
 - **Added `@socket.io/redis-adapter`** (+ `ioredis`) in `realtime.js`: Socket.io events now fan out
   through Redis pub/sub, so `io.to(userId)` reaches a user connected to **any** API instance (chat,
