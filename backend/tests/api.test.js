@@ -266,6 +266,39 @@ describe("price insights", () => {
   });
 });
 
+describe("Land parcel boundary", () => {
+  const poly = [{ lat: 18.5, lng: 73.8 }, { lat: 18.5, lng: 73.81 }, { lat: 18.51, lng: 73.81 }];
+  test("stored on create; owner + exact see it, non-owner sees it when exact", async () => {
+    const c = await request(app).post("/properties").set("x-test-user", USER_A).send({
+      ...sampleListing, title: "Plot", type: "Land", status: "For Sale", location: "Talegaon, Pune",
+      parcel: poly, location_visibility: "exact",
+    });
+    expect(c.status).toBe(201);
+    expect(Array.isArray(c.body.parcel)).toBe(true);
+    expect(c.body.parcel.length).toBe(3);
+    const other = await request(app).get(`/properties/${c.body.id}`).set("x-test-user", USER_B);
+    expect(other.body.parcel).not.toBeNull(); // exact → visible
+  });
+
+  test("parcel is redacted for non-owners when not exact", async () => {
+    const c = await request(app).post("/properties").set("x-test-user", USER_A).send({
+      ...sampleListing, title: "Hidden Plot", type: "Land", status: "For Sale", location: "Talegaon, Pune",
+      parcel: poly, location_visibility: "approximate",
+    });
+    const owner = await request(app).get(`/properties/${c.body.id}`).set("x-test-user", USER_A);
+    expect(owner.body.parcel).not.toBeNull(); // owner always sees own
+    const other = await request(app).get(`/properties/${c.body.id}`).set("x-test-user", USER_B);
+    expect(other.body.parcel).toBeNull(); // approximate → outline hidden from others
+  });
+
+  test("bad parcel (too few points) → 400", async () => {
+    const res = await request(app).post("/properties").set("x-test-user", USER_A).send({
+      ...sampleListing, title: "Bad", parcel: [{ lat: 1, lng: 1 }],
+    });
+    expect(res.status).toBe(400);
+  });
+});
+
 describe("owner reviews", () => {
   test("gated by a confirmed visit; rate + aggregate + upsert", async () => {
     const create = await request(app).post("/properties").set("x-test-user", USER_A).send({ ...sampleListing, title: "Review Listing" });

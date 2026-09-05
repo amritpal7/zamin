@@ -16,11 +16,12 @@ import NeoButton from "../../src/components/NeoButton";
 import { useApi } from "../../src/hooks/useApi";
 
 // react-native-maps is web-stubbed; only load the native picker on device.
-let MapView, Marker;
+let MapView, Marker, Polygon;
 if (Platform.OS !== "web") {
   const Maps = require("react-native-maps");
   MapView = Maps.default;
   Marker  = Maps.Marker;
+  Polygon = Maps.Polygon;
 }
 
 const TYPES  = ["House", "Apartment", "Land", "Commercial"];
@@ -94,6 +95,7 @@ const EMPTY_FORM = {
   amenities: [], location: "", contactPhone: "", images: [],
   locationVisibility: "exact",
   latitude: null, longitude: null, // map pin (set via address geocode / current location / drag)
+  parcel: [], // Land plot boundary polygon: [{lat,lng},...]
   photoGeo: {}, // (local uri | hosted url) → { lat, lng, at, source:'camera' } for on-site capture
 };
 
@@ -556,6 +558,50 @@ function PinPicker({ address, lat, lng, onChange, onAddress }) {
   );
 }
 
+// Draw a Land plot boundary by tapping the map to drop vertices. Renders the polygon
+// (≥3 points) with vertex markers; Undo removes the last point, Clear resets.
+function ParcelDrawer({ parcel = [], pin, onChange }) {
+  const first = parcel[0];
+  const center = first || (pin?.lat != null ? { lat: pin.lat, lng: pin.lng } : { lat: 20.5937, lng: 78.9629 });
+  const region = { latitude: center.lat, longitude: center.lng, latitudeDelta: first || pin?.lat != null ? 0.01 : 12, longitudeDelta: first || pin?.lat != null ? 0.01 : 12 };
+  const coords = parcel.map((p) => ({ latitude: p.lat, longitude: p.lng }));
+
+  return (
+    <View>
+      <Text style={{ color: C.text, fontWeight: "700", fontSize: 14, fontFamily: FONT, marginBottom: 2 }}>Plot boundary</Text>
+      <Text style={{ color: C.muted, fontSize: 11, fontFamily: FONT, marginBottom: 10 }}>
+        Tap the map to drop corner points and outline the plot. Buyers see this only if your location is set to Exact.
+      </Text>
+      {MapView ? (
+        <>
+          <View style={{ height: 220, borderRadius: 18, overflow: "hidden", borderWidth: 1, borderColor: C.glassBorder }}>
+            <MapView style={{ flex: 1 }} region={region} onPress={(e) => onChange([...parcel, { lat: e.nativeEvent.coordinate.latitude, lng: e.nativeEvent.coordinate.longitude }])}>
+              {coords.length >= 3 && <Polygon coordinates={coords} strokeColor={C.green} fillColor={C.green + "33"} strokeWidth={2} />}
+              {coords.map((c, i) => (
+                <Marker key={i} coordinate={c} draggable
+                  onDragEnd={(e) => { const next = [...parcel]; next[i] = { lat: e.nativeEvent.coordinate.latitude, lng: e.nativeEvent.coordinate.longitude }; onChange(next); }}>
+                  <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: C.green, borderWidth: 2, borderColor: "#fff" }} />
+                </Marker>
+              ))}
+            </MapView>
+          </View>
+          <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
+            <NeoButton title="↶ Undo" small fill={C.cardAlt} fg={C.text} disabled={!parcel.length} onPress={() => onChange(parcel.slice(0, -1))} style={{ flex: 1 }} />
+            <NeoButton title="Clear" small fill={C.cardAlt} fg={C.text} disabled={!parcel.length} onPress={() => onChange([])} style={{ flex: 1 }} />
+          </View>
+          <Text style={{ color: parcel.length >= 3 ? C.green : C.muted, fontSize: 11, fontFamily: FONT, marginTop: 8 }}>
+            {parcel.length === 0 ? "No boundary drawn (optional)." : parcel.length < 3 ? `${parcel.length}/3 points — add ${3 - parcel.length} more to form a plot.` : `✓ ${parcel.length}-point boundary drawn.`}
+          </Text>
+        </>
+      ) : (
+        <View style={{ height: 80, borderRadius: 18, borderWidth: 1, borderColor: C.glassBorder, alignItems: "center", justifyContent: "center", backgroundColor: C.card }}>
+          <Text style={{ color: C.muted, fontSize: 12, fontFamily: FONT }}>Plot drawing available in the mobile app</Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function Post() {
@@ -624,6 +670,7 @@ export default function Post() {
           locationVisibility: p.location_visibility || "exact",
           latitude:  p.latitude  ?? null,
           longitude: p.longitude ?? null,
+          parcel:    Array.isArray(p.parcel) ? p.parcel : [],
           // Seed capture geo from the server (owner sees full metadata for their own listing).
           photoGeo: Object.fromEntries(
             (p.photo_geo || [])
@@ -682,6 +729,8 @@ export default function Post() {
         location_visibility: form.locationVisibility,
         latitude:    form.latitude,
         longitude:   form.longitude,
+        // Send parcel only for Land (>=3 pts) or [] to clear; else omit to keep existing.
+        ...(form.type === "Land" ? { parcel: form.parcel } : {}),
         photo_geo:   photoGeoOut,
         owner_phone: form.contactPhone || null,
         images:      finalImages,
@@ -954,6 +1003,15 @@ export default function Post() {
               onChange={(la, ln) => setForm(f => ({ ...f, latitude: la, longitude: ln }))}
               onAddress={(txt) => setForm(f => (f.location?.trim() ? f : { ...f, location: txt }))}
             />
+
+            {/* Plot boundary — Land listings only */}
+            {form.type === "Land" && (
+              <ParcelDrawer
+                parcel={form.parcel}
+                pin={{ lat: form.latitude, lng: form.longitude }}
+                onChange={(pts) => setForm(f => ({ ...f, parcel: pts }))}
+              />
+            )}
 
             <InputField labelText="WhatsApp / Contact Number" icon="phone" value={form.contactPhone} onChange={v => set("contactPhone", v.replace(/[^0-9+\s\-]/g, ""))} placeholder="e.g. 98765 43210" keyboardType="phone-pad" />
 

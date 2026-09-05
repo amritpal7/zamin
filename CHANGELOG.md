@@ -12,6 +12,19 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-06 (feature: Land parcel boundary — finishes Maps Phase 3)
+- **Added:** owners can draw a **plot/parcel boundary** for **Land** listings, and it renders on a
+  **map on the property detail screen** (the detail screen had no map before).
+  - Backend: `parcel JSONB` column (`migrate.js`) — `[{lat,lng},…]` polygon; accepted on create/update
+    (validated: array of `{lat,lng}`, ≥3 pts or `[]` to clear, ≤60). **Privacy-aware**: the outline
+    reveals the exact plot, so `redactLocation` **nulls `parcel` for non-owners unless
+    `location_visibility='exact'`** (owner always sees own).
+  - Client: Post/Edit (Land only) gets a **ParcelDrawer** — tap the map to drop corners, drag to
+    adjust, Undo/Clear (`post.js`, `react-native-maps` `Polygon`). Property detail shows a **Plot
+    boundary** map (`Polygon`) with a **satellite/standard toggle** (`property/[id].js`).
+  - Validated: 92/92 backend tests (parcel stored; visible when exact; **redacted for non-owners when
+    approximate/hidden**; 400 on <3 points); iOS + web bundles compile (0 errors). Map needs a device.
+
 ### 2026-09-05 (feature: reviews + listing reporting/moderation)
 - **Owner reviews** — rate an owner 1–5 ★ + optional text, **gated to a confirmed visit** (anti-spam),
   one per (owner, reviewer), upsert on repeat.

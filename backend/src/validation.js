@@ -69,6 +69,17 @@ function validateProperty(body = {}, { forUpdate = false } = {}) {
   optNum("latitude", -90, 90);
   optNum("longitude", -180, 180);
 
+  // Parcel/plot boundary: optional polygon of {lat,lng} points (≤60), or [] to clear.
+  if (b.parcel != null) {
+    if (!Array.isArray(b.parcel) || b.parcel.length > 60) {
+      errors.push("parcel must be an array of at most 60 points");
+    } else if (!b.parcel.every((pt) => pt && Number.isFinite(Number(pt.lat)) && Number.isFinite(Number(pt.lng)))) {
+      errors.push("parcel points must be {lat, lng}");
+    } else if (b.parcel.length > 0 && b.parcel.length < 3) {
+      errors.push("parcel needs at least 3 points to form a boundary");
+    }
+  }
+
   // Optional string arrays
   optStrArray("tags", 30);
   optStrArray("images", 8);

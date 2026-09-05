@@ -15,6 +15,9 @@ async function migrate(pool) {
   // (capture coords redacted for non-owners) + a derived listing-level badge.
   await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS photo_geo JSONB DEFAULT '[]'`);
   await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS on_site_verified BOOLEAN DEFAULT false`);
+  // Plot/parcel boundary for Land listings: [{lat,lng},...] polygon. Reveals the exact
+  // outline, so it's redacted for non-owners unless location_visibility = 'exact'.
+  await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS parcel JSONB`);
 
   // messages: denormalized sender identity so the inbox/chat can show who wrote.
   await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS sender_name VARCHAR(255)`);
