@@ -12,6 +12,17 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-05 (feature: Maps Phase 3 cont. — directions, satellite, list↔map sync, what's nearby)
+- **Get directions** — a "Get directions" action in the map pin sheet (`map.js`) and on the property
+  detail's Location card (`property/[id].js`); opens turn-by-turn to the pin in the device Maps app.
+- **Satellite / standard toggle** on the Map tab (`mapType`) — handy for Land/plots.
+- **List ↔ map sync** — tapping a map pin now highlights *and* scrolls to that listing's card in the
+  list (page ScrollView ref + captured card offsets); the sheet's "Locate on map" covers card→pin.
+- **"What's nearby"** on property detail — schools, hospitals, transit, shops, banks, food within
+  ~1.2km via the free **OpenStreetMap Overpass** API (best-effort, 12s timeout, silent on failure);
+  shown only for signed-in viewers on non-hidden listings, closest-first with distances.
+- Validated: iOS + web bundles compile (0 errors). Map interactions need a device.
+
 ### 2026-09-05 (feature: Maps Phase 3 — price pins, "search this area", reverse-geocode)
 - **Price-bubble markers** (`mobile/app/(tabs)/map.js`): single-listing pins now render the price
   (e.g. `₹85 L`) in a bubble instead of a generic marker — far more scannable (Zillow/Airbnb style).
