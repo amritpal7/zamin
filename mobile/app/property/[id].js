@@ -2,7 +2,7 @@ import { useTheme } from "../../src/context/ThemeContext";
 import React, { useState, useCallback, useEffect } from "react";
 import {
   View, Text, ScrollView, Pressable, Dimensions, Platform,
-  Linking, Alert, ActivityIndicator, Share, StyleSheet, Modal,
+  Linking, Alert, ActivityIndicator, Share, StyleSheet, Modal, TextInput,
 } from "react-native";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { useAuth, useUser } from "@clerk/clerk-expo";
