@@ -9,15 +9,16 @@ services:
     container_name: zamin_api
     restart: unless-stopped
     ports:
-      - "4000:4000"
+      # Bound to localhost — the phone reaches the API through nginx (:80), not here.
+      - "127.0.0.1:4000:4000"
     environment:
-      NODE_ENV: development
+      NODE_ENV: ${NODE_ENV:-development}
       PORT: 4000
       # Clerk backend secret — get from dashboard.clerk.com
       CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
       CLERK_PUBLISHABLE_KEY: ${CLERK_PUBLISHABLE_KEY}
-      # Database (Postgres via Docker)
-      DATABASE_URL: postgres://zamin:zamin_pass@db:5432/zamin_db
+      # Database (Postgres via Docker). Creds default to dev values; override in prod via .env.
+      DATABASE_URL: postgres://${POSTGRES_USER:-zamin}:${POSTGRES_PASSWORD:-zamin_pass}@db:5432/${POSTGRES_DB:-zamin_db}
       # Object storage (MinIO now; swap to S3/R2 later via these vars only)
       S3_ENDPOINT: http://minio:9000
       S3_BUCKET: zamin
@@ -61,8 +62,8 @@ services:
     restart: unless-stopped
     command: ["node", "src/worker.js"]
     environment:
-      NODE_ENV: development
-      DATABASE_URL: postgres://zamin:zamin_pass@db:5432/zamin_db
+      NODE_ENV: ${NODE_ENV:-development}
+      DATABASE_URL: postgres://${POSTGRES_USER:-zamin}:${POSTGRES_PASSWORD:-zamin_pass}@db:5432/${POSTGRES_DB:-zamin_db}
       # Needed by the scheduled owner-liveness reconcile (Clerk Backend API)
       CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
       # How often to reconcile owners (ms). Default 6h.
@@ -95,8 +96,9 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-zamin_minio}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-zamin_minio_secret}
     ports:
-      - "9000:9000"   # S3 API
-      - "9001:9001"   # Web console
+      # Bound to localhost — clients reach objects via nginx (/media, /zamin), never :9000 directly.
+      - "127.0.0.1:9000:9000"   # S3 API
+      - "127.0.0.1:9001:9001"   # Web console
     volumes:
       - minio_data:/data
     networks:
@@ -108,16 +110,17 @@ services:
     container_name: zamin_db
     restart: unless-stopped
     environment:
-      POSTGRES_USER: zamin
-      POSTGRES_PASSWORD: zamin_pass
-      POSTGRES_DB: zamin_db
+      POSTGRES_USER: ${POSTGRES_USER:-zamin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-zamin_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-zamin_db}
     ports:
-      - "5432:5432"
+      # Bound to localhost — never expose Postgres on the network. Prod: don't publish at all.
+      - "127.0.0.1:5432:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
       - ./backend/db/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U zamin -d zamin_db"]
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
       timeout: 5s
       retries: 10
