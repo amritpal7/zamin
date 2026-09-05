@@ -16,6 +16,15 @@ import { useApi } from "../../src/hooks/useApi";
 import { SEED_PROPERTIES } from "../../src/data/properties";
 import { pricePerSqft, estimateEMI } from "../../src/utils/property";
 
+// react-native-maps is web-stubbed; only load the native parcel map on device.
+let MapView, Polygon, Marker;
+if (Platform.OS !== "web") {
+  const Maps = require("react-native-maps");
+  MapView = Maps.default;
+  Polygon = Maps.Polygon;
+  Marker  = Maps.Marker;
+}
+
 // ── "What's nearby" via OpenStreetMap Overpass (free, no key). Best-effort. ──
 const NEARBY_RADIUS_M = 1200;
 function metresBetween(aLat, aLng, bLat, bLng) {
@@ -231,6 +240,7 @@ export default function PropertyDetail() {
   const [reviews, setReviews] = useState(null);
   const [visitOpen, setVisitOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [parcelSat, setParcelSat] = useState(false);
 
   // Re-fetch whenever the screen regains focus (e.g. returning from the editor),
   // so edits show up immediately on the already-open detail screen.
@@ -630,6 +640,34 @@ export default function PropertyDetail() {
               )}
             </View>
           </GlassCard>
+
+          {/* Plot boundary (Land) — shown when the parcel is available (owner or exact visibility) */}
+          {p.type === "Land" && Array.isArray(p.parcel) && p.parcel.length >= 3 && MapView && (() => {
+            const lats = p.parcel.map(pt => pt.lat), lngs = p.parcel.map(pt => pt.lng);
+            const region = {
+              latitude: (Math.min(...lats) + Math.max(...lats)) / 2,
+              longitude: (Math.min(...lngs) + Math.max(...lngs)) / 2,
+              latitudeDelta: Math.max((Math.max(...lats) - Math.min(...lats)) * 1.6, 0.005),
+              longitudeDelta: Math.max((Math.max(...lngs) - Math.min(...lngs)) * 1.6, 0.005),
+            };
+            return (
+              <GlassCard>
+                <View style={{ padding: 18 }}>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                    <Text style={{ color: C.muted, fontSize: 11, fontWeight: "700", fontFamily: FONT, letterSpacing: 1, textTransform: "uppercase" }}>Plot boundary</Text>
+                    <Pressable onPress={() => setParcelSat(s => !s)} style={{ backgroundColor: C.chipBg, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder }}>
+                      <Text style={{ color: C.fg, fontFamily: FONT_MED, fontSize: 11 }}>{parcelSat ? "🗺 Standard" : "🛰 Satellite"}</Text>
+                    </Pressable>
+                  </View>
+                  <View style={{ height: 240, borderRadius: 14, overflow: "hidden", borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder }}>
+                    <MapView style={{ flex: 1 }} initialRegion={region} mapType={parcelSat ? "satellite" : "standard"} pointerEvents="none">
+                      <Polygon coordinates={p.parcel.map(pt => ({ latitude: pt.lat, longitude: pt.lng }))} strokeColor={C.green} fillColor={C.green + "40"} strokeWidth={2} />
+                    </MapView>
+                  </View>
+                </View>
+              </GlassCard>
+            );
+          })()}
 
           {/* What's nearby */}
           {isSignedIn && nearby.length > 0 && (

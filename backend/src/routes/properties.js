@@ -297,9 +297,11 @@ router.put("/:id", requireAuth, async (req, res) => {
     const errors = validateProperty(req.body, { forUpdate: true });
     if (errors.length) return res.status(400).json({ error: errors.join("; "), errors });
     const { userId } = getAuth(req);
-    const { title, description, type, status, price, area, beds, baths, location, tags, img, color, owner_phone, images, thumbnails, location_visibility, photo_geo, latitude, longitude } = req.body;
+    const { title, description, type, status, price, area, beds, baths, location, tags, img, color, owner_phone, images, thumbnails, location_visibility, photo_geo, latitude, longitude, parcel } = req.body;
     // null → keep the existing visibility (COALESCE); a valid enum → update it.
     const visibility = LOCATION_VISIBILITIES.includes(location_visibility) ? location_visibility : null;
+    // Array → set (JSON); undefined → keep existing. Send [] to clear the boundary.
+    const parcelJson = Array.isArray(parcel) ? JSON.stringify(parcel) : null;
 
     // Recompute on-site trust from the existing per-photo geo (for retained photos) merged
     // with any newly-captured geo, scoped to the photos still on the listing. Ownership is
@@ -322,14 +324,15 @@ router.put("/:id", requireAuth, async (req, res) => {
            beds=$7, baths=$8, location=$9, tags=$10, img=$11, color=$12,
            owner_phone=$13, images=$14, thumbnails=$15,
            location_visibility=COALESCE($16, location_visibility),
-           photo_geo=$17, on_site_verified=$18, latitude=$19, longitude=$20, updated_at=NOW()
+           photo_geo=$17, on_site_verified=$18, latitude=$19, longitude=$20,
+           parcel=COALESCE($23::jsonb, parcel), updated_at=NOW()
        WHERE id=$21 AND clerk_user_id=$22
        RETURNING *`,
       [title, description, type, status, price, area,
        beds || null, baths || null, location, tags || null, img || "🏠", color || "#f0a500",
        owner_phone || null, images || [], thumbnails || [], visibility,
        JSON.stringify(trust.photo_geo), trust.on_site_verified, trust.latitude, trust.longitude,
-       req.params.id, userId]
+       req.params.id, userId, parcelJson]
     );
     if (!rows[0]) return res.status(404).json({ error: "Not found or not owner" });
     res.json(redactLocation(rows[0], userId));
@@ -397,7 +400,7 @@ router.post("/", requireAuth, async (req, res) => {
     const errors = validateProperty(req.body);
     if (errors.length) return res.status(400).json({ error: errors.join("; "), errors });
     const { userId } = getAuth(req);
-    const { title, description, type, status, price, area, beds, baths, location, latitude, longitude, tags, img, color, owner_name, owner_phone, owner_avatar, owner_image, images, thumbnails, location_visibility, photo_geo } = req.body;
+    const { title, description, type, status, price, area, beds, baths, location, latitude, longitude, tags, img, color, owner_name, owner_phone, owner_avatar, owner_image, images, thumbnails, location_visibility, photo_geo, parcel } = req.body;
 
     // On-site photo verification (server-authoritative): compute per-photo on_site from the
     // capture GPS, auto-pin the listing from the first on-site capture when no pin was sent,
@@ -421,10 +424,10 @@ router.post("/", requireAuth, async (req, res) => {
 
     const { rows } = await pool.query(
       `INSERT INTO properties
-        (clerk_user_id, owner_name, owner_phone, owner_avatar, owner_image, title, description, type, status, price, area, beds, baths, location, latitude, longitude, tags, img, color, images, thumbnails, verified, location_visibility, photo_geo, on_site_verified)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)
+        (clerk_user_id, owner_name, owner_phone, owner_avatar, owner_image, title, description, type, status, price, area, beds, baths, location, latitude, longitude, tags, img, color, images, thumbnails, verified, location_visibility, photo_geo, on_site_verified, parcel)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
        RETURNING *`,
-      [userId, owner_name, owner_phone, owner_avatar, owner_image || null, title, description, type, status, price, area, beds, baths, location, trust.latitude, trust.longitude, tags, img || "🏠", color || "#f0a500", images || [], thumbnails || [], verified, visibility, JSON.stringify(trust.photo_geo), trust.on_site_verified]
+      [userId, owner_name, owner_phone, owner_avatar, owner_image || null, title, description, type, status, price, area, beds, baths, location, trust.latitude, trust.longitude, tags, img || "🏠", color || "#f0a500", images || [], thumbnails || [], verified, visibility, JSON.stringify(trust.photo_geo), trust.on_site_verified, Array.isArray(parcel) ? JSON.stringify(parcel) : null]
     );
     // Notify users whose saved search matches this new listing (best-effort; never fails create).
     try { await notifyListingMatch(pool, rows[0]); } catch (e) { console.error("saved-search notify failed:", e.message); }

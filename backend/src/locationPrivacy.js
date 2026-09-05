@@ -51,6 +51,8 @@ function redactLocation(row, viewerId) {
   }
 
   const out = sanitizePhotoGeo({ ...row });
+  // The parcel outline reveals the exact plot → never show it below `exact` to non-owners.
+  if ("parcel" in out) out.parcel = null;
   if (vis === "hidden") {
     out.latitude = null;
     out.longitude = null;
