@@ -12,6 +12,14 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-06 (infra: Socket.io Redis adapter — multi-instance realtime)
+- **Added `@socket.io/redis-adapter`** (+ `ioredis`) in `realtime.js`: Socket.io events now fan out
+  through Redis pub/sub, so `io.to(userId)` reaches a user connected to **any** API instance (chat,
+  typing, read receipts, live proposal/visit updates work behind a load balancer). Best-effort —
+  falls back to the in-memory adapter if Redis is down. Uses the existing Redis (BullMQ) via
+  `REDIS_HOST`/`REDIS_PORT`.
+- Validated: API boots with "Socket.io Redis adapter attached", 94/94 backend tests, `npm audit` clean.
+
 ### 2026-09-06 (feature: pagination on GET /properties; fix review-modal crash)
 - **Fixed:** review modal crashed with *"Can't find variable: TextInput"* — `TextInput` was used in
   `property/[id].js` but not imported. Audited all mobile screens for the same class (missing
