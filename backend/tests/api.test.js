@@ -238,6 +238,33 @@ describe("manual location pin (remote posting)", () => {
   });
 });
 
+describe("price insights", () => {
+  test("flags a below-market listing as a good deal vs area comparables", async () => {
+    const mk = (title, price) => request(app).post("/properties").set("x-test-user", USER_A).send({
+      ...sampleListing, title, price, area: "1,000 sq ft", type: "Apartment", status: "For Sale",
+      location: "Insightville, Testcity",
+    });
+    // three comparables at ₹1 Cr / 1000 sqft ≈ ₹10,000/sqft
+    await mk("Comp A", "₹1 Cr"); await mk("Comp B", "₹1 Cr"); await mk("Comp C", "₹1 Cr");
+    const target = await mk("Cheap one", "₹75 L"); // ₹7,500/sqft
+    const res = await request(app).get(`/properties/${target.body.id}/insights`);
+    expect(res.status).toBe(200);
+    expect(res.body.verdict).toBe("good_deal");
+    expect(res.body.areaMedianPerSqft).toBe(10000);
+    expect(res.body.sampleSize).toBeGreaterThanOrEqual(3);
+    expect(res.body.area).toBe("Insightville");
+  });
+
+  test("insufficient sample → verdict insufficient (400 on bad id)", async () => {
+    const only = await request(app).post("/properties").set("x-test-user", USER_A).send({
+      ...sampleListing, title: "Lonely", price: "₹1 Cr", area: "1,000 sq ft", location: "Nowheresville, Testcity", type: "Land", status: "For Sale",
+    });
+    const res = await request(app).get(`/properties/${only.body.id}/insights`);
+    expect(res.body.verdict).toBe("insufficient");
+    expect((await request(app).get("/properties/not-a-uuid/insights")).status).toBe(400);
+  });
+});
+
 describe("on-site photo verification", () => {
   test("camera photo at the pin → on_site_verified, auto-pins the listing", async () => {
     const created = await request(app).post("/properties").set("x-test-user", USER_A).send({

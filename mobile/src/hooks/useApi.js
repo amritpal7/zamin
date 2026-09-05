@@ -32,6 +32,7 @@ export function useApi() {
       return request(`/properties${q ? `?${q}` : ""}`);
     },
     getProperty: (id) => request(`/properties/${id}`),
+    getInsights: (id) => request(`/properties/${id}/insights`),
     getMyProperties: () => request("/properties/mine"),
     createProperty: (data) => request("/properties", { method: "POST", body: JSON.stringify(data) }),
     // Re-sync the caller's own listings from Clerk (e.g. after verifying email →
