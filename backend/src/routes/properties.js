@@ -138,6 +138,75 @@ router.post("/reconcile-me", requireAuth, async (req, res) => {
   }
 });
 
+// POST /properties/:id/report { reason } — flag a listing for moderation. Auto-hides the
+// listing once REPORTS_TO_HIDE distinct users have reported it (soft-hide; restorable by admin).
+const REPORTS_TO_HIDE = 3;
+router.post("/:id/report", requireAuth, async (req, res) => {
+  try {
+    if (!isUuid(req.params.id)) return res.status(400).json({ error: "Invalid property id" });
+    const { userId } = getAuth(req);
+    const { rows: pr } = await pool.query("SELECT clerk_user_id FROM properties WHERE id = $1", [req.params.id]);
+    if (!pr[0]) return res.status(404).json({ error: "Not found" });
+    if (pr[0].clerk_user_id === userId) return res.status(400).json({ error: "You can't report your own listing." });
+    // One report per (reporter, property): dedupe so a single user can't force a hide.
+    const dup = await pool.query(
+      "SELECT 1 FROM reports WHERE reporter_id = $1 AND property_id = $2 LIMIT 1",
+      [userId, req.params.id]
+    );
+    if (!dup.rows.length) {
+      await pool.query(
+        "INSERT INTO reports (reporter_id, reported_id, property_id, reason) VALUES ($1, $2, $3, $4)",
+        [userId, pr[0].clerk_user_id, req.params.id, (req.body?.reason || "unspecified").slice(0, 100)]
+      );
+    }
+    const { rows: cnt } = await pool.query(
+      "SELECT COUNT(DISTINCT reporter_id)::int AS n FROM reports WHERE property_id = $1", [req.params.id]
+    );
+    let hidden = false;
+    if (cnt[0].n >= REPORTS_TO_HIDE) {
+      await pool.query("UPDATE properties SET flagged = true WHERE id = $1", [req.params.id]);
+      hidden = true;
+    }
+    res.json({ reported: true, reportCount: cnt[0].n, hidden });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /properties/moderation — admin-only queue of reported listings (report counts + reasons).
+router.get("/moderation", requireAuth, async (req, res) => {
+  try {
+    const { userId } = getAuth(req);
+    if (!ADMIN_IDS.includes(userId)) return res.status(403).json({ error: "Admins only" });
+    const { rows } = await pool.query(
+      `SELECT p.id, p.title, p.clerk_user_id AS owner_id, p.owner_name, p.flagged,
+              COUNT(DISTINCT r.reporter_id)::int AS reporters,
+              ARRAY_AGG(DISTINCT r.reason) AS reasons
+         FROM reports r JOIN properties p ON p.id = r.property_id
+        GROUP BY p.id
+        ORDER BY reporters DESC, p.flagged DESC`
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /properties/:id/moderate { action: "hide" | "restore" } — admin flag/unflag a listing.
+router.post("/:id/moderate", requireAuth, async (req, res) => {
+  try {
+    if (!isUuid(req.params.id)) return res.status(400).json({ error: "Invalid property id" });
+    const { userId } = getAuth(req);
+    if (!ADMIN_IDS.includes(userId)) return res.status(403).json({ error: "Admins only" });
+    const flagged = req.body?.action === "hide";
+    const { rowCount } = await pool.query("UPDATE properties SET flagged = $1 WHERE id = $2", [flagged, req.params.id]);
+    if (!rowCount) return res.status(404).json({ error: "Not found" });
+    res.json({ id: req.params.id, flagged });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /properties — list all (public). Optional geo: ?lat&lng[&radius=km] returns
 // listings within radius (Haversine, no PostGIS) sorted by distance, with distance_km.
 router.get("/", async (req, res) => {
@@ -149,8 +218,8 @@ router.get("/", async (req, res) => {
     const params = [];
     if (hasGeo) params.push(glat, glng); // $1, $2
 
-    // Hide listings from flagged/deleted owners (soft-hide; data retained).
-    let where = "owner_active IS DISTINCT FROM false";
+    // Soft-hide: deleted/flagged owners (owner_active) and moderation-flagged listings (flagged).
+    let where = "owner_active IS DISTINCT FROM false AND flagged IS DISTINCT FROM true";
     if (hasGeo) where += " AND latitude IS NOT NULL AND longitude IS NOT NULL";
     if (type && type !== "All")   { params.push(type);   where += ` AND type = $${params.length}`; }
     if (status && status !== "All") { params.push(status); where += ` AND status = $${params.length}`; }

@@ -12,6 +12,21 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-05 (feature: reviews + listing reporting/moderation)
+- **Owner reviews** — rate an owner 1–5 ★ + optional text, **gated to a confirmed visit** (anti-spam),
+  one per (owner, reviewer), upsert on repeat.
+  - Backend: `reviews` table (`migrate.js`); `GET /users/:id/reviews` (average, count, `canReview`,
+    `myReview`, recent reviews — reviewer clerk ids not leaked) + `POST /users/:id/reviews`
+    (403 unless the caller has a `confirmed` visit with the owner; 400 on self-review) in `routes/users.js`.
+  - Client: `useApi.getReviews`/`postReview`; property detail shows an **Owner reviews** card (★ avg,
+    recent reviews, "Leave/Edit review" when eligible) + a rating modal, and a rating chip in the owner card.
+- **Listing reporting + auto-hide moderation** — `POST /properties/:id/report` (dedup per reporter);
+  a listing **auto-hides after 3 distinct reporters** (`flagged` column, excluded from public lists,
+  like `owner_active`). Admin: `GET /properties/moderation` (queue with reporter counts + reasons) +
+  `POST /properties/:id/moderate {action:"hide"|"restore"}`. Client: "⚠ Report this listing" on detail.
+- Validated: 89/89 backend tests (reviews gate + upsert + no-id-leak; report dedup + auto-hide + own-listing 400);
+  iOS + web bundles compile (0 errors).
+
 ### 2026-09-05 (feature: price insights — "good deal" vs area median)
 - **Added:** price context on listings. `GET /properties/:id/insights` computes the listing's
   **₹/sqft** and compares it to the **median ₹/sqft of comparable listings** (same `type` + `status`,

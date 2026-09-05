@@ -43,7 +43,8 @@ afterAll(async () => {
   await pool.query("DELETE FROM properties WHERE clerk_user_id LIKE 'test_user_jest%'");
   await pool.query("DELETE FROM push_tokens WHERE clerk_user_id LIKE 'test_user_jest%'");
   await pool.query("DELETE FROM blocks WHERE blocker_id LIKE 'test_user_jest%' OR blocked_id LIKE 'test_user_jest%'");
-  await pool.query("DELETE FROM reports WHERE reporter_id LIKE 'test_user_jest%'");
+  await pool.query("DELETE FROM reports WHERE reporter_id LIKE 'test_user_jest%' OR reporter_id LIKE 'rep\\_%'");
+  await pool.query("DELETE FROM reviews WHERE owner_id LIKE 'test_user_jest%' OR reviewer_id LIKE 'test_user_jest%'");
   await pool.query("DELETE FROM pending_uploads WHERE clerk_user_id LIKE 'test_user_jest%'");
   await pool.query("DELETE FROM saved_searches WHERE clerk_user_id LIKE 'test_user_jest%'");
   await pool.query("DELETE FROM notifications WHERE clerk_user_id LIKE 'test_user_jest%'");
@@ -262,6 +263,53 @@ describe("price insights", () => {
     const res = await request(app).get(`/properties/${only.body.id}/insights`);
     expect(res.body.verdict).toBe("insufficient");
     expect((await request(app).get("/properties/not-a-uuid/insights")).status).toBe(400);
+  });
+});
+
+describe("owner reviews", () => {
+  test("gated by a confirmed visit; rate + aggregate + upsert", async () => {
+    const create = await request(app).post("/properties").set("x-test-user", USER_A).send({ ...sampleListing, title: "Review Listing" });
+    const pid = create.body.id;
+    // no confirmed visit yet → can't review
+    expect((await request(app).post(`/users/${USER_A}/reviews`).set("x-test-user", USER_B).send({ rating: 5 })).status).toBe(403);
+    // book + owner confirms a visit
+    const book = await request(app).post("/visits").set("x-test-user", USER_B).send({ property_id: pid, slot: new Date(Date.now() + 86400000).toISOString() });
+    await request(app).post(`/visits/${book.body.id}/respond`).set("x-test-user", USER_A).send({ status: "confirmed" });
+    // now eligible
+    const rev = await request(app).post(`/users/${USER_A}/reviews`).set("x-test-user", USER_B).send({ rating: 4, text: "Smooth", reviewer_name: "Bee" });
+    expect(rev.status).toBe(201);
+    const got = await request(app).get(`/users/${USER_A}/reviews`).set("x-test-user", USER_B);
+    expect(got.body.count).toBe(1);
+    expect(got.body.average).toBe(4);
+    expect(got.body.canReview).toBe(true);
+    expect(got.body.myReview.rating).toBe(4);
+    expect(got.body.reviews[0].reviewer_name).toBe("Bee");
+    expect(got.body.reviews[0]).not.toHaveProperty("reviewer_id"); // clerk id not leaked
+    // upsert: same reviewer updates, not duplicates
+    await request(app).post(`/users/${USER_A}/reviews`).set("x-test-user", USER_B).send({ rating: 5 });
+    const got2 = await request(app).get(`/users/${USER_A}/reviews`).set("x-test-user", USER_B);
+    expect(got2.body.count).toBe(1);
+    expect(got2.body.average).toBe(5);
+  });
+  test("can't review yourself → 400", async () => {
+    expect((await request(app).post(`/users/${USER_A}/reviews`).set("x-test-user", USER_A).send({ rating: 5 })).status).toBe(400);
+  });
+});
+
+describe("listing reports + auto-hide moderation", () => {
+  test("hides after 3 distinct reporters; dedupes; owner can't report own", async () => {
+    const create = await request(app).post("/properties").set("x-test-user", USER_A).send({ ...sampleListing, title: "Reported Listing" });
+    const pid = create.body.id;
+    expect((await request(app).post(`/properties/${pid}/report`).set("x-test-user", USER_A).send({ reason: "x" })).status).toBe(400); // own listing
+    await request(app).post(`/properties/${pid}/report`).set("x-test-user", "rep_1").send({ reason: "fake" });
+    expect((await request(app).post(`/properties/${pid}/report`).set("x-test-user", "rep_2").send({ reason: "fake" })).body.hidden).toBe(false);
+    // same reporter again → dedup (still 2)
+    expect((await request(app).post(`/properties/${pid}/report`).set("x-test-user", "rep_2").send({ reason: "fake" })).body.reportCount).toBe(2);
+    // third distinct → auto-hidden
+    expect((await request(app).post(`/properties/${pid}/report`).set("x-test-user", "rep_3").send({ reason: "fake" })).body.hidden).toBe(true);
+    // gone from the public list
+    const list = await request(app).get("/properties");
+    expect(list.body.some((p) => p.id === pid)).toBe(false);
   });
 });
 

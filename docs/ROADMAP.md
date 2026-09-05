@@ -86,7 +86,9 @@ Three pillars we judge every change against:
       decline → cancel, with notifications); "Schedule a visit" on the listing + a Visits screen.
 - [~] **Price insights** (2026-09-05) — ✅ area **median ₹/sqft** comparison + **good-deal/at-market/
       above-market** verdict on the listing (`GET /properties/:id/insights`, `insights.js`). *Next:* price history.
-- [ ] **Reviews / reporting** — rate owners, flag suspicious listings, moderation queue.
+- [~] **Reviews / reporting** (2026-09-05) — ✅ owner **reviews** (1–5★, gated to a confirmed visit),
+      **listing reporting** + **auto-hide after 3 reports**, admin moderation queue
+      (`GET /properties/moderation`, `POST /:id/moderate`). *Next:* richer moderation dashboard.
 
 ## Postponed (revisit later — not blocking)
 - [ ] **EAS development build** — needed to actually *receive* push notifications on device

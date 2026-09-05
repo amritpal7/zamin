@@ -105,6 +105,26 @@ async function migrate(pool) {
       created_at  TIMESTAMPTZ DEFAULT NOW()
     )`);
 
+  // Owner reviews: one rating (1–5) + text per (owner, reviewer). Author must have a
+  // confirmed visit with the owner (enforced in the route) so ratings aren't spam.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS reviews (
+      id             UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+      owner_id       VARCHAR(255) NOT NULL,
+      reviewer_id    VARCHAR(255) NOT NULL,
+      reviewer_name  VARCHAR(255),
+      reviewer_avatar VARCHAR(10),
+      rating         SMALLINT NOT NULL CHECK (rating BETWEEN 1 AND 5),
+      text           VARCHAR(1000),
+      created_at     TIMESTAMPTZ DEFAULT NOW(),
+      updated_at     TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE (owner_id, reviewer_id)
+    )`);
+
+  // Moderation: a listing auto-hides once enough distinct users report it. Soft-hide
+  // (like owner_active) — excluded from public lists, restorable by an admin.
+  await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS flagged BOOLEAN DEFAULT false`);
+
   // One-time repair of the old "reply addressed to self" bug: re-address any
   // self-message (sender = receiver) to the other participant on that property.
   await pool.query(`
