@@ -176,10 +176,11 @@ route → flips the sender's ticks to ✓✓), `typing` (ephemeral, relayed to t
 `/api/socket.io` (nginx already forwards WS upgrades). Single-node today; add
 `@socket.io/redis-adapter` (Redis is already running) to scale to multiple API instances.
 
-> **Migrations today:** there is no migration framework. `backend/src/index.js` runs a
-> hand-written idempotent `migrate()` on boot (`ALTER TABLE ... ADD COLUMN IF NOT EXISTS`)
-> plus a seed-image backfill. New schema changes should follow the same idempotent pattern
-> *or* we introduce a real migration tool (see ROADMAP).
+> **Migrations:** **node-pg-migrate** (versioned, ordered, tracked in `pgmigrations`). Boot and the
+> test `globalSetup` call `runMigrations()` (`src/runMigrations.js`) → applies `backend/migrations/*`.
+> The baseline (`1725600000000_baseline.js`) reuses `src/migrate.js`'s idempotent SQL via `pgm.db`.
+> **New schema changes = a new migration file** (`npm run migrate create <name>`), not edits to
+> `migrate.js`. Base tables still come from `db/init.sql` (docker init / CI `psql` step).
 
 ---
 
