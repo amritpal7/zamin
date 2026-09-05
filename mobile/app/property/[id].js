@@ -1,5 +1,5 @@
 import { useTheme } from "../../src/context/ThemeContext";
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   View, Text, ScrollView, Pressable, Dimensions, Platform,
   Linking, Alert, ActivityIndicator, Share, StyleSheet, Modal,
@@ -15,6 +15,54 @@ import { Avatar, Tag } from "../../src/components/ui";
 import { useApi } from "../../src/hooks/useApi";
 import { SEED_PROPERTIES } from "../../src/data/properties";
 import { pricePerSqft, estimateEMI } from "../../src/utils/property";
+
+// ── "What's nearby" via OpenStreetMap Overpass (free, no key). Best-effort. ──
+const NEARBY_RADIUS_M = 1200;
+function metresBetween(aLat, aLng, bLat, bLng) {
+  const R = 6371000, toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(bLat - aLat), dLng = toRad(bLng - aLng);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+function categorize(tags = {}) {
+  const a = tags.amenity, s = tags.shop, r = tags.railway, pt = tags.public_transport;
+  if (["school", "college", "university"].includes(a)) return { icon: "🎓", cat: "School" };
+  if (["hospital", "clinic", "doctors"].includes(a))   return { icon: "🏥", cat: "Hospital" };
+  if (a === "pharmacy")                                  return { icon: "💊", cat: "Pharmacy" };
+  if (["bank", "atm"].includes(a))                       return { icon: "🏦", cat: "Bank" };
+  if (["restaurant", "cafe", "fast_food"].includes(a))  return { icon: "🍽", cat: "Food" };
+  if (["supermarket", "mall"].includes(s))              return { icon: "🛒", cat: "Shopping" };
+  if (r === "station" || r === "subway_entrance" || pt === "station") return { icon: "🚉", cat: "Transit" };
+  return null;
+}
+async function fetchNearby(lat, lng) {
+  const q = `[out:json][timeout:15];(` +
+    `node(around:${NEARBY_RADIUS_M},${lat},${lng})[amenity~"^(school|college|university|hospital|clinic|doctors|pharmacy|bank|atm|restaurant|cafe|fast_food)$"];` +
+    `node(around:${NEARBY_RADIUS_M},${lat},${lng})[shop~"^(supermarket|mall)$"];` +
+    `node(around:${NEARBY_RADIUS_M},${lat},${lng})[railway~"^(station|subway_entrance)$"];` +
+    `node(around:${NEARBY_RADIUS_M},${lat},${lng})[public_transport=station];` +
+    `);out body 80;`;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 12000);
+  try {
+    const res = await fetch("https://overpass-api.de/api/interpreter", {
+      method: "POST", body: "data=" + encodeURIComponent(q),
+      headers: { "Content-Type": "application/x-www-form-urlencoded" }, signal: ctrl.signal,
+    });
+    const json = await res.json();
+    const seen = new Set();
+    const items = [];
+    for (const el of json.elements || []) {
+      const name = el.tags?.name; if (!name) continue;
+      const c = categorize(el.tags); if (!c) continue;
+      const key = c.cat + "|" + name; if (seen.has(key)) continue; seen.add(key);
+      const m = metresBetween(lat, lng, el.lat, el.lon);
+      items.push({ name, icon: c.icon, cat: c.cat, m, dist: m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km` });
+    }
+    items.sort((a, b) => a.m - b.m);
+    return items.slice(0, 8);
+  } finally { clearTimeout(timer); }
+}
 
 // ── Reusable chips ────────────────────────────────────────────────────────
 function Chip({ label, color, bg }) {
@@ -144,6 +192,7 @@ export default function PropertyDetail() {
   const [p,       setP]       = useState(() => SEED_PROPERTIES.find(x => String(x.id) === String(id)) || null);
   const [saved,   setSaved]   = useState(false);
   const [loading, setLoading] = useState(!p);
+  const [nearby,  setNearby]  = useState([]);
   const [visitOpen, setVisitOpen] = useState(false);
 
   // Re-fetch whenever the screen regains focus (e.g. returning from the editor),
@@ -155,6 +204,15 @@ export default function PropertyDetail() {
         api.getSaved().then(list => setSaved(list.some(x => String(x.id) === String(id)))).catch(() => {});
     }, [id, isSignedIn])
   );
+
+  // Load "what's nearby" once we have (shown) coordinates. Best-effort; silent on failure.
+  useEffect(() => {
+    const lat = p?.latitude ?? p?.lat, lng = p?.longitude ?? p?.lng;
+    if (!isSignedIn || p?.location_precision === "hidden" || lat == null || lng == null) { setNearby([]); return; }
+    let cancelled = false;
+    fetchNearby(lat, lng).then(items => { if (!cancelled) setNearby(items); }).catch(() => { if (!cancelled) setNearby([]); });
+    return () => { cancelled = true; };
+  }, [p?.latitude, p?.longitude, p?.location_precision, isSignedIn]);
 
   const toggleSave = async () => {
     if (!isSignedIn) { router.push("/sign-in"); return; }
@@ -212,6 +270,15 @@ export default function PropertyDetail() {
     if (!query) { Alert.alert("No location", "This listing has no map location yet."); return; }
     Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`).catch(() =>
       Alert.alert("Maps", "Couldn't open Maps.")
+    );
+  };
+
+  // Turn-by-turn directions to the listing in the device Maps app.
+  const getDirections = () => {
+    const lat = p?.latitude ?? p?.lat, lng = p?.longitude ?? p?.lng;
+    if (lat == null || lng == null) return;
+    Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`).catch(() =>
+      Alert.alert("Directions", "Couldn't open Maps.")
     );
   };
 
@@ -418,8 +485,37 @@ export default function PropertyDetail() {
                   <Text style={{ color: C.ink, fontWeight: "800", fontSize: 13, fontFamily: FONT }}>Sign In to View Location</Text>
                 </Pressable>
               )}
+
+              {isSignedIn && p.location_precision !== "hidden" && (p.latitude ?? p.lat) != null && (
+                <Pressable
+                  onPress={getDirections}
+                  style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 14, backgroundColor: C.chipBg, borderRadius: 100, paddingVertical: 11, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder }}
+                >
+                  <Icon name="compass" size={16} color={C.fg} strokeWidth={2} />
+                  <Text style={{ color: C.fg, fontFamily: FONT_MED, fontSize: 13 }}>Get directions</Text>
+                </Pressable>
+              )}
             </View>
           </GlassCard>
+
+          {/* What's nearby */}
+          {isSignedIn && nearby.length > 0 && (
+            <GlassCard>
+              <View style={{ padding: 18 }}>
+                <Text style={{ color: C.muted, fontSize: 11, fontWeight: "700", fontFamily: FONT, letterSpacing: 1, textTransform: "uppercase", marginBottom: 12 }}>What's nearby</Text>
+                <View style={{ gap: 10 }}>
+                  {nearby.map((n, i) => (
+                    <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                      <Text style={{ fontSize: 18 }}>{n.icon}</Text>
+                      <Text style={{ flex: 1, color: C.text, fontSize: 13, fontFamily: FONT }} numberOfLines={1}>{n.name}</Text>
+                      <Text style={{ color: C.muted, fontSize: 12, fontFamily: FONT }}>{n.dist}</Text>
+                    </View>
+                  ))}
+                </View>
+                <Text style={{ color: C.fgFaint || C.muted, fontSize: 10, fontFamily: FONT, marginTop: 12 }}>Nearby places from OpenStreetMap · approximate</Text>
+              </View>
+            </GlassCard>
+          )}
 
           {/* Owner */}
           <GlassCard>
