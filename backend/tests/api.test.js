@@ -62,14 +62,16 @@ describe("health & public reads", () => {
   test("GET /properties → 200 array (seed data present)", async () => {
     const res = await request(app).get("/properties");
     expect(res.status).toBe(200);
-    expect(Array.isArray(res.body)).toBe(true);
-    expect(res.body.length).toBeGreaterThan(0);
+    expect(Array.isArray(res.body.items)).toBe(true);
+    expect(res.body.items.length).toBeGreaterThan(0);
+    expect(typeof res.body.total).toBe("number");
+    expect(typeof res.body.hasMore).toBe("boolean");
   });
 
   test("GET /properties?type=Land → only Land rows", async () => {
     const res = await request(app).get("/properties?type=Land");
     expect(res.status).toBe(200);
-    for (const row of res.body) expect(row.type).toBe("Land");
+    for (const row of res.body.items) expect(row.type).toBe("Land");
   });
 
   test("GET /properties/:id (unknown uuid) → 404", async () => {
@@ -128,21 +130,47 @@ describe("geo / near-me search", () => {
   test("returns listings within radius, sorted by distance, with distance_km", async () => {
     const res = await request(app).get("/properties?lat=12.9716&lng=77.5946&radius=25");
     expect(res.status).toBe(200);
-    const near = res.body.find((p) => p.id === nearId);
+    const near = res.body.items.find((p) => p.id === nearId);
     expect(near).toBeDefined();
     expect(Number(near.distance_km)).toBeLessThan(25);
     // the far listing (Delhi, ~1700 km) is excluded by the 25 km radius
-    expect(res.body.some((p) => p.id === farId)).toBe(false);
+    expect(res.body.items.some((p) => p.id === farId)).toBe(false);
     // results are ascending by distance
-    const dists = res.body.map((p) => Number(p.distance_km));
+    const dists = res.body.items.map((p) => Number(p.distance_km));
     for (let i = 1; i < dists.length; i++) expect(dists[i]).toBeGreaterThanOrEqual(dists[i - 1] - 0.001);
   });
 
   test("without geo params → normal list, no distance_km", async () => {
     const res = await request(app).get("/properties");
-    const near = res.body.find((p) => p.id === nearId);
+    const near = res.body.items.find((p) => p.id === nearId);
     expect(near).toBeDefined();
     expect(near.distance_km).toBeUndefined();
+  });
+});
+
+describe("pagination + server-side search", () => {
+  beforeAll(async () => {
+    for (let i = 0; i < 5; i++) {
+      await request(app).post("/properties").set("x-test-user", USER_A)
+        .send({ ...sampleListing, title: `Pag ${i}`, location: "Paginville, Testcity", type: "House", status: "For Sale" });
+    }
+  });
+  test("limit/offset page through a filtered set with total + hasMore", async () => {
+    const p1 = await request(app).get("/properties?search=Paginville&limit=2&offset=0");
+    expect(p1.status).toBe(200);
+    expect(p1.body.total).toBeGreaterThanOrEqual(5);
+    expect(p1.body.items.length).toBe(2);
+    expect(p1.body.hasMore).toBe(true);
+    // last page: offset at total-1 → 1 item, no more
+    const last = await request(app).get(`/properties?search=Paginville&limit=2&offset=${p1.body.total - 1}`);
+    expect(last.body.items.length).toBe(1);
+    expect(last.body.hasMore).toBe(false);
+    // search actually filters (server-side)
+    for (const row of p1.body.items) expect(row.location).toMatch(/Paginville/);
+  });
+  test("limit is clamped to 100", async () => {
+    const res = await request(app).get("/properties?limit=99999");
+    expect(res.body.limit).toBe(100);
   });
 });
 
@@ -196,7 +224,7 @@ describe("location privacy (server-enforced)", () => {
 
     // And in the public list, too (the consumer path most likely to leak).
     const list = await request(app).get("/properties").set("x-test-user", USER_B);
-    const row = list.body.find((p) => p.id === id);
+    const row = list.body.items.find((p) => p.id === id);
     expect(row.latitude).toBeNull();
   });
 
@@ -214,7 +242,7 @@ describe("location privacy (server-enforced)", () => {
     expect(res.body.updated).toBeGreaterThan(0);
     // every one of A's listings now reads hidden to another user
     const list = await request(app).get("/properties").set("x-test-user", USER_B);
-    const mine = list.body.filter((p) => p.clerk_user_id === USER_A);
+    const mine = list.body.items.filter((p) => p.clerk_user_id === USER_A);
     expect(mine.length).toBeGreaterThan(0);
     expect(mine.every((p) => p.location_precision === "hidden")).toBe(true);
   });
@@ -342,7 +370,7 @@ describe("listing reports + auto-hide moderation", () => {
     expect((await request(app).post(`/properties/${pid}/report`).set("x-test-user", "rep_3").send({ reason: "fake" })).body.hidden).toBe(true);
     // gone from the public list
     const list = await request(app).get("/properties");
-    expect(list.body.some((p) => p.id === pid)).toBe(false);
+    expect(list.body.items.some((p) => p.id === pid)).toBe(false);
   });
 });
 
@@ -723,14 +751,14 @@ describe("visibility: soft-hide flagged owners", () => {
 
     // visible while owner is active
     let list = await request(app).get("/properties");
-    expect(list.body.some((p) => p.id === id)).toBe(true);
+    expect(list.body.items.some((p) => p.id === id)).toBe(true);
 
     // soft-delete: flag the owner inactive (data stays in the DB)
     await pool.query("UPDATE properties SET owner_active = false WHERE id = $1", [id]);
 
     // hidden from the public list…
     list = await request(app).get("/properties");
-    expect(list.body.some((p) => p.id === id)).toBe(false);
+    expect(list.body.items.some((p) => p.id === id)).toBe(false);
 
     // …but still reachable by direct id (deep links show "unavailable" in the UI)
     const detail = await request(app).get(`/properties/${id}`);

@@ -95,19 +95,40 @@ export default function Discover() {
   const [refreshing, setRefreshing] = useState(false);
   const [geo,        setGeo]        = useState(null);  // { lat, lng } when "Near me" active
   const [locating,   setLocating]   = useState(false);
+  const [hasMore,    setHasMore]    = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
+  const PAGE = 24;
   const load = useCallback(async (isRefresh = false) => {
     try {
       isRefresh ? setRefreshing(true) : setLoading(true);
       const data = await apiRef.current.getProperties({
         type, status, search,
         ...(geo ? { lat: geo.lat, lng: geo.lng, radius: 25 } : {}),
+        limit: PAGE, offset: 0,
       });
-      setProperties(data);
+      setProperties(data.items || []);
+      setHasMore(!!data.hasMore);
     } catch {
       setProperties(SEED_PROPERTIES);
+      setHasMore(false);
     } finally { setLoading(false); setRefreshing(false); }
   }, [type, status, search, geo]);
+
+  // Append the next page (server-side pagination).
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore) return;
+    try {
+      setLoadingMore(true);
+      const data = await apiRef.current.getProperties({
+        type, status, search,
+        ...(geo ? { lat: geo.lat, lng: geo.lng, radius: 25 } : {}),
+        limit: PAGE, offset: properties.length,
+      });
+      setProperties(prev => [...prev, ...(data.items || [])]);
+      setHasMore(!!data.hasMore);
+    } catch { /* keep what we have */ } finally { setLoadingMore(false); }
+  }, [type, status, search, geo, properties.length, hasMore, loadingMore]);
 
   // Reload the list on mount, when filters change, AND whenever Home regains
   // focus (e.g. returning after editing/posting) so cards show fresh images.
@@ -379,6 +400,17 @@ export default function Discover() {
                 onSave={() => toggleSave(p)}
               />
             ))}
+            {hasMore && (
+              <Pressable
+                onPress={loadMore}
+                disabled={loadingMore}
+                style={{ marginTop: 6, marginBottom: 8, paddingVertical: 14, borderRadius: 16, alignItems: "center", backgroundColor: C.glassBg, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder }}
+              >
+                <Text style={{ color: C.amberText, fontFamily: FONT_MED, fontSize: 14 }}>
+                  {loadingMore ? "Loading…" : "Load more"}
+                </Text>
+              </Pressable>
+            )}
           </View>
         )}
 

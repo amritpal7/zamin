@@ -12,6 +12,20 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-06 (feature: pagination on GET /properties; fix review-modal crash)
+- **Fixed:** review modal crashed with *"Can't find variable: TextInput"* — `TextInput` was used in
+  `property/[id].js` but not imported. Audited all mobile screens for the same class (missing
+  JSX/RN-object/hook imports, invalid theme keys, conditional hooks) — no other instances.
+- **Added — pagination** on `GET /properties` (server-side **search** already existed). Query now
+  takes `limit` (1–100, default 24) + `offset`; response is a **wrapper**
+  `{ items, total, limit, offset, hasMore }` (was a bare array). COUNT + LIMIT/OFFSET applied to both
+  the plain and geo (distance) queries.
+  - **Ripple (response shape changed):** `useApi.getProperties` now returns the wrapper; updated all
+    consumers — `discover.js` (accumulating **"Load more"** using `offset`/`hasMore`), `map.js`
+    (initial load + "search this area" now request `limit: 100` and read `.items`).
+  - Validated: 94/94 backend tests (new: paging through a filtered set with `total`/`hasMore`,
+    server-side search filter, `limit` clamp to 100); iOS + web bundles compile (0 errors).
+
 ### 2026-09-06 (feature: Land parcel boundary — finishes Maps Phase 3)
 - **Added:** owners can draw a **plot/parcel boundary** for **Land** listings, and it renders on a
   **map on the property detail screen** (the detail screen had no map before).

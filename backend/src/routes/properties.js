@@ -228,27 +228,46 @@ router.get("/", async (req, res) => {
       where += ` AND (title ILIKE $${params.length} OR location ILIKE $${params.length})`;
     }
 
-    let query;
+    // Build the filtered base query (a plain WHERE, or a geo subquery with distance_km).
+    // `base` is wrapped for both COUNT (total) and the paginated page fetch.
+    let base, order;
     if (hasGeo) {
       const rad = Math.min(Math.max(parseFloat(radius) || 25, 1), 500);
       params.push(rad);
       // LEAST(1, …) clamps the acos argument so float error can't produce NaN.
-      query = `SELECT * FROM (
+      base = `SELECT * FROM (
         SELECT *, (6371 * acos(LEAST(1,
           cos(radians($1)) * cos(radians(latitude)) * cos(radians(longitude) - radians($2))
           + sin(radians($1)) * sin(radians(latitude))))) AS distance_km
         FROM properties WHERE ${where}
-      ) t WHERE distance_km <= $${params.length} ORDER BY distance_km ASC`;
+      ) t WHERE distance_km <= $${params.length}`;
+      order = "ORDER BY distance_km ASC";
     } else {
-      query = `SELECT * FROM properties WHERE ${where} ORDER BY created_at DESC`;
+      base = `SELECT * FROM properties WHERE ${where}`;
+      order = "ORDER BY created_at DESC";
     }
 
-    const { rows } = await pool.query(query, params);
+    // Pagination: limit 1..100 (default 24), offset >= 0.
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 24, 1), 100);
+    const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+
+    const totalRes = await pool.query(`SELECT COUNT(*)::int AS n FROM (${base}) c`, params);
+    const total = totalRes.rows[0].n;
+
+    const pageParams = [...params, limit, offset];
+    const { rows } = await pool.query(
+      `${base} ${order} LIMIT $${pageParams.length - 1} OFFSET $${pageParams.length}`, pageParams
+    );
+
     // Enforce per-listing location privacy before anything leaves the server. The
     // owner (viewerId) always sees their own exact coords. getAuth is safe on this
     // public route — it returns null userId when unauthenticated.
     const { userId } = getAuth(req);
-    res.json(rows.map((r) => redactLocation(r, userId)));
+    res.json({
+      items: rows.map((r) => redactLocation(r, userId)),
+      total, limit, offset,
+      hasMore: offset + rows.length < total,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

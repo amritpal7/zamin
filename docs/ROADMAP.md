@@ -48,7 +48,8 @@ Three pillars we judge every change against:
       gate merges. Next: component tests (PropertyCard, chat), more edge cases.
 - [x] **Input validation** on write endpoints (required fields, enums, lengths, ranges,
       UUID params) → 400 with `errors[]`. `backend/src/validation.js` + 8 tests. *(2026-08-04)*
-- [ ] **Pagination + server-side search** on `GET /properties` (before the table grows).
+- [x] **Pagination + server-side search** on `GET /properties` (2026-09-06) — `limit`/`offset` +
+      `{items,total,hasMore}`; server-side `search` (title/location). Discover "Load more"; map fetches 100.
 - [x] **Chat — real-time + read receipts** (2026-08-11): Socket.io on the API, instant delivery,
       ✓/✓✓ read receipts (`read_at`), unread badges, typing indicator. Inbox/chat update live.
       Next for chat: **push notifications** (Expo + FCM/APNs) so replies land when the app is

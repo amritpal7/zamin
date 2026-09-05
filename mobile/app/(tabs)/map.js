@@ -70,8 +70,8 @@ export default function MapScreen() {
     let cancelled = false;
     (async () => {
       try {
-        const data = await apiRef.current.getProperties();
-        if (!cancelled && Array.isArray(data) && data.length) setProperties(data);
+        const data = await apiRef.current.getProperties({ limit: 100 });
+        if (!cancelled && data.items?.length) setProperties(data.items);
       } catch {
         if (!cancelled) setProperties(SEED_PROPERTIES);
       }
@@ -130,8 +130,8 @@ export default function MapScreen() {
     try {
       setSearching(true);
       const radiusKm = Math.min(500, Math.max(1, Math.round(region.latitudeDelta * 111 / 2)));
-      const data = await apiRef.current.getProperties({ lat: region.latitude, lng: region.longitude, radius: radiusKm });
-      setProperties(Array.isArray(data) ? data : []);
+      const data = await apiRef.current.getProperties({ lat: region.latitude, lng: region.longitude, radius: radiusKm, limit: 100 });
+      setProperties(data.items || []);
     } catch { /* keep current results */ } finally {
       setSearching(false);
     }
