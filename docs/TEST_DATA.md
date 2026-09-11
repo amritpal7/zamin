@@ -261,3 +261,38 @@ Each block lists **every** field. Owner # maps to the user table above.
 - **No beds/baths:** Land listings (2,7,15) — confirm the UI handles null beds/baths.
 - **Cities:** Mumbai, Pune, Bengaluru, Chennai, Hyderabad, Ahmedabad, Gurgaon, Noida, Goa, Kolkata,
   Lonavala, Alibaug — good spread for map clustering + "near me".
+
+---
+
+## Automated demo seed (2026-09-06) — `backend/scripts/seed-demo.js`
+
+Bulk data for exercising **pagination, server-side search, price insights, geo/near-me, and load
+testing**. Re-run any time (idempotent — clears + reinserts everything tagged `demo-seed`):
+
+```bash
+docker compose exec api node scripts/seed-demo.js
+```
+
+**What it creates:** 12 loginable owner accounts (Clerk, **username-only → no email → no 2FA**) +
+**112 properties across 14 Indian cities** (Mumbai, Delhi, Bengaluru, Hyderabad, Chennai, Pune,
+Kolkata, Ahmedabad, Jaipur, Goa, Lucknow, Chandigarh, Kochi, Indore). Each city gets ≥4 comparable
+*Apartment · For Sale* listings (so **price insights** have a sample) plus varied type/status/visibility.
+
+### Owner login credentials (username · password)
+| Username | Password | Name |
+|----------|----------|------|
+| `demo_aarav`   | `Mumbai-Harbor-4821-Qz`  | Aarav Sharma   |
+| `demo_meera`   | `Willow-Canyon-4417-Rk`  | Meera Patil    |
+| `demo_rohan`   | `Amber-Meadow-7723-Tp`   | Rohan Kulkarni |
+| `demo_priya`   | `Silver-Falls-3390-Vn`   | Priya Nair     |
+| `demo_imran`   | `Cobalt-Ridge-9052-Wm`   | Imran Hussain  |
+| `demo_sanjana` | `Maple-Grove-6614-Xd`    | Sanjana Reddy  |
+| `demo_vikram`  | `Basalt-Cove-2288-Yh`    | Vikram Singh   |
+| `demo_deepa`   | `Cedar-Bluff-5147-Zc`    | Deepa Menon    |
+| `demo_arjun`   | `Coral-Summit-8039-Bf`   | Arjun Verma    |
+| `demo_neha`    | `Slate-Harbor-4471-Cg`   | Neha Gupta     |
+| `demo_farhan`  | `Birch-Meadow-6620-Dh`   | Farhan Shaikh  |
+| `demo_kavya`   | `Onyx-Valley-3315-Ej`    | Kavya Iyer     |
+
+> Log in as any of these to see/manage that owner's listings, chat as them, etc. These are **dev
+> instance** accounts; passwords follow Clerk's zxcvbn-2 + un-breached policy.
