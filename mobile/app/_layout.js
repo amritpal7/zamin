@@ -90,7 +90,7 @@ export default function RootLayout() {
             <Stack.Screen name="sign-in" />
             <Stack.Screen name="sign-up" />
             <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="property/[id]" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
+            <Stack.Screen name="property/[id]" options={{ animation: "slide_from_right" }} />
             <Stack.Screen name="property/edit/[id]" options={{ animation: "slide_from_right" }} />
             <Stack.Screen name="chat/[id]" />
             <Stack.Screen name="my-listings" />

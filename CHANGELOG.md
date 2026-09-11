@@ -12,6 +12,25 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-12 (UX: property navigation + in-listing location drawer)
+- **Tapping a property now slides in from the right** (stack push with the existing top-left back
+  button) instead of popping up as a bottom-sheet modal. Changed `app/_layout.js` — the
+  `property/[id]` screen dropped `presentation: "modal" / slide_from_bottom` for `slide_from_right`.
+  Affects every entry point that opens a listing (discover featured + list, saved, my-listings, and
+  the map), so the behaviour is now consistent app-wide.
+- **Map tab: removed the tap→action-sheet drawer.** In `app/(tabs)/map.js`, tapping a pin *or* a list
+  card now goes straight to the sliding detail screen (`openDetails`). Removed the action-sheet Modal
+  and its now-dead helpers (`sheet`/`selected` state, `locateOnMap`, `getDirections`, `onPinTap`,
+  `scrollToCard` + the `cardY`/`listTop`/`scrollRef` list↔map-sync refs) and the unused
+  `Modal`/`Linking` imports. "Get directions" still lives on the detail screen's Location card.
+- **Detail screen: tapping the location opens an in-app map drawer** (`LocationDrawer` in
+  `app/property/[id].js`) instead of jumping to the Map tab. The drawer shows THIS property (amber
+  anchor pin) + **nearby listings** (`getProperties` lat/lng, radius 15km) + the viewer's **saved/
+  favourite** properties (`getSaved`), merged/deduped. Tapping any pin or row **pans the map to it
+  live** (`animateToRegion`); on web (map stubbed) it opens external Maps. Replaced `openInMaps`
+  (map-tab deep-link) with `openLocation` (opens the drawer); kept the hidden-location + sign-in guards.
+- Validated: iOS bundle compiles clean (9.3 MB, 0 error markers).
+
 ### 2026-09-06 (infra: migration tooling — node-pg-migrate)
 - **Replaced the hand-rolled boot-time `migrate()` runner with node-pg-migrate** (versioned, ordered,
   each migration runs once, tracked in `pgmigrations`). Boot + tests now call `runMigrations()`

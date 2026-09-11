@@ -1,5 +1,5 @@
 import { useTheme } from "../../src/context/ThemeContext";
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import {
   View, Text, ScrollView, Pressable, Dimensions, Platform,
   Linking, Alert, ActivityIndicator, Share, StyleSheet, Modal, TextInput,
@@ -223,6 +223,150 @@ function ReviewModal({ initial, onClose, onSubmit }) {
   );
 }
 
+// Location drawer: an in-app map showing THIS property + nearby listings + the viewer's
+// saved/favourite properties. Tapping any pin or row pans the map to it live. Replaces the
+// old "jump to the Map tab" behaviour so the map stays in the context of this listing.
+function LocationDrawer({ property, api, onClose }) {
+  const insets  = useSafeAreaInsets();
+  const mapRef  = useRef(null);
+  const baseLat = property.latitude ?? property.lat;
+  const baseLng = property.longitude ?? property.lng;
+  const [nearby, setNearby] = useState([]);
+  const [saved,  setSaved]  = useState([]);
+  const [activeId, setActiveId] = useState(property.id);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await api.getProperties({ lat: baseLat, lng: baseLng, radius: 15, limit: 40 });
+        if (!cancelled) setNearby(data.items || []);
+      } catch {}
+      try {
+        const list = await api.getSaved();
+        if (!cancelled) setSaved(Array.isArray(list) ? list : []);
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Merge nearby + saved (dedupe), keep only those with coords, drop this property itself.
+  const items = useMemo(() => {
+    const m = new Map();
+    for (const x of nearby) m.set(String(x.id), { ...x, kind: "Nearby" });
+    for (const x of saved) {
+      const k = String(x.id);
+      if (m.has(k)) m.get(k).kind = "Nearby · Saved";
+      else m.set(k, { ...x, kind: "Saved" });
+    }
+    m.delete(String(property.id));
+    return [...m.values()].filter(x => (x.latitude ?? x.lat) != null && (x.longitude ?? x.lng) != null);
+  }, [nearby, saved]);
+
+  const coordsOf = (x) => ({ latitude: x.latitude ?? x.lat, longitude: x.longitude ?? x.lng });
+
+  // Live pan/zoom onto a property. On web (map stubbed) open external Maps instead.
+  const locate = (x) => {
+    const c = coordsOf(x);
+    if (c.latitude == null || c.longitude == null) return;
+    setActiveId(x.id);
+    if (Platform.OS === "web") {
+      Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${c.latitude},${c.longitude}`).catch(() => {});
+      return;
+    }
+    mapRef.current?.animateToRegion({ ...c, latitudeDelta: 0.02, longitudeDelta: 0.02 }, 450);
+  };
+
+  const region = {
+    latitude:  baseLat ?? 20.6, longitude: baseLng ?? 79,
+    latitudeDelta:  baseLat != null ? 0.05 : 12,
+    longitudeDelta: baseLng != null ? 0.05 : 12,
+  };
+
+  return (
+    <Modal transparent animationType="slide" visible onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" }}>
+        <View style={{ height: "88%", backgroundColor: C.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, overflow: "hidden" }}>
+          {/* header */}
+          <View style={{ paddingTop: 14, paddingHorizontal: 18, paddingBottom: 10, flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: C.fg, fontFamily: FONT_HEAD, fontSize: 20 }}>Nearby & saved</Text>
+              <Text numberOfLines={1} style={{ color: C.fgDim, fontFamily: FONT, fontSize: 12, marginTop: 2 }}>{property.location}</Text>
+            </View>
+            <Pressable onPress={onClose} style={navBtnStyle()}>
+              <Icon name="close" size={18} color={C.fg} strokeWidth={2} />
+            </Pressable>
+          </View>
+
+          {/* map */}
+          <View style={{ height: 300, marginHorizontal: 14, borderRadius: 18, overflow: "hidden", borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder }}>
+            {MapView ? (
+              <MapView ref={mapRef} style={{ flex: 1 }} initialRegion={region}>
+                {/* This property — amber anchor pin */}
+                {baseLat != null && (
+                  <Marker coordinate={{ latitude: baseLat, longitude: baseLng }} anchor={{ x: 0.5, y: 1 }}>
+                    <View style={{ backgroundColor: C.amber, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1.5, borderColor: "#fff" }}>
+                      <Text style={{ color: C.ink, fontFamily: FONT_MED, fontSize: 11, fontWeight: "700" }}>This one</Text>
+                    </View>
+                  </Marker>
+                )}
+                {items.map(x => {
+                  const active = String(activeId) === String(x.id);
+                  return (
+                    <Marker key={x.id} coordinate={coordsOf(x)} anchor={{ x: 0.5, y: 1 }} onPress={() => locate(x)}>
+                      <View style={{ backgroundColor: active ? C.blue : C.bg, borderRadius: 12, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1.5, borderColor: active ? "#fff" : C.glassBorder }}>
+                        <Text style={{ color: active ? "#fff" : C.fg, fontFamily: FONT_MED, fontSize: 10, fontWeight: "700" }}>
+                          {typeof x.price === "number" ? `₹${x.price}` : (x.price || "•")}
+                        </Text>
+                      </View>
+                    </Marker>
+                  );
+                })}
+              </MapView>
+            ) : (
+              <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 8 }}>
+                <Icon name="map" size={40} color={C.fgDim} strokeWidth={1.2} />
+                <Text style={{ color: C.fgDim, fontFamily: FONT_MED, fontSize: 12 }}>Map available on device — tap a row to open Maps</Text>
+              </View>
+            )}
+          </View>
+
+          {/* nearby + saved list */}
+          <Text style={{ color: C.muted, fontSize: 11, fontWeight: "700", fontFamily: FONT, letterSpacing: 1, textTransform: "uppercase", paddingHorizontal: 20, marginTop: 14, marginBottom: 8 }}>
+            {items.length} nearby & saved
+          </Text>
+          <ScrollView contentContainerStyle={{ paddingHorizontal: 14, paddingBottom: insets.bottom + 20, gap: 8 }}>
+            {items.length === 0 && (
+              <Text style={{ color: C.fgDim, fontFamily: FONT, fontSize: 13, paddingHorizontal: 6 }}>
+                No nearby or saved properties with a shared location yet.
+              </Text>
+            )}
+            {items.map(x => {
+              const active = String(activeId) === String(x.id);
+              return (
+                <Pressable key={x.id} onPress={() => locate(x)} style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 12, borderRadius: 16, backgroundColor: active ? C.chipBg : C.glassBg, borderWidth: StyleSheet.hairlineWidth, borderColor: active ? C.amber : C.glassBorder }}>
+                  <Text style={{ fontSize: 24 }}>{x.img || "🏠"}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text numberOfLines={1} style={{ color: C.fg, fontFamily: FONT_MED, fontSize: 14 }}>{x.title}</Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
+                      <Icon name="pin" size={10} color={C.fgDim} />
+                      <Text numberOfLines={1} style={{ color: C.fgDim, fontFamily: FONT, fontSize: 11, flex: 1 }}>{x.location}</Text>
+                    </View>
+                  </View>
+                  <View style={{ alignItems: "flex-end", gap: 4 }}>
+                    <Text style={{ color: C.amber, fontFamily: FONT_MED, fontSize: 13 }}>{typeof x.price === "number" ? `₹${x.price}` : x.price}</Text>
+                    <Text style={{ color: x.kind?.includes("Saved") ? C.red : C.fgDim, fontFamily: FONT, fontSize: 9 }}>{x.kind}</Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 export default function PropertyDetail() {
   useTheme();
   const { id }  = useLocalSearchParams();
@@ -241,6 +385,7 @@ export default function PropertyDetail() {
   const [visitOpen, setVisitOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [parcelSat, setParcelSat] = useState(false);
+  const [locOpen, setLocOpen] = useState(false);
 
   // Re-fetch whenever the screen regains focus (e.g. returning from the editor),
   // so edits show up immediately on the already-open detail screen.
@@ -331,25 +476,11 @@ export default function PropertyDetail() {
     );
   };
 
-  // Show the listing's location. On device → jump to the in-app Map tab and center on the
-  // pin. On web (map is stubbed) → open Google Maps. Uses coords when the owner shares them
-  // (exact/approximate), else falls back to a locality text search on the external map.
-  const openInMaps = () => {
+  // Tapping the location opens the in-app map drawer (this property + nearby + saved).
+  const openLocation = () => {
     if (!isSignedIn) { router.push("/sign-in"); return; }
     if (p?.location_precision === "hidden") return; // owner hid the exact spot
-    const lat = p?.latitude ?? p?.lat, lng = p?.longitude ?? p?.lng;
-    const hasCoords = lat != null && lng != null;
-
-    if (Platform.OS !== "web" && hasCoords) {
-      // Jump to the Map tab and locate this property (t forces a re-focus on repeat taps).
-      router.push({ pathname: "/(tabs)/map", params: { lat: String(lat), lng: String(lng), focus: String(p.id), t: String(Date.now()) } });
-      return;
-    }
-    const query = hasCoords ? `${lat},${lng}` : encodeURIComponent(p?.location || "");
-    if (!query) { Alert.alert("No location", "This listing has no map location yet."); return; }
-    Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`).catch(() =>
-      Alert.alert("Maps", "Couldn't open Maps.")
-    );
+    setLocOpen(true);
   };
 
   // Turn-by-turn directions to the listing in the device Maps app.
@@ -603,7 +734,7 @@ export default function PropertyDetail() {
 
               {isSignedIn ? (
                 <Pressable
-                  onPress={openInMaps}
+                  onPress={openLocation}
                   disabled={p.location_precision === "hidden"}
                   style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
                 >
@@ -744,6 +875,7 @@ export default function PropertyDetail() {
 
       {visitOpen && <VisitBookingModal onClose={() => setVisitOpen(false)} onSubmit={bookVisit} />}
       {reviewOpen && <ReviewModal initial={reviews?.myReview} onClose={() => setReviewOpen(false)} onSubmit={submitReview} />}
+      {locOpen && <LocationDrawer property={p} api={api} onClose={() => setLocOpen(false)} />}
 
       {/* ── Sticky dark action panel (Screen 3) ── */}
       <View style={{
