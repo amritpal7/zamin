@@ -73,7 +73,7 @@ EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_…   # swap to pk_live_… with prod 
 - When prod Clerk lands, update the key in **both** `eas.json` profiles.
 
 ## Remaining follow-ups before public launch
-- [ ] **Production Clerk instance** — currently using `pk_test_/sk_test_` (test mode). Create a prod instance, swap `CLERK_SECRET_KEY` + `CLERK_PUBLISHABLE_KEY` (api) and the app's publishable key.
+- [ ] **Production Clerk instance** — currently using `pk_test_/sk_test_` (test mode). Turnkey guide in **`docs/CLERK_PROD.md`** (username/password only, no Google). **Blocked on acquiring a domain** — Clerk prod needs a custom domain + DNS. Once you have live keys I wire Railway + `eas.json` + re-seed owners.
 - [ ] **Lock CORS** — set `CORS_ORIGIN` on the api service once web origins are known (currently `*`).
 - [ ] **Custom domains** — e.g. `api.zamin.app` / `cdn.zamin.app` via `generate-domain` + DNS.
 - [ ] **Node 22** — AWS SDK v3 warns node ≥22 will be required after Jan 2027; bump the backend base image.

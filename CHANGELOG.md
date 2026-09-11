@@ -12,6 +12,14 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-12 (docs: production Clerk plan — Phase 2)
+- **`docs/CLERK_PROD.md` (new):** turnkey production-Clerk setup, tuned to the decisions made
+  (username + password only, **no Google** — confirmed the app has no Google sign-in button, so
+  dropping it is invisible) and mirroring the live dev config (username required/first-factor,
+  password required @ zxcvbn 2 + HIBP on, email/phone off). **Blocked on acquiring a domain**
+  (Clerk prod requires a custom domain + DNS). Includes the exact wiring steps to run once live
+  keys exist (Railway keys, `eas.json`, re-seed owners — users don't migrate dev→prod).
+
 ### 2026-09-12 (ops: point mobile app at prod API)
 - **`mobile/eas.json`:** added `env` (`EXPO_PUBLIC_API_URL` = the Railway API,
   `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`) to the **preview** + **production** build profiles, so those
