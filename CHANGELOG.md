@@ -12,6 +12,24 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-12 (ops: Phase 1 cloud deploy — backend live on Railway)
+- **The backend is deployed to Railway** (project `zamin-prod`): `api` + `worker` (from the
+  GitHub repo, root `backend/`), managed `Postgres` + `Redis` (with volumes), and `minio`
+  object storage. All five services healthy. Public API:
+  `https://api-production-43dd.up.railway.app` (`GET /properties` 200, `/saved` 401). Full map +
+  runbook in **`docs/DEPLOY.md`**.
+- **`src/runMigrations.js`: apply `db/init.sql` before the migration baseline.** Managed Postgres
+  doesn't run `init.sql` via `docker-entrypoint-initdb.d`, so base tables were missing and the
+  ALTER-only baseline failed (`relation "properties" does not exist`). init.sql is idempotent →
+  no-op on existing DBs, self-provisions fresh managed ones. Also fixes the fresh-test-DB path.
+- **`deploy/minio/Dockerfile` (new):** builds MinIO with its server command baked in exec-form.
+  The official image's shell-less base can't run Railway's shell-wrapped start command, and
+  `bitnami/minio` no longer pulls (Bitnami 2025 Docker Hub changes). MinIO is deployed from this.
+- Ripple: image URLs need no change — `S3_PUBLIC_BASE` is set absolute, and the client already
+  passes through `http…` URLs (`useApi.js`). Dev docker-compose path is unaffected (init.sql still
+  runs via the DB init mount; re-applying it in runMigrations is a no-op).
+- Follow-ups tracked in `docs/DEPLOY.md`: prod Clerk keys, lock CORS, custom domains, Node 22.
+
 ### 2026-09-12 (UX: property navigation + in-listing location drawer)
 - **Tapping a property now slides in from the right** (stack push with the existing top-left back
   button) instead of popping up as a bottom-sheet modal. Changed `app/_layout.js` — the
