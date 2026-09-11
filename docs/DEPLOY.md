@@ -47,7 +47,15 @@ URLs as-is (`useApi.js`: `u.startsWith("http") ? u : BASE+u`).
 
 ## Operating it
 - **Deploy:** push to `master` → api/worker/minio auto-build. Or re-attach source / `redeploy` via the Railway MCP/CLI.
-- **Seed prod demo data:** `railway run --service api node scripts/seed-demo.js` (creates Clerk owners in the **current** Clerk instance + 112 listings). The base seed from `init.sql` is already present.
+- **Seed prod demo data:** must run *inside* Railway's network (the DB uses private DNS, and
+  `railway run` executes locally so it can't reach `postgres.railway.internal`). Done once already
+  (124 properties total: 112 demo + base seed; 12 loginable owners — credentials in `TEST_DATA.md`).
+  To re-seed: temporarily point the **worker** at the script — `update-service` worker
+  `startCommand=node scripts/seed-demo.js` + `restartPolicyType=NEVER`, re-attach source to deploy,
+  read logs, then restore `startCommand=node src/worker.js` + `ON_FAILURE` and re-attach source.
+  (A dedicated `seed` service is cleaner but the free plan caps the project at 5 services.)
+  Note: `redeploy` reuses the previous config snapshot — re-attaching the GitHub source is what
+  forces a fresh deploy that picks up a changed start command.
 - **Logs / status:** Railway dashboard, or the Railway MCP (`get-status`, `get-logs`).
 
 ## Point the mobile app at prod (Phase 3)
