@@ -1,6 +1,6 @@
 import { useTheme } from "../../src/context/ThemeContext";
 import React, { useState, useRef, useCallback, useMemo, useEffect } from "react";
-import { View, Text, ScrollView, Pressable, Platform, StyleSheet, Modal, Linking } from "react-native";
+import { View, Text, ScrollView, Pressable, Platform, StyleSheet } from "react-native";
 import { useRouter, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useAuth } from "@clerk/clerk-expo";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -51,14 +51,9 @@ export default function MapScreen() {
   apiRef.current = api;
   const mapRef = useRef(null);
 
-  const [selected, setSelected] = useState(null);
   const [properties, setProperties] = useState(SEED_PROPERTIES);
   const [region, setRegion] = useState(INITIAL_REGION);
-  const [sheet, setSheet] = useState(null); // property tapped on the map → action sheet
   const [mapType, setMapType] = useState("standard"); // standard | satellite (good for Land)
-  const scrollRef = useRef(null);          // page scroll — for list↔map sync
-  const listTop   = useRef(0);             // Y offset of the list container within the scroll
-  const cardY     = useRef({});            // per-listing Y within the list container
 
   // A listing's "view on map" deep-links here with lat/lng (+ t nonce for repeat taps).
   const params = useLocalSearchParams();
@@ -94,34 +89,8 @@ export default function MapScreen() {
     mapRef.current?.animateToRegion(next, 350);
   };
 
-  // "Locate on map" — center + zoom the map onto a single property's pin.
-  const locateOnMap = (p) => {
-    const lat = p.lat ?? p.latitude, lng = p.lng ?? p.longitude;
-    setSheet(null);
-    if (lat == null || lng == null) return;
-    const next = { latitude: lat, longitude: lng, latitudeDelta: 0.01, longitudeDelta: 0.01 };
-    setRegion(next);
-    mapRef.current?.animateToRegion(next, 450);
-  };
-
-  const openDetails = (p) => { setSheet(null); router.push(`/property/${p.id}`); };
-
-  // Open turn-by-turn directions to the pin in the device Maps app.
-  const getDirections = (p) => {
-    setSheet(null);
-    const lat = p.lat ?? p.latitude, lng = p.lng ?? p.longitude;
-    if (lat == null || lng == null) return;
-    Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`).catch(() => {});
-  };
-
-  // Scroll the page to a listing's card (used to sync map pin → list).
-  const scrollToCard = (id) => {
-    const y = cardY.current[id];
-    if (y != null && scrollRef.current) scrollRef.current.scrollTo({ y: listTop.current + y - 16, animated: true });
-  };
-
-  // Tapping a pin opens the action sheet AND highlights + scrolls to its list card.
-  const onPinTap = (p) => { setSelected(p.id); scrollToCard(p.id); setSheet(p); };
+  // Tapping any property (map pin or list card) slides in the full detail screen.
+  const openDetails = (p) => router.push(`/property/${p.id}`);
 
   // "Search this area" — re-query listings near the current map center. Radius ≈ half the
   // visible span (deg → km). Falls back silently if the API is unreachable.
@@ -155,7 +124,7 @@ export default function MapScreen() {
         <Text style={{ color: C.fg, fontFamily: FONT_HEAD, fontSize: 38, fontWeight: "400", letterSpacing: -1, lineHeight: 40 }}>Map View.</Text>
       </View>
 
-      <ScrollView ref={scrollRef} contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 130 }}>
+      <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 130 }}>
         {/* Signed-out notice */}
         {!isSignedIn && (
           <View style={[glassCard(), { padding: 14, marginBottom: 16, flexDirection: "row", alignItems: "center", gap: 12, borderColor: C.red + "40" }]}>
@@ -204,7 +173,7 @@ export default function MapScreen() {
                     <Marker
                       coordinate={{ latitude: c.lat, longitude: c.lng }}
                       anchor={{ x: 0.5, y: 1 }}
-                      onPress={() => onPinTap(c.property)}
+                      onPress={() => openDetails(c.property)}
                     >
                       <View style={styles.priceBubble}>
                         <Text style={styles.priceText} numberOfLines={1}>{priceLabel(c.property)}</Text>
@@ -268,78 +237,31 @@ export default function MapScreen() {
         <Text style={{ color: C.fg, fontSize: 22, letterSpacing: -0.4, fontFamily: FONT_HEAD, marginBottom: 12 }}>
           {properties.length} Properties
         </Text>
-        <View style={{ gap: 10 }} onLayout={e => { listTop.current = e.nativeEvent.layout.y; }}>
-          {properties.map(p => {
-            const active = selected === p.id;
-            return (
+        <View style={{ gap: 10 }}>
+          {properties.map(p => (
               <Pressable
                 key={p.id}
-                onLayout={e => { cardY.current[p.id] = e.nativeEvent.layout.y; }}
-                onPress={() => { setSelected(p.id); setSheet(p); }}
+                onPress={() => openDetails(p)}
                 style={[glassCard(), {
                   padding: 14, flexDirection: "row", alignItems: "center", gap: 12,
-                  backgroundColor: active ? C.amber : C.glassBg,
+                  backgroundColor: C.glassBg,
                 }]}
               >
                 <Text style={{ fontSize: 28 }}>{p.img || "🏠"}</Text>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 14, color: active ? C.ink : C.fg, fontFamily: FONT_MED }}>{p.title}</Text>
+                  <Text style={{ fontSize: 14, color: C.fg, fontFamily: FONT_MED }}>{p.title}</Text>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
-                    <Icon name="pin" size={11} color={active ? C.ink : C.fgDim} />
-                    <Text style={{ fontSize: 12, color: active ? C.ink : C.fgDim, fontFamily: FONT }}>{p.location}</Text>
+                    <Icon name="pin" size={11} color={C.fgDim} />
+                    <Text style={{ fontSize: 12, color: C.fgDim, fontFamily: FONT }}>{p.location}</Text>
                   </View>
                 </View>
-                <Text style={{ fontSize: 14, color: active ? C.ink : C.amber, fontFamily: FONT_MED }}>
+                <Text style={{ fontSize: 14, color: C.amber, fontFamily: FONT_MED }}>
                   {typeof p.price === "number" ? `₹${p.price}` : p.price}
                 </Text>
               </Pressable>
-            );
-          })}
+          ))}
         </View>
       </ScrollView>
-
-      {/* Map pin tap → action sheet: view details or locate on map */}
-      {sheet && (
-        <Modal transparent animationType="fade" visible onRequestClose={() => setSheet(null)}>
-          <Pressable onPress={() => setSheet(null)} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" }}>
-            <Pressable onPress={() => {}} style={{ backgroundColor: C.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: insets.bottom + 20, gap: 12, borderTopWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder }}>
-              <View style={{ alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: C.glassBorder, marginBottom: 4 }} />
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 4 }}>
-                <Text style={{ fontSize: 26 }}>{sheet.img || "🏠"}</Text>
-                <View style={{ flex: 1 }}>
-                  <Text numberOfLines={1} style={{ color: C.fg, fontFamily: FONT_MED, fontSize: 15 }}>{sheet.title}</Text>
-                  <Text numberOfLines={1} style={{ color: C.fgDim, fontFamily: FONT, fontSize: 12, marginTop: 2 }}>{sheet.location}</Text>
-                </View>
-                <Text style={{ color: C.amber, fontFamily: FONT_MED, fontSize: 14 }}>
-                  {typeof sheet.price === "number" ? `₹${sheet.price}` : sheet.price}
-                </Text>
-              </View>
-
-              <Pressable onPress={() => openDetails(sheet)} style={{ flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: C.amber, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 16 }}>
-                <Icon name="search" size={18} color={C.ink} strokeWidth={2} />
-                <Text style={{ color: C.ink, fontFamily: FONT_MED, fontSize: 14 }}>View more details</Text>
-              </Pressable>
-
-              {((sheet.lat ?? sheet.latitude) != null && (sheet.lng ?? sheet.longitude) != null) && (
-                <>
-                  <Pressable onPress={() => locateOnMap(sheet)} style={{ flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: C.chipBg, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 16, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder }}>
-                    <Icon name="pin" size={18} color={C.fg} strokeWidth={2} />
-                    <Text style={{ color: C.fg, fontFamily: FONT_MED, fontSize: 14 }}>Locate on map</Text>
-                  </Pressable>
-                  <Pressable onPress={() => getDirections(sheet)} style={{ flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: C.chipBg, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 16, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder }}>
-                    <Icon name="compass" size={18} color={C.fg} strokeWidth={2} />
-                    <Text style={{ color: C.fg, fontFamily: FONT_MED, fontSize: 14 }}>Get directions</Text>
-                  </Pressable>
-                </>
-              )}
-
-              <Pressable onPress={() => setSheet(null)} style={{ alignItems: "center", paddingVertical: 8 }}>
-                <Text style={{ color: C.fgDim, fontFamily: FONT, fontSize: 13 }}>Cancel</Text>
-              </Pressable>
-            </Pressable>
-          </Pressable>
-        </Modal>
-      )}
     </View>
   );
 }
