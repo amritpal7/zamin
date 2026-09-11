@@ -59,11 +59,18 @@ URLs as-is (`useApi.js`: `u.startsWith("http") ? u : BASE+u`).
 - **Logs / status:** Railway dashboard, or the Railway MCP (`get-status`, `get-logs`).
 
 ## Point the mobile app at prod (Phase 3)
-Build-time env for the app (bare API root — no `/api`, there's no nginx in prod):
+**Wired:** `mobile/eas.json` sets these on the **preview** + **production** build profiles, so
+those builds hit prod. Local dev is untouched (it still reads `EXPO_PUBLIC_API_URL` from
+docker-compose). Both `useApi.js` and `SocketContext.js` resolve `extra.apiUrl → EXPO_PUBLIC_API_URL
+→ localhost`; the socket strips a trailing `/api`, so the bare-root prod URL (no `/api`, no nginx in
+prod) works for REST *and* realtime.
 ```
 EXPO_PUBLIC_API_URL=https://api-production-43dd.up.railway.app
-EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_…   # swap to pk_live_… with prod Clerk
+EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_…   # swap to pk_live_… with prod Clerk (Phase 2)
 ```
+- **Build against prod:** `cd mobile && eas build --profile preview --platform ios` (or `android`).
+- **Test locally against prod** (no build): `EXPO_PUBLIC_API_URL=https://api-production-43dd.up.railway.app EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_cG9saXRlLWdpcmFmZmUtMzkuY2xlcmsuYWNjb3VudHMuZGV2JA npx expo start -c`
+- When prod Clerk lands, update the key in **both** `eas.json` profiles.
 
 ## Remaining follow-ups before public launch
 - [ ] **Production Clerk instance** — currently using `pk_test_/sk_test_` (test mode). Create a prod instance, swap `CLERK_SECRET_KEY` + `CLERK_PUBLISHABLE_KEY` (api) and the app's publishable key.

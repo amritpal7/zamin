@@ -12,6 +12,14 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-12 (ops: point mobile app at prod API)
+- **`mobile/eas.json`:** added `env` (`EXPO_PUBLIC_API_URL` = the Railway API,
+  `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`) to the **preview** + **production** build profiles, so those
+  builds talk to prod. Local dev is unchanged (still reads the env from docker-compose). Works for
+  both REST (`useApi.js`) and realtime (`SocketContext.js` — it strips a trailing `/api`, so the
+  bare-root prod URL is fine). Prod DB already seeded (124 listings, 12 loginable owners). Publishable
+  key is safe to commit (client-side, test-mode); swap both profiles when prod Clerk lands.
+
 ### 2026-09-12 (ops: Phase 1 cloud deploy — backend live on Railway)
 - **The backend is deployed to Railway** (project `zamin-prod`): `api` + `worker` (from the
   GitHub repo, root `backend/`), managed `Postgres` + `Redis` (with volumes), and `minio`
