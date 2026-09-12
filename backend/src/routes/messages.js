@@ -200,6 +200,19 @@ router.post("/proposal/:id/respond", async (req, res) => {
     if (!rows[0]) return res.status(404).json({ error: "Not found or not allowed" });
     const io = req.app.get("io");
     if (io) io.to(String(rows[0].sender_id)).to(String(rows[0].receiver_id)).emit("message-update", rows[0]);
+    // Notify the PROPOSER that their proposal was answered (push + in-app feed) — mirrors
+    // create/counter and first-class visits, which already notify. Without this, an offer/visit
+    // accepted or declined while the proposer's app is closed goes unseen. Best-effort.
+    const isVisit = rows[0].type === "visit";
+    const title = status === "accepted"
+      ? (isVisit ? "Visit accepted" : "Offer accepted")
+      : (isVisit ? "Visit declined" : "Offer declined");
+    const body = status === "accepted" ? "Your proposal was accepted." : "Your proposal was declined.";
+    const data = { propertyId: rows[0].property_id, peer: userId, kind: "chat" };
+    sendPush(rows[0].sender_id, { title, body, data });
+    try {
+      await createNotification(pool, rows[0].sender_id, { type: "new_message", title, body, data });
+    } catch (e) { console.error("proposal-respond notification failed:", e.message); }
     res.json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -221,10 +234,17 @@ router.post("/proposal/:id/counter", async (req, res) => {
     const v = proposalValue(kind, req.body.value);
     if (v === null) return res.status(400).json({ error: kind === "visit" ? "Invalid date/time" : "Invalid amount" });
 
+    // Atomically flip pending → countered. The guard (receiver + still-pending) makes this
+    // safe against a concurrent accept/decline or a double-counter: only one transition wins.
+    // Value is validated ABOVE (before the flip) so an invalid counter can't leave the original
+    // "countered" with no reply sent.
     const updatedOrig = (await pool.query(
-      `UPDATE messages SET meta = jsonb_set(meta, '{status}', to_jsonb('countered'::text)) WHERE id = $1 RETURNING *`,
-      [orig.id]
+      `UPDATE messages SET meta = jsonb_set(meta, '{status}', to_jsonb('countered'::text))
+        WHERE id = $1 AND receiver_id = $2 AND type IN ('visit','offer') AND meta->>'status' = 'pending'
+        RETURNING *`,
+      [orig.id, userId]
     )).rows[0];
+    if (!updatedOrig) return res.status(409).json({ error: "This proposal was already answered." });
     const created = await createProposal(pool, {
       propertyId: orig.property_id, senderId: userId, receiverId: orig.sender_id, kind, value: v,
       extraMeta: { counter_of: orig.id }, sender: req.body,

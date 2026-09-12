@@ -12,6 +12,17 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-12 (fix: chat proposal counter race + silent accept/decline — visits/offers pass)
+- **Counter race:** the proposal counter flow checked "pending" in a `SELECT` then flipped the status
+  with an unguarded `UPDATE`, so a concurrent accept/decline (or double-counter) could clobber the
+  outcome. Now a single guarded UPDATE (`receiver + still-pending`, aborts 409 on loss); value is
+  validated before the flip. `backend/src/routes/messages.js`.
+- **Silent accept/decline:** responding to a chat offer/visit proposal only emitted a socket event —
+  no push / in-app notification — so a proposer with the app closed never learned the outcome
+  (create/counter/first-class-visits already notify). Added a push + feed notification to the proposer.
+- Added 4 proposal tests (were untested); reviewed first-class `/visits` + Visits screen (solid).
+  **99 backend tests pass.** BUGLOG: new "atomic status transition" guardrail.
+
 ### 2026-09-12 (ops: scope Railway rebuilds; RN-web layout sweep clean)
 - **Ops:** set `watchPatterns` on the Railway services (`api`/`worker` → `backend/**`, `minio` →
   `deploy/minio/**`) so a push only rebuilds what changed — mobile-only pushes no longer trigger

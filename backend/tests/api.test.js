@@ -493,6 +493,69 @@ describe("in-app visit scheduling", () => {
   });
 });
 
+describe("chat proposals (offers / visits)", () => {
+  let pid; // USER_A's listing
+  beforeAll(async () => {
+    const create = await request(app).post("/properties").set("x-test-user", USER_A)
+      .send({ ...sampleListing, title: "Proposal Listing" });
+    pid = create.body.id;
+  });
+  const makeOffer = (from, to, amount = 5000000) =>
+    request(app).post(`/messages/${pid}/proposal`).set("x-test-user", from)
+      .send({ kind: "offer", receiver_id: to, value: amount, sender_name: "Tester" });
+
+  test("create → only the recipient can accept → proposer is notified", async () => {
+    const offer = await makeOffer(USER_B, USER_A);
+    expect(offer.status).toBe(201);
+    expect(offer.body.type).toBe("offer");
+    expect(offer.body.meta.status).toBe("pending");
+
+    // the proposer can't respond to their own proposal
+    expect((await request(app).post(`/messages/proposal/${offer.body.id}/respond`)
+      .set("x-test-user", USER_B).send({ status: "accepted" })).status).toBe(404);
+
+    const resp = await request(app).post(`/messages/proposal/${offer.body.id}/respond`)
+      .set("x-test-user", USER_A).send({ status: "accepted" });
+    expect(resp.status).toBe(200);
+    expect(resp.body.meta.status).toBe("accepted");
+
+    // proposer (USER_B) is notified their offer was answered (regression: respond used to be silent)
+    const notifs = await request(app).get("/notifications").set("x-test-user", USER_B);
+    expect(notifs.body.notifications.some((n) => /accepted/i.test(n.title || ""))).toBe(true);
+
+    // can't respond again once it's no longer pending
+    expect((await request(app).post(`/messages/proposal/${offer.body.id}/respond`)
+      .set("x-test-user", USER_A).send({ status: "declined" })).status).toBe(404);
+  });
+
+  test("recipient counters → original 'countered' + a fresh proposal sent back", async () => {
+    const offer = await makeOffer(USER_B, USER_A, 4000000);
+    const counter = await request(app).post(`/messages/proposal/${offer.body.id}/counter`)
+      .set("x-test-user", USER_A).send({ value: 4500000, sender_name: "Owner" });
+    expect(counter.status).toBe(201);
+    expect(counter.body.original.meta.status).toBe("countered");
+    expect(counter.body.proposal.meta.status).toBe("pending");
+    expect(String(counter.body.proposal.sender_id)).toBe(USER_A);
+    expect(String(counter.body.proposal.receiver_id)).toBe(USER_B);
+    expect(counter.body.proposal.meta.counter_of).toBe(offer.body.id);
+  });
+
+  test("counter guard: can't counter a proposal that's already been answered", async () => {
+    const offer = await makeOffer(USER_B, USER_A, 3000000);
+    await request(app).post(`/messages/proposal/${offer.body.id}/respond`)
+      .set("x-test-user", USER_A).send({ status: "accepted" });
+    const counter = await request(app).post(`/messages/proposal/${offer.body.id}/counter`)
+      .set("x-test-user", USER_A).send({ value: 3500000 });
+    expect([404, 409]).toContain(counter.status);
+  });
+
+  test("rejects invalid amount and self-addressed proposals", async () => {
+    expect((await makeOffer(USER_B, USER_A, -1)).status).toBe(400);
+    expect((await request(app).post(`/messages/${pid}/proposal`).set("x-test-user", USER_B)
+      .send({ kind: "offer", receiver_id: USER_B, value: 100 })).status).toBe(400);
+  });
+});
+
 describe("saved searches + notifications", () => {
   test("saved-search CRUD (auth-scoped)", async () => {
     expect((await request(app).get("/saved-searches")).status).toBe(401);

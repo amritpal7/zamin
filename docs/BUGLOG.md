@@ -20,9 +20,26 @@ of bug while building new features. Newest first. Update this whenever we fix a 
 | **Stray `</content>` appended by the Write tool** | many | After writing files, strip lines matching `^</content>$`. |
 | **`parseFloat` on formatted strings** | 2 | `parseFloat("₹2.4 Cr")` is `NaN` (leading symbol) and `parseFloat("3,200")` is `3` (stops at comma). Strip currency/commas and match the numeric token before parsing. |
 | **Location-privacy: redacting a field ≠ hiding the row** | 1 | A `hidden` listing keeps real coords in the DB, so it passes a geo `WHERE` and its distance is only *redacted* after the query — but its mere presence in a radius result leaks it's within `radius`. For proximity/geo queries, **exclude** privacy-restricted rows in SQL (unless the viewer owns them); don't just null the field post-query. |
+| **Status transitions must be atomic — guard the UPDATE, not just a prior SELECT** | 1 | A SELECT that checks `status='pending'` followed by an unguarded `UPDATE … WHERE id=$1` is a TOCTOU race: a concurrent transition slips in between. Put the state guard in the UPDATE itself (`… AND meta->>'status'='pending' RETURNING *`) and treat 0 rows as "already answered" (409). Validate inputs *before* the flip so a later failure can't strand a half-applied state. (Proposal counter hit this; `respond` and `/visits` already did it right.) |
 | **Dev-only URL/path assumptions break in prod** | 2 | Dev routes everything through nginx (`/api/*`, `/media/*`); prod talks to the API directly with absolute object URLs. Hardcoded dev paths silently break in prod: (1) thumbnail derivation keyed on `u.includes("/media/")` → prod URLs are `…/zamin/properties/<id>.jpg`; (2) **Socket.io path hardcoded `/api/socket.io`** (nginx-strips-`/api`) → prod serves `/socket.io`, so realtime never connected. Derive paths from whether BASE has an `/api` prefix (`utils/net.js socketConfig`), and detect our images by a scheme-independent key pattern. After a dev→cloud switch, grep the client for `/media`, `/api/`, `localhost`, `.railway.internal`. |
 
 ## Log
+
+### 2026-09-12 (visits/offers hardening pass — proposal counter race + silent accept/decline)
+- **Chat-proposal counter had a TOCTOU race.** It `SELECT`ed the original (checking pending), then
+  flipped it to `countered` with an unguarded `UPDATE … WHERE id=$1` — so a concurrent accept/decline
+  (or a double-counter) could clobber the real outcome. **Fix:** single guarded UPDATE (`receiver +
+  still-pending`) that aborts 409 if it lost the race; value validated before the flip so an invalid
+  counter can't strand the original as "countered". **Category:** concurrency / atomicity.
+- **Accept/decline of a chat proposal was silent.** `respond` only emitted a socket `message-update` —
+  no push / in-app notification — so a proposer with the app closed never learned their offer/visit was
+  answered (create, counter, and first-class visits all notify). **Fix:** push + feed notification to
+  the proposer on respond. **Category:** notification gap.
+- Added 4 proposal tests (create→accept→notify, counter, counter-guard, validation) — chat proposals
+  were untested. Reviewed first-class `/visits` + the Visits screen: solid (atomic transitions, focus
+  refresh, optimistic-with-revert). 99 backend tests pass.
+- *Noted (not a bug, product decision):* accepting a *chat* "visit" proposal does not create a
+  first-class `/visits` row — the two systems are intentionally separate (informal vs. booked).
 
 ### 2026-09-12 (auth hardening pass — AuthGuard only protected the tab group)
 - **Signed-out users could land on authenticated non-tab screens.** The `AuthGuard` only redirected
