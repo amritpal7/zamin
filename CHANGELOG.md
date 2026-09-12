@@ -12,6 +12,15 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-12 (ops: scope Railway rebuilds; RN-web layout sweep clean)
+- **Ops:** set `watchPatterns` on the Railway services (`api`/`worker` → `backend/**`, `minio` →
+  `deploy/minio/**`) so a push only rebuilds what changed — mobile-only pushes no longer trigger
+  backend rebuilds. Documented in `docs/DEPLOY.md` (incl. the `redeploy`-reuses-config gotcha).
+- **RN-web layout sweep — clean (no changes).** Audited every horizontal `ScrollView`: card/photo
+  rows have fixed-height children (150px cards, 92×92 tiles), chip rows get height from text+padding,
+  and the one genuinely at-risk spot (`chat/[id]` quick-replies) is already wrapped in a fixed-height
+  row. Chat composer keyboard handling (`KeyboardAvoidingView`) is fine. Guardrails already followed.
+
 ### 2026-09-12 (fix: AuthGuard only protected the tab group — auth pass)
 - **Signed-out users could reach authenticated non-tab screens** (`chat`, `messages`, `my-listings`,
   `settings`, `visits`, `notifications`, `saved-searches`, `property/edit`) via push deep-links, web

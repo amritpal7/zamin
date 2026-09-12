@@ -46,7 +46,11 @@ Image URLs work unchanged because `S3_PUBLIC_BASE` is absolute — the client us
 URLs as-is (`useApi.js`: `u.startsWith("http") ? u : BASE+u`).
 
 ## Operating it
-- **Deploy:** push to `master` → api/worker/minio auto-build. Or re-attach source / `redeploy` via the Railway MCP/CLI.
+- **Deploy:** push to `master` → auto-build. Each service has **`watchPatterns`** so a push only
+  rebuilds what changed: `api` + `worker` on `backend/**`, `minio` on `deploy/minio/**` (mobile-only
+  pushes rebuild nothing). Or re-attach source / `redeploy` via the Railway MCP/CLI.
+  - ⚠️ `redeploy` reuses the previous config snapshot — to pick up a changed start command / root
+    dir, **re-attach the GitHub source** instead (forces a fresh build with current config).
 - **Seed prod demo data:** must run *inside* Railway's network (the DB uses private DNS, and
   `railway run` executes locally so it can't reach `postgres.railway.internal`). Done once already
   (124 properties total: 112 demo + base seed; 12 loginable owners — credentials in `TEST_DATA.md`).
