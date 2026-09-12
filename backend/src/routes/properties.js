@@ -215,12 +215,24 @@ router.get("/", async (req, res) => {
     const glat = parseFloat(lat), glng = parseFloat(lng);
     const hasGeo = Number.isFinite(glat) && Number.isFinite(glng);
 
+    // Viewer identity (safe/null on this public route) — needed up-front so a proximity
+    // search can keep the viewer's OWN hidden listings while excluding everyone else's.
+    const { userId } = getAuth(req);
+
     const params = [];
     if (hasGeo) params.push(glat, glng); // $1, $2
 
     // Soft-hide: deleted/flagged owners (owner_active) and moderation-flagged listings (flagged).
     let where = "owner_active IS DISTINCT FROM false AND flagged IS DISTINCT FROM true";
-    if (hasGeo) where += " AND latitude IS NOT NULL AND longitude IS NOT NULL";
+    if (hasGeo) {
+      where += " AND latitude IS NOT NULL AND longitude IS NOT NULL";
+      // A 'hidden' listing must NOT surface in a proximity search: even with its coords
+      // redacted, its mere presence leaks that it's within `radius` of the search point
+      // (the stated privacy intent is "hidden → no coordinates AND no distance"). Owners
+      // still see their own. Non-geo browse keeps listing hidden properties (sans pin).
+      params.push(userId);
+      where += ` AND (location_visibility IS DISTINCT FROM 'hidden' OR clerk_user_id = $${params.length})`;
+    }
     if (type && type !== "All")   { params.push(type);   where += ` AND type = $${params.length}`; }
     if (status && status !== "All") { params.push(status); where += ` AND status = $${params.length}`; }
     if (search) {
@@ -260,9 +272,7 @@ router.get("/", async (req, res) => {
     );
 
     // Enforce per-listing location privacy before anything leaves the server. The
-    // owner (viewerId) always sees their own exact coords. getAuth is safe on this
-    // public route — it returns null userId when unauthenticated.
-    const { userId } = getAuth(req);
+    // owner (userId, resolved above) always sees their own exact coords.
     res.json({
       items: rows.map((r) => redactLocation(r, userId)),
       total, limit, offset,

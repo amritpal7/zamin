@@ -19,8 +19,24 @@ of bug while building new features. Newest first. Update this whenever we fix a 
 | **mobile `npm install` ERESOLVE** | 2 | Install in the mobile container with `--legacy-peer-deps` (matches its Dockerfile). Now pinned via `mobile/.npmrc` (`legacy-peer-deps=true`) so `npm ci` works in CI too. |
 | **Stray `</content>` appended by the Write tool** | many | After writing files, strip lines matching `^</content>$`. |
 | **`parseFloat` on formatted strings** | 2 | `parseFloat("₹2.4 Cr")` is `NaN` (leading symbol) and `parseFloat("3,200")` is `3` (stops at comma). Strip currency/commas and match the numeric token before parsing. |
+| **Location-privacy: redacting a field ≠ hiding the row** | 1 | A `hidden` listing keeps real coords in the DB, so it passes a geo `WHERE` and its distance is only *redacted* after the query — but its mere presence in a radius result leaks it's within `radius`. For proximity/geo queries, **exclude** privacy-restricted rows in SQL (unless the viewer owns them); don't just null the field post-query. |
 
 ## Log
+
+### 2026-09-12 (geo/near-me leaked the proximity of `hidden` listings)
+- **`hidden`-visibility listings surfaced in near-me search.** Root cause: `GET /properties?lat&lng`
+  filters by the real coords + computes `distance_km`, then `redactLocation` nulls the distance for
+  `hidden` listings — but returning the row *at all* leaks that it sits within `radius` of the search
+  point, contradicting the privacy intent ("hidden → no coordinates AND no distance"). **Category:**
+  authz / data exposure (location privacy).
+  - *Fix:* exclude `hidden` listings from geo results unless the viewer owns them
+    (`location_visibility IS DISTINCT FROM 'hidden' OR clerk_user_id = $viewer`), resolving `getAuth`
+    up-front. Non-geo browse still lists them (without a pin). `backend/src/routes/properties.js`.
+  - *How found:* the geo ordering test began failing once `seed-demo` added `hidden` listings near
+    Bengaluru to the dev/test DB — the redacted `distance_km` (null→0) broke the sort assertion, which
+    pointed straight at the leak. Also hardened that test to assert ordering on two *exact* rows it
+    controls (privacy-coarsened `approximate` distances legitimately aren't strictly monotonic).
+  - *Guardrail (added above):* redacting a field ≠ hiding the row.
 
 ### 2026-09-03 (mobile test setup surfaced two live parsing bugs)
 - **`priceToRupees` returned null for every ₹-prefixed price.** Root cause: `parseFloat("₹2.4 Cr")`

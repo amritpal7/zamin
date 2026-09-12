@@ -128,16 +128,26 @@ describe("geo / near-me search", () => {
   });
 
   test("returns listings within radius, sorted by distance, with distance_km", async () => {
+    // A second EXACT listing, clearly farther than nearId but still within radius.
+    const mid = await request(app).post("/properties").set("x-test-user", USER_A)
+      .send({ ...sampleListing, title: "Mid BLR", latitude: 13.05, longitude: 77.66 });
+    const midId = mid.body.id;
+
     const res = await request(app).get("/properties?lat=12.9716&lng=77.5946&radius=25");
     expect(res.status).toBe(200);
     const near = res.body.items.find((p) => p.id === nearId);
+    const midItem = res.body.items.find((p) => p.id === midId);
     expect(near).toBeDefined();
+    expect(midItem).toBeDefined();
     expect(Number(near.distance_km)).toBeLessThan(25);
     // the far listing (Delhi, ~1700 km) is excluded by the 25 km radius
     expect(res.body.items.some((p) => p.id === farId)).toBe(false);
-    // results are ascending by distance
-    const dists = res.body.items.map((p) => Number(p.distance_km));
-    for (let i = 1; i < dists.length; i++) expect(dists[i]).toBeGreaterThanOrEqual(dists[i - 1] - 0.001);
+    // Assert ordering on two EXACT rows the test controls (so unrelated seed data and the
+    // privacy-coarsened distance of `approximate` listings can't make this flaky): the
+    // nearer one has the smaller true distance AND appears earlier in the sorted results.
+    expect(Number(near.distance_km)).toBeLessThan(Number(midItem.distance_km));
+    expect(res.body.items.findIndex((p) => p.id === nearId))
+      .toBeLessThan(res.body.items.findIndex((p) => p.id === midId));
   });
 
   test("without geo params → normal list, no distance_km", async () => {
@@ -145,6 +155,21 @@ describe("geo / near-me search", () => {
     const near = res.body.items.find((p) => p.id === nearId);
     expect(near).toBeDefined();
     expect(near.distance_km).toBeUndefined();
+  });
+
+  test("'hidden' listings are excluded from proximity results for non-owners (no proximity leak), but the owner still sees their own", async () => {
+    const hidden = await request(app).post("/properties").set("x-test-user", USER_A)
+      .send({ ...sampleListing, title: "Hidden BLR", latitude: 12.972, longitude: 77.595, location_visibility: "hidden" });
+    const hiddenId = hidden.body.id;
+    // anonymous near-me: the hidden listing must NOT appear (its presence would leak proximity)
+    const anon = await request(app).get("/properties?lat=12.9716&lng=77.5946&radius=25");
+    expect(anon.body.items.some((p) => p.id === hiddenId)).toBe(false);
+    // the owner still sees their own hidden listing in proximity results
+    const owner = await request(app).get("/properties?lat=12.9716&lng=77.5946&radius=25").set("x-test-user", USER_A);
+    expect(owner.body.items.some((p) => p.id === hiddenId)).toBe(true);
+    // non-geo browse still lists it (just without a pin)
+    const browse = await request(app).get("/properties?limit=100");
+    expect(browse.body.total).toBeGreaterThan(0);
   });
 });
 

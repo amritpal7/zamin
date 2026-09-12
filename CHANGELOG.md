@@ -12,6 +12,20 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-12 (fix: geo/near-me leaked proximity of `hidden` listings + green test suites)
+- **Privacy fix:** `hidden` listings no longer appear in proximity/near-me results for non-owners.
+  They kept real coords in the DB, so they passed the geo `WHERE` and only had `distance_km`
+  *redacted* after the query — but their presence leaked "within `radius`" of the search point.
+  Now excluded in SQL unless the viewer owns them (`backend/src/routes/properties.js`; `getAuth`
+  resolved up-front). Non-geo browse still lists them (without a pin). Ripple: mobile near-me/map
+  "search this area" simply stops returning hidden listings (which had no pin anyway) — no client
+  change. BUGLOG entry + guardrail added.
+- **Tests green again (95 backend, 23 mobile).** The geo ordering test was asserting strict
+  monotonicity on *displayed* distances, which isn't guaranteed once `approximate` listings coarsen
+  their distance to 0.5 km buckets — rewrote it to assert ordering on two exact rows it controls, and
+  added a regression test for the hidden-exclusion. Mobile suite was a stale-container-volume miss of
+  `@react-native/jest-preset` (already declared in `package.json`; a fresh `npm ci` has it).
+
 ### 2026-09-12 (docs: production Clerk plan — Phase 2)
 - **`docs/CLERK_PROD.md` (new):** turnkey production-Clerk setup, tuned to the decisions made
   (username + password only, **no Google** — confirmed the app has no Google sign-in button, so
