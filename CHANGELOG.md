@@ -12,6 +12,13 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-13 (ops: prod DB migrated to Neon)
+- **Prod Postgres is now Neon** (managed: branching, autoscale, PITR backups) — `DATABASE_URL` on
+  `api` + `worker` points at the Neon pooled endpoint (`sslmode=require`). Boot `runMigrations`
+  provisioned the schema; demo data re-seeded (118 properties, 12 owners). API verified 200; worker
+  reconcile + thumbnail running against Neon. The old Railway `Postgres` service/volume is now unused
+  (delete in dashboard). Docs updated (`docs/DEPLOY.md`), incl. the watchPatterns one-off gotcha.
+
 ### 2026-09-13 (ops: CodeRabbit config + Neon-ready Postgres)
 - **CodeRabbit:** added `.coderabbit.yaml` — automated PR review + secret scanning (gitleaks) with
   security-focused path instructions mirroring `docs/BUGLOG.md` guardrails + `vibe-check/AGENTS.md`.

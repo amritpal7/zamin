@@ -76,9 +76,21 @@ EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_…   # swap to pk_live_… with prod 
 - **Test locally against prod** (no build): `EXPO_PUBLIC_API_URL=https://api-production-43dd.up.railway.app EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_cG9saXRlLWdpcmFmZmUtMzkuY2xlcmsuYWNjb3VudHMuZGV2JA npx expo start -c`
 - When prod Clerk lands, update the key in **both** `eas.json` profiles.
 
-## Switch to managed Postgres (Neon)
+## Managed Postgres — Neon ✅ (live since 2026-09-13)
 
-The prod DB is a single Railway `postgres:16` container on a 500 MB volume (no backups). Neon
+**Prod runs on Neon.** `DATABASE_URL` on `api` + `worker` points at the Neon **pooled** endpoint
+`ep-solitary-dream-axhb2ba6-pooler.c-4.us-east-2.aws.neon.tech/neondb` (project `old-cherry-55565801`,
+branch `production`, `sslmode=require`). Schema was provisioned by `runMigrations` on first boot and
+the demo data re-seeded (118 properties). **The Railway `Postgres` service + `pg-data` volume are now
+unused — delete them in the Railway dashboard** to stop paying for them.
+
+> Re-seed / worker one-off gotcha: the worker has `watchPatterns: ["backend/**"]`, so re-attaching the
+> source to the *same* commit is SKIPPED. To run a one-off (e.g. re-seed), temporarily
+> `update-service watchPatterns []`, re-attach source, then restore `["backend/**"]` after.
+
+<details><summary>Original migration runbook (kept for reference)</summary>
+
+The prod DB was a single Railway `postgres:16` container on a 500 MB volume (no backups). Neon
 adds branching, autoscale, and PITR backups. The code is **Neon-ready**: `db.js` enables TLS when
 the connection string has `?sslmode=require` (Neon) or `PGSSL=true`, and `runMigrations` passes the
 same SSL to node-pg-migrate. Schema self-provisions (init.sql + migrations), so migrating is a
@@ -92,6 +104,8 @@ same SSL to node-pg-migrate. Schema self-provisions (init.sql + migrations), so 
 5. Verify `GET /properties` returns data; then the Railway `Postgres` service + `pg-data` volume can
    be deleted.
 
+</details>
+
 ## Code review (CodeRabbit)
 
 `.coderabbit.yaml` (repo root) configures automated PR review + secret scanning (gitleaks), with
@@ -104,5 +118,5 @@ security-focused path instructions mirroring `docs/BUGLOG.md` guardrails + `vibe
 - [ ] **Lock CORS** — set `CORS_ORIGIN` on the api service once web origins are known (currently `*`).
 - [ ] **Custom domains** — e.g. `api.zamin.app` / `cdn.zamin.app` via `generate-domain` + DNS.
 - [ ] **Node 22** — AWS SDK v3 warns node ≥22 will be required after Jan 2027; bump the backend base image.
-- [ ] **Managed Postgres (Neon)** — code is Neon-ready (SSL); migrate via the runbook above. Redis can move to a managed plugin similarly. Raise pool size as traffic grows (see `LAUNCH.md` load notes).
+- [x] **Managed Postgres (Neon)** — DONE 2026-09-13 (see above); delete the old Railway `Postgres` service. Redis can move to a managed plugin similarly. Raise pool size as traffic grows (see `LAUNCH.md` load notes).
 - [ ] **CodeRabbit** — config committed (`.coderabbit.yaml`); install the GitHub app to activate PR reviews.
