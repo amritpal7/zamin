@@ -40,6 +40,46 @@ Three pillars we judge every change against:
 - [ ] **Confirm authorization on `saved`/`messages` routes** — ensure every handler enforces
       the Clerk user and ownership (audit `getAuth` usage).
 
+## Requested backlog — user wishlist (2026-09-13)
+
+Features and tech the user wants for future implementation. Not yet scheduled; triage into
+Now/Near/Medium as we pick them up.
+
+**Features**
+- [ ] **Quick actions** — fast contextual actions on a listing (e.g. long-press / swipe on a card,
+      or a share-sheet: Save, Share, Contact/WhatsApp, Hide, Report) so common tasks skip the detail screen.
+- [ ] **Delete account** — Settings UI + confirm flow. Clerk `delete_self` is already enabled;
+      also soft-remove/anonymize the user's listings + data (owner rows are denormalized — see rule #1).
+- [ ] **OAuth: Google & Apple sign-in.** Needs the **production Clerk instance** (`docs/CLERK_PROD.md`)
+      + each provider's OAuth creds. **Apple sign-in is App-Store-required** if any social login is offered.
+      (Note: the app has no social button today — dropping Google for launch was the Phase-2 decision.)
+- [~] **Login with phone number** — *already partially built*: `sign-in.js` has a phone→SMS-code flow and
+      `sign-up.js` supports phone signup. TODO: finalize + verify E2E against prod Clerk (needs SMS enabled).
+- [ ] **In-app video calls** — [Stream](https://getstream.io) video for buyer↔owner calls (SDK + tokens
+      minted server-side from the Clerk user; gate by a started conversation / block checks).
+- [ ] **"Near X" discovery** — near me / parks / metro / bus stand / railway station, etc. Extends the
+      existing Overpass "What's nearby" (`property/[id].js`): add POI-category filters + sort listings by
+      proximity to a chosen amenity. Consider precomputing nearest-POI distances at ingest for speed.
+
+**Tech / infra**
+- [ ] **Postgres on [Neon](https://neon.tech)** — swap the Railway `postgres:16` container for managed
+      Neon (branching, autoscale, PITR backups). Drop-in: change `DATABASE_URL` (`docs/DEPLOY.md`); run
+      `npm run migrate:up`. Low-risk since schema self-provisions via `runMigrations` (init.sql + migrations).
+- [ ] **[Sentry](https://sentry.io)** — error/crash + performance monitoring, backend (Express) + mobile
+      (Expo). Wire DSNs via env; scrub PII. Pairs with the "observability" platform item below.
+- [ ] **[CodeRabbit](https://coderabbit.ai)** — automated PR review + security-issue detection. Complements
+      the existing `vibe-check` audit; add as a GitHub app on the repo.
+- [ ] **[ImageKit](https://imagekit.io) for uploads** — replace the presign→MinIO→BullMQ-resize pipeline
+      with ImageKit upload + on-the-fly transforms/CDN (drops the worker's resize job and the `_thumb`
+      derivation; `thumbFor` becomes a transform URL). Re-point `S3_*`/upload code; keep the ownership
+      binding (`pending_uploads`).
+
+**Design**
+- [ ] **Latest-iOS "Liquid Glass" look** — richer translucency, glass/refraction materials, and fluid
+      motion (à la iOS 26). RN can approximate with `expo-blur` + layered gradients + Reanimated springs
+      (tab bar already uses blur + spring); true liquid-glass refraction would need a Skia/shader layer.
+      Do it as a scoped design pass (define glass tokens in `theme/`, apply to cards/sheets/nav).
+
 ## Near term (weeks)
 
 - [~] **Automated tests.** ✅ API smoke suite (`backend/tests/api.test.js`, Jest + Supertest: auth
