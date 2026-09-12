@@ -20,8 +20,26 @@ of bug while building new features. Newest first. Update this whenever we fix a 
 | **Stray `</content>` appended by the Write tool** | many | After writing files, strip lines matching `^</content>$`. |
 | **`parseFloat` on formatted strings** | 2 | `parseFloat("₹2.4 Cr")` is `NaN` (leading symbol) and `parseFloat("3,200")` is `3` (stops at comma). Strip currency/commas and match the numeric token before parsing. |
 | **Location-privacy: redacting a field ≠ hiding the row** | 1 | A `hidden` listing keeps real coords in the DB, so it passes a geo `WHERE` and its distance is only *redacted* after the query — but its mere presence in a radius result leaks it's within `radius`. For proximity/geo queries, **exclude** privacy-restricted rows in SQL (unless the viewer owns them); don't just null the field post-query. |
+| **Dev-only URL/path assumptions break in prod** | 1 | Prod object URLs are absolute (`…/zamin/properties/<id>.jpg`), not the dev `/media/…` — string checks like `u.includes("/media/")` silently fail in prod. Detect our stored images by a scheme-independent key pattern (`…/properties/<id>.jpg`), not the host/prefix. (Thumbnail derivation on listing edit hit this.) After the dev→cloud switch, grep for `/media`, `localhost`, `.railway.internal` assumptions in the client. |
 
 ## Log
+
+### 2026-09-12 (upload-flow hardening pass — thumbnail derivation broke in prod)
+- **Editing a listing in prod replaced every existing thumbnail with the full-res image URL.** Root
+  cause: for already-hosted images, the thumbnail was derived only when the URL contained `/media/`
+  (the dev path); prod URLs are absolute MinIO URLs (`…/zamin/properties/<id>.jpg`) with no `/media/`,
+  so it fell back to the full image as its own thumbnail — a silent bandwidth/perf regression on
+  every edit. **Category:** dev-vs-prod URL assumption.
+  - *Fix:* extracted `thumbFor()` (`mobile/src/utils/property.js`) that detects our images by the
+    stable `…/properties/<id>.jpg` key pattern (works dev + prod) and derives `_thumb.jpg`; external
+    URLs unchanged. Used in `post.js`. +4 unit tests.
+  - *Also verified this pass (prod, no code change needed):* public-read policy is applied
+    (anon GET of a missing object → 404, bucket listing → 403); the queue already retries
+    (`attempts: 3` + exponential backoff); `/process` binds each `base` to the presigning user.
+    The presigned-PUT SigV4 round-trip through Railway's proxy is the one piece left to confirm
+    on-device (couldn't test without exposing the prod secret).
+  - *Guardrail (added above):* after a dev→cloud switch, grep the client for `/media`, `localhost`,
+    `.railway.internal` assumptions.
 
 ### 2026-09-12 (geo/near-me leaked the proximity of `hidden` listings)
 - **`hidden`-visibility listings surfaced in near-me search.** Root cause: `GET /properties?lat&lng`

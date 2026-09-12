@@ -14,6 +14,7 @@ import { C, FONT, FONT_MED, FONT_HEAD } from "../../src/theme";
 import { Icon } from "../../src/components/Icon";
 import NeoButton from "../../src/components/NeoButton";
 import { useApi } from "../../src/hooks/useApi";
+import { thumbFor } from "../../src/utils/property";
 
 // react-native-maps is web-stubbed; only load the native picker on device.
 let MapView, Marker, Polygon;
@@ -702,8 +703,11 @@ export default function Post() {
           if (pair) { finalImages.push(pair.url); finalThumbs.push(pair.thumb); localToUrl[u] = pair.url; }
         } else {
           finalImages.push(u);
-          // our stored images expose a matching _thumb; external URLs fall back to themselves
-          finalThumbs.push(u.includes("/media/") ? u.replace(/\.jpg$/, "_thumb.jpg") : u);
+          // Our stored images have a matching _thumb; thumbFor detects them by their stable
+          // key pattern so it works in BOTH dev (/media/…) and prod (absolute MinIO/S3 URLs).
+          // External URLs fall back to themselves. (Previously keyed on "/media/", which prod
+          // URLs don't contain — so edited listings silently got full-res images as thumbnails.)
+          finalThumbs.push(thumbFor(u));
         }
       }
 

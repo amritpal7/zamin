@@ -48,6 +48,15 @@ export function pricePerSqft(priceStr, areaStr) {
 
 // Returns EMI estimate string for For Sale listings, or null
 // Formula: P × r(1+r)^n / ((1+r)^n − 1) at 9% p.a. for 20 years
+// Thumbnail URL for an already-hosted image. Our uploads are stored at
+// …/properties/<id>.jpg with a matching …/properties/<id>_thumb.jpg; detect them by that
+// stable key pattern so it works in BOTH dev (/media/properties/…) and prod (absolute
+// MinIO/S3 URLs). External URLs (Unsplash, query strings, non-.jpg) fall back to themselves.
+export function thumbFor(url) {
+  if (!url) return url;
+  return /\/properties\/[^/?#]+\.jpg$/.test(url) ? url.replace(/\.jpg$/, "_thumb.jpg") : url;
+}
+
 export function estimateEMI(priceStr, status) {
   if (status !== "For Sale") return null;
   const P = priceToRupees(priceStr);

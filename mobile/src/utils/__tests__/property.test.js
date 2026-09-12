@@ -1,4 +1,4 @@
-import { priceToRupees, areaToSqft, pricePerSqft, estimateEMI } from "../property";
+import { priceToRupees, areaToSqft, pricePerSqft, estimateEMI, thumbFor } from "../property";
 
 describe("priceToRupees", () => {
   test("parses Cr / L / K with a ₹ prefix (regression: parseFloat NaN'd on ₹)", () => {
@@ -67,5 +67,23 @@ describe("estimateEMI", () => {
   });
   test("null when price unparseable", () => {
     expect(estimateEMI("call for price", "For Sale")).toBeNull();
+  });
+});
+
+describe("thumbFor", () => {
+  test("prod absolute URL → _thumb (regression: used to only match /media/)", () => {
+    expect(thumbFor("https://minio-production-26a6.up.railway.app/zamin/properties/123-ab-0.jpg"))
+      .toBe("https://minio-production-26a6.up.railway.app/zamin/properties/123-ab-0_thumb.jpg");
+  });
+  test("dev /media URL → _thumb", () => {
+    expect(thumbFor("http://localhost/media/properties/123-ab-0.jpg"))
+      .toBe("http://localhost/media/properties/123-ab-0_thumb.jpg");
+  });
+  test("external URL (Unsplash, query string, non-.jpg) falls back to itself", () => {
+    const u = "https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=800&q=80";
+    expect(thumbFor(u)).toBe(u);
+  });
+  test("already-a-thumb / unrelated .jpg not under /properties → unchanged", () => {
+    expect(thumbFor("https://cdn.example.com/logo.jpg")).toBe("https://cdn.example.com/logo.jpg");
   });
 });

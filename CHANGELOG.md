@@ -12,6 +12,17 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-12 (fix: edited listings got full-res thumbnails in prod — upload-flow pass)
+- **Editing a listing in prod replaced existing thumbnails with the full-res image URL.** The
+  thumbnail for a hosted image was derived only when the URL contained `/media/` (dev); prod URLs are
+  absolute MinIO URLs (`…/zamin/properties/<id>.jpg`) with no `/media/`, so it fell back to the full
+  image — a silent bandwidth/perf regression on every edit. Extracted `thumbFor()`
+  (`mobile/src/utils/property.js`) keyed on the stable `…/properties/<id>.jpg` pattern (dev + prod);
+  used in `post.js`. +4 unit tests (27 mobile total). BUGLOG entry + guardrail.
+- **Upload flow otherwise verified:** prod public-read policy applied (anon GET missing → 404, list →
+  403); queue already retries (`attempts: 3` + backoff); `/process` binds each upload to its
+  presigning user. Presigned-PUT SigV4 through Railway's proxy left to confirm on-device.
+
 ### 2026-09-12 (fix: dead back buttons on deep-link / push / web-reload targets)
 - **Back buttons could be no-ops** on screens opened with no history — `property/[id]` (push
   notifications deep-link straight to it), `messages`, `my-listings`, `settings` all used bare
