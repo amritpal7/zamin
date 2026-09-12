@@ -12,6 +12,18 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-12 (fix: realtime chat was dead in prod + no reconnect resync — chat pass)
+- **Realtime was completely broken in prod.** `SocketContext` hardcoded the socket path to
+  `/api/socket.io` (the dev nginx path); prod has no nginx and the API serves Socket.io at
+  `/socket.io`, so the handshake 404'd and the socket never connected — live messages, typing, and
+  read receipts silently didn't work (REST send/fetch still did). Extracted `socketConfig(base)`
+  (`mobile/src/utils/net.js`) that derives the path from whether BASE has an `/api` prefix (dev →
+  `/api/socket.io`, prod → `/socket.io`); `SocketContext` uses it. +3 unit tests.
+- **Missed messages on reconnect.** Socket.io doesn't redeliver events emitted while a client is
+  offline, so a network blip dropped messages until the thread was reopened. `chat/[id]` now refetches
+  the thread + re-marks read on every socket `connect`/reconnect.
+- 30 mobile tests pass; bundle compiles. BUGLOG updated (dev-vs-prod path guardrail now hit ×2).
+
 ### 2026-09-12 (fix: edited listings got full-res thumbnails in prod — upload-flow pass)
 - **Editing a listing in prod replaced existing thumbnails with the full-res image URL.** The
   thumbnail for a hosted image was derived only when the URL contained `/media/` (dev); prod URLs are

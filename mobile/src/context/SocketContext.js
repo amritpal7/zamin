@@ -2,12 +2,13 @@ import React, { createContext, useContext, useEffect, useRef, useState } from "r
 import { io } from "socket.io-client";
 import { useAuth } from "@clerk/clerk-expo";
 import Constants from "expo-constants";
+import { socketConfig } from "../utils/net";
 
 const BASE = Constants.expoConfig?.extra?.apiUrl
   || process.env.EXPO_PUBLIC_API_URL
   || "http://localhost/api";
-const ORIGIN = BASE.replace(/\/api\/?$/, "");   // e.g. http://192.168.x.x
-const SOCKET_PATH = "/api/socket.io";           // nginx strips /api → server sees /socket.io
+// dev (behind nginx): ORIGIN=http://host, path=/api/socket.io. prod (direct API): path=/socket.io.
+const { origin: ORIGIN, path: SOCKET_PATH } = socketConfig(BASE);
 
 const SocketContext = createContext(null);
 export const useSocket = () => useContext(SocketContext);

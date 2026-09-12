@@ -231,11 +231,20 @@ export default function Chat() {
         typingClearRef.current = setTimeout(() => setPeerTyping(false), 3500);
       }
     };
+    // Resync on (re)connect: Socket.io does NOT redeliver events emitted while we were
+    // offline, so a network blip would silently drop messages until the thread is reopened.
+    // Pull the thread from the server (source of truth) and re-mark read on every connect.
+    const onConnect = () => {
+      apiRef.current.getMessages(id, peer).then(setMessages).catch(() => {});
+      markRead();
+    };
+    socket.on("connect", onConnect);
     socket.on("message", onMessage);
     socket.on("read", onRead);
     socket.on("typing", onTyping);
     socket.on("message-update", onUpdate);
     return () => {
+      socket.off("connect", onConnect);
       socket.off("message", onMessage);
       socket.off("read", onRead);
       socket.off("typing", onTyping);

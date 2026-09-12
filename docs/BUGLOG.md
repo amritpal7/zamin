@@ -20,9 +20,24 @@ of bug while building new features. Newest first. Update this whenever we fix a 
 | **Stray `</content>` appended by the Write tool** | many | After writing files, strip lines matching `^</content>$`. |
 | **`parseFloat` on formatted strings** | 2 | `parseFloat("₹2.4 Cr")` is `NaN` (leading symbol) and `parseFloat("3,200")` is `3` (stops at comma). Strip currency/commas and match the numeric token before parsing. |
 | **Location-privacy: redacting a field ≠ hiding the row** | 1 | A `hidden` listing keeps real coords in the DB, so it passes a geo `WHERE` and its distance is only *redacted* after the query — but its mere presence in a radius result leaks it's within `radius`. For proximity/geo queries, **exclude** privacy-restricted rows in SQL (unless the viewer owns them); don't just null the field post-query. |
-| **Dev-only URL/path assumptions break in prod** | 1 | Prod object URLs are absolute (`…/zamin/properties/<id>.jpg`), not the dev `/media/…` — string checks like `u.includes("/media/")` silently fail in prod. Detect our stored images by a scheme-independent key pattern (`…/properties/<id>.jpg`), not the host/prefix. (Thumbnail derivation on listing edit hit this.) After the dev→cloud switch, grep for `/media`, `localhost`, `.railway.internal` assumptions in the client. |
+| **Dev-only URL/path assumptions break in prod** | 2 | Dev routes everything through nginx (`/api/*`, `/media/*`); prod talks to the API directly with absolute object URLs. Hardcoded dev paths silently break in prod: (1) thumbnail derivation keyed on `u.includes("/media/")` → prod URLs are `…/zamin/properties/<id>.jpg`; (2) **Socket.io path hardcoded `/api/socket.io`** (nginx-strips-`/api`) → prod serves `/socket.io`, so realtime never connected. Derive paths from whether BASE has an `/api` prefix (`utils/net.js socketConfig`), and detect our images by a scheme-independent key pattern. After a dev→cloud switch, grep the client for `/media`, `/api/`, `localhost`, `.railway.internal`. |
 
 ## Log
+
+### 2026-09-12 (chat/realtime hardening pass — realtime dead in prod)
+- **Realtime chat never connected in prod.** `SocketContext` hardcoded `SOCKET_PATH =
+  "/api/socket.io"` (the dev nginx path — nginx strips `/api` → server's `/socket.io`). Prod has no
+  nginx: the app talks to the API directly, which serves Socket.io at `/socket.io`, so the handshake
+  404'd and the socket retried forever. Effect: no live messages/typing/read-receipts in prod (REST
+  send/fetch still worked, so chat looked "alive" but wasn't realtime). **Category:** dev-vs-prod path
+  assumption.
+  - *Fix:* extracted `socketConfig(base)` (`mobile/src/utils/net.js`) — path = `/api/socket.io` when
+    BASE has an `/api` prefix (dev via nginx), else `/socket.io` (prod direct). `SocketContext` uses
+    it. +3 unit tests. The server serves the default `/socket.io` (no custom path).
+- **Missed messages on reconnect.** Socket.io does not redeliver events emitted while a client is
+  offline, so a network blip silently dropped messages until the thread was reopened. `chat/[id]` now
+  refetches the thread + re-marks read on every socket `connect` (covers reconnects and a socket that
+  connects after the screen mounts). **Category:** realtime robustness.
 
 ### 2026-09-12 (upload-flow hardening pass — thumbnail derivation broke in prod)
 - **Editing a listing in prod replaced every existing thumbnail with the full-res image URL.** Root
