@@ -13,7 +13,7 @@ of bug while building new features. Newest first. Update this whenever we fix a 
 | **react-native-web layout quirks** | 2 | Horizontal `ScrollView` with no fixed height **collapses on web** → wrap in a fixed-height `View`. (Also: keyboard covering inputs.) |
 | **`router.back()` no-op / dead nav buttons** | 2 | `router.back()` does nothing with no history (reload/deep-link/notification). Use `router.canGoBack() ? router.back() : router.replace(<fallback>)`. Also: a dead button = handler-not-firing (overlay) OR handler-no-op (nav) — distinguish before fixing. **Swept 2026-09-12:** fixed `property/[id]` (push-notification target), `messages`, `my-listings`, `settings`; `chat/[id]` already had it. |
 | **Modal hygiene** | 1 | Render `Modal`s **conditionally** (`{open && <Modal visible/>}`), not always-mounted — cleaner and avoids RN-web overlay risk. |
-| **Denormalized data not propagated to every copy** | 3 | owner_name / owner_avatar / owner_image / sender_name are copied onto rows — update ALL copies + the reconcile job, not just the Clerk user. (CLAUDE.md rule #1) |
+| **Denormalized data not propagated to every copy** | 4 | owner_name / owner_avatar / owner_image / sender_name are copied onto rows — update ALL copies + the reconcile job, not just the Clerk user. (CLAUDE.md rule #1) After ANY Clerk profile change (photo/name/verification) call `reconcileMe()` so the denormalized copies refresh immediately instead of waiting for the 6h sweep — settings' photo + name changes were missing this. |
 | **`INSERT … SELECT $1,$2 WHERE NOT EXISTS(…)` → "inconsistent types deduced for parameter $1"** | 1 | Postgres can't infer column types for bare params in a `SELECT` list that are also compared in `WHERE`. For conditional insert, don't use `INSERT…SELECT…WHERE NOT EXISTS` with untyped `$n` — either cast (`$1::uuid`) or (cleaner) do a `SELECT 1 … LIMIT 1` existence check then a plain `INSERT … VALUES`. |
 | **Verified email ⇒ enforced email-code 2FA at login (Clerk, this plan)** | 1 | Enabling email as a verifiable identifier (needed for add/verify-email + `reset_password_email_code`) **also forces an `email_code` second factor** for any account with a verified email. There is **no dashboard toggle to separate them**: Multi-factor has no email option; turning off "Sign in with email address" disables email entirely (breaks verify+reset); `sign_in.second_factor.required=false` is reported but the step is enforced anyway. **Sign-in MUST handle `needs_second_factor`** (done in `sign-in.js`: `prepareSecondFactor`/`attemptSecondFactor` with `email_code`). Username-only accounts are unaffected. Any new auth entry point (e.g. a future email/social sign-in) must handle this branch too. |
 | **Messaging receiver/thread identity** | 2 | Receiver = the *peer* (other person), never self/owner-always; conversations keyed by (property, peer). Backend rejects `sender==receiver`. |
@@ -25,6 +25,20 @@ of bug while building new features. Newest first. Update this whenever we fix a 
 | **Dev-only URL/path assumptions break in prod** | 2 | Dev routes everything through nginx (`/api/*`, `/media/*`); prod talks to the API directly with absolute object URLs. Hardcoded dev paths silently break in prod: (1) thumbnail derivation keyed on `u.includes("/media/")` → prod URLs are `…/zamin/properties/<id>.jpg`; (2) **Socket.io path hardcoded `/api/socket.io`** (nginx-strips-`/api`) → prod serves `/socket.io`, so realtime never connected. Derive paths from whether BASE has an `/api` prefix (`utils/net.js socketConfig`), and detect our images by a scheme-independent key pattern. After a dev→cloud switch, grep the client for `/media`, `/api/`, `localhost`, `.railway.internal`. |
 
 ## Log
+
+### 2026-09-12 (lower-traffic hardening pass — discover search + profile propagation)
+- **Discover search fired a request per keystroke.** `onChangeText={setSearch}` updated `search`, a dep
+  of `load()`, and `useFocusEffect(useCallback(fn,[load]))` re-fires when the callback changes while
+  focused → a request + list reset per character. Pinned `search` in a ref, dropped it from
+  `load`/`loadMore` deps; search applies on submit, filter chips still reload. **Category:** effect deps.
+- **Profile photo/name changes weren't propagated to listings.** `owner_image`/`owner_name` are
+  denormalized onto property rows; only the email-verify flow called `reconcileMe()`, so photo + name
+  changes stayed stale for other viewers until the 6h sweep. `changePhoto` + `saveProfile` now call
+  `api.reconcileMe()` on success. **Category:** denormalized-data propagation.
+- **Reviewed clean (no changes):** saved/favorites (optimistic unsave + revert), blocks/reporting/
+  reviews backend (auth, no self-target, block checks wired into messages/proposals/visits, reviewer
+  ids not leaked, review gated on confirmed visit), map clustering util (non-finite coord guards,
+  degenerate-region handling, null≠0).
 
 ### 2026-09-12 (visits/offers hardening pass — proposal counter race + silent accept/decline)
 - **Chat-proposal counter had a TOCTOU race.** It `SELECT`ed the original (checking pending), then

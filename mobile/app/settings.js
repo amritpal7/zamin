@@ -211,6 +211,9 @@ export default function Settings() {
       const blob = await (await fetch(res.assets[0].uri)).blob();
       await user.setProfileImage({ file: blob });
       await user.reload();
+      // Propagate the new photo to the denormalized owner_image on THIS user's listings,
+      // so it shows for other viewers immediately (not only after the 6h reconcile sweep).
+      api.reconcileMe().catch(() => {});
     } catch (e) {
       Alert.alert("Error", e.errors?.[0]?.message || e.message || "Could not update photo.");
     } finally {
@@ -226,6 +229,9 @@ export default function Settings() {
         firstName: firstName.trim(),
         lastName:  lastName.trim(),
       });
+      // Propagate the new display name to the denormalized owner_name on this user's
+      // listings immediately (otherwise other viewers see the old name until the sweep).
+      api.reconcileMe().catch(() => {});
       setEditing(false);
     } catch (e) {
       Alert.alert("Error", e.errors?.[0]?.message || "Could not save profile.");

@@ -12,6 +12,13 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-12 (fix: profile photo/name not propagated to listings — lower-traffic pass cont.)
+- **Changing your profile photo or display name didn't update your listings for other viewers.**
+  `owner_image`/`owner_name` are denormalized onto property rows; only the email-verify flow called
+  `reconcileMe()`, so photo/name changes stayed stale until the 6h reconcile sweep. `changePhoto` +
+  `saveProfile` (`mobile/app/settings.js`) now call `api.reconcileMe()` (best-effort) on success.
+- Reviewed clean this pass: saved/favorites, blocks/reporting/reviews backend, map clustering util.
+
 ### 2026-09-12 (fix: discover search fired a request per keystroke — lower-traffic pass)
 - **Search reloaded the list on every character.** `onChangeText={setSearch}` updated `search`, a dep
   of `load`, and `useFocusEffect(useCallback(() => load(), [load]))` re-fires when its callback changes
