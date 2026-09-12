@@ -14,6 +14,7 @@ import { C, FONT, FONT_MED, FONT_HEAD, FONT_HEAD_ITALIC } from "../../src/theme"
 import { Icon } from "../../src/components/Icon";
 import SmartImage from "../../src/components/SmartImage";
 import PropertyCard from "../../src/components/PropertyCard";
+import PressableScale from "../../src/components/PressableScale";
 import { Avatar } from "../../src/components/ui";
 import { SEED_PROPERTIES } from "../../src/data/properties";
 import { useApi } from "../../src/hooks/useApi";
@@ -44,7 +45,7 @@ function Chip({ label, active, onPress }) {
 function SmallCard({ property: p, onPress }) {
   const ambientColor = p.color || C.amber;
   return (
-    <Pressable onPress={onPress} style={[styles.smallCard, { backgroundColor: C.glassBg, borderColor: C.glassBorder }]}>
+    <PressableScale onPress={onPress} style={[styles.smallCard, { backgroundColor: C.glassBg, borderColor: C.glassBorder }]}>
       {/* mini hero */}
       <View style={styles.smallHero}>
         <View style={[StyleSheet.absoluteFill, { backgroundColor: ambientColor + "45" }]} />
@@ -72,7 +73,7 @@ function SmallCard({ property: p, onPress }) {
           <Text style={[styles.priceText, { color: C.fg, fontFamily: FONT_MED }]}>₹{p.price}</Text>
         </View>
       </View>
-    </Pressable>
+    </PressableScale>
   );
 }
 

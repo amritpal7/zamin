@@ -98,7 +98,13 @@ export default function RootLayout() {
           <StatusBar style="light" />
           <AuthGuard />
           <PushManager />
-          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: C.bg }, animation: "slide_from_right" }}>
+          <Stack screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: C.bg },
+            animation: "slide_from_right",
+            animationDuration: 280,   // smoother push/pop (Android; iOS uses its native curve)
+            gestureEnabled: true,     // swipe from the left edge to go back
+          }}>
             <Stack.Screen name="index" />
             <Stack.Screen name="sign-in" />
             <Stack.Screen name="sign-up" />

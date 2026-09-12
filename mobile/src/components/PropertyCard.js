@@ -5,6 +5,7 @@ import { C, FONT, FONT_HEAD } from "../theme";
 import { useTheme } from "../context/ThemeContext";
 import { Icon } from "./Icon";
 import SmartImage from "./SmartImage";
+import PressableScale from "./PressableScale";
 import { Avatar } from "./ui";
 import { pricePerSqft, estimateEMI } from "../utils/property";
 
@@ -17,7 +18,7 @@ export default function PropertyCard({ property: p, onPress, onSave, saved, isOw
   const emi        = estimateEMI(p.price, p.status);
 
   return (
-    <Pressable onPress={onPress} style={{ marginBottom: 16 }}>
+    <PressableScale onPress={onPress} style={{ marginBottom: 16 }}>
       <View style={{
         backgroundColor: C.glassBg,
         borderRadius: 28,
@@ -154,6 +155,6 @@ export default function PropertyCard({ property: p, onPress, onSave, saved, isOw
         )}
 
       </View>
-    </Pressable>
+    </PressableScale>
   );
 }

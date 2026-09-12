@@ -12,6 +12,16 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-13 (polish: screen-transition motion + more test coverage)
+- **Tactile card motion:** new `PressableScale` (`mobile/src/components/PressableScale.js`) — a subtle
+  spring scale-down on press — now wraps `PropertyCard` and discover's `SmallCard`, so tapping a
+  property gives immediate feedback right before the detail screen slides in.
+- **Smoother navigation:** the root Stack adds `animationDuration: 280` + `gestureEnabled: true`
+  (swipe from the left edge to go back) on top of the existing `slide_from_right` push.
+- **More automated tests:** +9 mobile unit tests — `timeAgo` (`time.js`) and `imageCache`
+  (`rememberLocal`/`getLocalForRemote`). Mobile suite now 39 tests / 5 files; backend 99.
+- Validated: iOS bundle compiles clean (0 error markers).
+
 ### 2026-09-12 (fix: profile photo/name not propagated to listings — lower-traffic pass cont.)
 - **Changing your profile photo or display name didn't update your listings for other viewers.**
   `owner_image`/`owner_name` are denormalized onto property rows; only the email-verify flow called
