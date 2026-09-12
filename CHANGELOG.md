@@ -12,6 +12,13 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-12 (fix: dead back buttons on deep-link / push / web-reload targets)
+- **Back buttons could be no-ops** on screens opened with no history — `property/[id]` (push
+  notifications deep-link straight to it), `messages`, `my-listings`, `settings` all used bare
+  `router.back()`. Now `router.canGoBack() ? router.back() : router.replace(<tab>)` (fallbacks:
+  discover for property/messages, profile for my-listings/settings), matching the pattern already in
+  `chat/[id].js`. Found via a guardrail sweep. Bundle compiles; BUGLOG count bumped.
+
 ### 2026-09-12 (fix: geo/near-me leaked proximity of `hidden` listings + green test suites)
 - **Privacy fix:** `hidden` listings no longer appear in proximity/near-me results for non-owners.
   They kept real coords in the DB, so they passed the geo `WHERE` and only had `distance_km`

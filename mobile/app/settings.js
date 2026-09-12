@@ -350,7 +350,7 @@ export default function Settings() {
       {/* ── Top nav row ── */}
       <View style={{ paddingTop: insets.top + 14, paddingHorizontal: 18, paddingBottom: 8, flexDirection: "row", alignItems: "center", gap: 12 }}>
         <Pressable
-          onPress={() => router.back()}
+          onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)/profile"))}
           style={{
             width: 44, height: 44, borderRadius: 22,
             backgroundColor: C.glassBg, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder,

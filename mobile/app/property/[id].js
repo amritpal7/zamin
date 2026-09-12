@@ -532,7 +532,7 @@ export default function PropertyDetail() {
           justifyContent: "space-between",
           alignItems: "center",
         }}>
-          <Pressable onPress={() => router.back()} style={navBtnStyle()}>
+          <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)/discover"))} style={navBtnStyle()}>
             <Icon name="back" size={20} color={C.fg} strokeWidth={1.8} />
           </Pressable>
           <View style={{ flexDirection: "row", gap: 10 }}>
