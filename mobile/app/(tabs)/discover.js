@@ -98,12 +98,19 @@ export default function Discover() {
   const [hasMore,    setHasMore]    = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
 
+  // Pin search in a ref so typing (which updates `search` for the input) does NOT change
+  // load()'s identity and re-fire the focus effect on every keystroke — search would
+  // otherwise fire a request + reset the list per character. Search applies on submit;
+  // the filter chips (type/status/geo) still reload because they stay in the deps.
+  const searchRef = useRef(search);
+  searchRef.current = search;
+
   const PAGE = 24;
   const load = useCallback(async (isRefresh = false) => {
     try {
       isRefresh ? setRefreshing(true) : setLoading(true);
       const data = await apiRef.current.getProperties({
-        type, status, search,
+        type, status, search: searchRef.current,
         ...(geo ? { lat: geo.lat, lng: geo.lng, radius: 25 } : {}),
         limit: PAGE, offset: 0,
       });
@@ -113,7 +120,7 @@ export default function Discover() {
       setProperties(SEED_PROPERTIES);
       setHasMore(false);
     } finally { setLoading(false); setRefreshing(false); }
-  }, [type, status, search, geo]);
+  }, [type, status, geo]);
 
   // Append the next page (server-side pagination).
   const loadMore = useCallback(async () => {
@@ -121,14 +128,14 @@ export default function Discover() {
     try {
       setLoadingMore(true);
       const data = await apiRef.current.getProperties({
-        type, status, search,
+        type, status, search: searchRef.current,
         ...(geo ? { lat: geo.lat, lng: geo.lng, radius: 25 } : {}),
         limit: PAGE, offset: properties.length,
       });
       setProperties(prev => [...prev, ...(data.items || [])]);
       setHasMore(!!data.hasMore);
     } catch { /* keep what we have */ } finally { setLoadingMore(false); }
-  }, [type, status, search, geo, properties.length, hasMore, loadingMore]);
+  }, [type, status, geo, properties.length, hasMore, loadingMore]);
 
   // Reload the list on mount, when filters change, AND whenever Home regains
   // focus (e.g. returning after editing/posting) so cards show fresh images.

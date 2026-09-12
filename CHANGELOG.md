@@ -12,6 +12,14 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-12 (fix: discover search fired a request per keystroke — lower-traffic pass)
+- **Search reloaded the list on every character.** `onChangeText={setSearch}` updated `search`, a dep
+  of `load`, and `useFocusEffect(useCallback(() => load(), [load]))` re-fires when its callback changes
+  while focused — so typing a query fired a network request + reset the list per keystroke (flicker,
+  wasted calls), despite `onSubmitEditing` implying search applies on submit. Pinned `search` in a ref
+  and dropped it from `load`/`loadMore` deps (`mobile/app/(tabs)/discover.js`); search now applies on
+  submit, filter chips (type/status/geo) still reload. Bundle compiles. BUGLOG guardrail added.
+
 ### 2026-09-12 (fix: chat proposal counter race + silent accept/decline — visits/offers pass)
 - **Counter race:** the proposal counter flow checked "pending" in a `SELECT` then flipped the status
   with an unguarded `UPDATE`, so a concurrent accept/decline (or double-counter) could clobber the
