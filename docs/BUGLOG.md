@@ -26,6 +26,16 @@ of bug while building new features. Newest first. Update this whenever we fix a 
 
 ## Log
 
+### 2026-09-13 (property photos never rendered — bare-string expo-image source)
+- **No property photos on web OR mobile — only the blurhash placeholder.** `SmartImage` (used for
+  every property photo: cards + the detail slider) passed a **bare string** to expo-image's `source`
+  (`source={uri}`). expo-image doesn't render a string source reliably (notably on web); the avatar
+  `<Image>`s that *do* show all use the object form `{ uri }`. Data + URLs were fine (Unsplash 200) —
+  purely a render bug. **Fix:** `source={uri ? { uri } : undefined}` and, for the optimistic local
+  placeholder, `placeholder={local ? { uri: local } : BLUR_PLACEHOLDER}` (a bare string placeholder is
+  interpreted as a blurhash, so a `file://` must be wrapped too). **Category:** third-party API shape.
+  - *Guardrail:* always pass expo-image `source`/`file:// placeholder` as `{ uri }`, never a bare string.
+
 ### 2026-09-12 (lower-traffic hardening pass — discover search + profile propagation)
 - **Discover search fired a request per keystroke.** `onChangeText={setSearch}` updated `search`, a dep
   of `load()`, and `useFocusEffect(useCallback(fn,[load]))` re-fires when the callback changes while

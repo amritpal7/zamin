@@ -12,8 +12,11 @@ export default function SmartImage({ uri, style, contentFit = "cover", transitio
   const local = uri ? getLocalForRemote(uri) : null;
   return (
     <Image
-      source={uri}
-      placeholder={local || BLUR_PLACEHOLDER}
+      // Canonical object form. A bare string source doesn't render reliably in expo-image
+      // (esp. on web) — the avatar <Image>s that DO show all use { uri }. This is why every
+      // property photo (cards + detail slider, all via SmartImage) showed only the blurhash.
+      source={uri ? { uri } : undefined}
+      placeholder={local ? { uri: local } : BLUR_PLACEHOLDER}
       placeholderContentFit={contentFit}
       style={style}
       contentFit={contentFit}

@@ -12,6 +12,13 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-13 (fix: property photos never rendered — expo-image source shape)
+- **Property photos showed only the blurhash on web AND mobile.** `SmartImage` (every property photo:
+  cards + detail slider) passed a bare string to expo-image's `source`; expo-image needs the object
+  form `{ uri }` to render reliably (the avatar images that worked all used `{ uri }`). Data was fine.
+  Fixed `source={uri ? { uri } : undefined}` + `placeholder={local ? { uri: local } : BLUR_PLACEHOLDER}`
+  (`mobile/src/components/SmartImage.js`). Reload the app/web to see photos. BUGLOG guardrail added.
+
 ### 2026-09-13 (polish: screen-transition motion + more test coverage)
 - **Tactile card motion:** new `PressableScale` (`mobile/src/components/PressableScale.js`) — a subtle
   spring scale-down on press — now wraps `PropertyCard` and discover's `SmallCard`, so tapping a
