@@ -11,6 +11,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { C, FONT, FONT_MED, FONT_HEAD } from "../../src/theme";
 import { Icon } from "../../src/components/Icon";
 import SmartImage from "../../src/components/SmartImage";
+import GlassSurface from "../../src/components/GlassSurface";
 import { Avatar, Tag } from "../../src/components/ui";
 import { useApi } from "../../src/hooks/useApi";
 import { SEED_PROPERTIES } from "../../src/data/properties";
@@ -162,7 +163,9 @@ function VisitBookingModal({ onClose, onSubmit }) {
   return (
     <Modal transparent animationType="slide" visible onRequestClose={onClose}>
       <Pressable onPress={onClose} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" }}>
-        <Pressable onPress={() => {}} style={{ backgroundColor: C.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 36 }}>
+        <Pressable onPress={() => {}}>
+          <GlassSurface topOnly radius={24}>
+            <View style={{ padding: 20, paddingBottom: 36 }}>
           <Text style={{ color: C.fg, fontFamily: FONT_HEAD, fontSize: 20, marginBottom: 14 }}>Schedule a visit</Text>
           <Text style={{ color: C.fgDim, fontFamily: FONT, fontSize: 12, marginBottom: 8 }}>DAY</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
@@ -184,6 +187,8 @@ function VisitBookingModal({ onClose, onSubmit }) {
           <Pressable disabled={busy} onPress={confirm} style={{ backgroundColor: C.amber, borderRadius: 100, paddingVertical: 14, alignItems: "center", opacity: busy ? 0.6 : 1 }}>
             <Text style={{ color: C.ink, fontFamily: FONT_MED, fontSize: 15 }}>{busy ? "Sending…" : "Request visit →"}</Text>
           </Pressable>
+            </View>
+          </GlassSurface>
         </Pressable>
       </Pressable>
     </Modal>
@@ -200,7 +205,9 @@ function ReviewModal({ initial, onClose, onSubmit }) {
   return (
     <Modal transparent animationType="slide" visible onRequestClose={onClose}>
       <Pressable onPress={onClose} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" }}>
-        <Pressable onPress={() => {}} style={{ backgroundColor: C.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 36 }}>
+        <Pressable onPress={() => {}}>
+          <GlassSurface topOnly radius={24}>
+            <View style={{ padding: 20, paddingBottom: 36 }}>
           <Text style={{ color: C.fg, fontFamily: FONT_HEAD, fontSize: 20, marginBottom: 14 }}>Rate this owner</Text>
           <View style={{ flexDirection: "row", gap: 8, marginBottom: 16 }}>
             {[1, 2, 3, 4, 5].map(n => (
@@ -217,6 +224,8 @@ function ReviewModal({ initial, onClose, onSubmit }) {
           <Pressable disabled={busy} onPress={submit} style={{ backgroundColor: C.amber, borderRadius: 100, paddingVertical: 14, alignItems: "center", opacity: busy ? 0.6 : 1 }}>
             <Text style={{ color: C.ink, fontFamily: FONT_MED, fontSize: 15 }}>{busy ? "Submitting…" : "Submit review"}</Text>
           </Pressable>
+            </View>
+          </GlassSurface>
         </Pressable>
       </Pressable>
     </Modal>
@@ -286,7 +295,7 @@ function LocationDrawer({ property, api, onClose }) {
   return (
     <Modal transparent animationType="slide" visible onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" }}>
-        <View style={{ height: "88%", backgroundColor: C.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, overflow: "hidden" }}>
+        <GlassSurface topOnly fill radius={24} style={{ height: "88%" }}>
           {/* header */}
           <View style={{ paddingTop: 14, paddingHorizontal: 18, paddingBottom: 10, flexDirection: "row", alignItems: "center", gap: 10 }}>
             <View style={{ flex: 1 }}>
@@ -361,7 +370,7 @@ function LocationDrawer({ property, api, onClose }) {
               );
             })}
           </ScrollView>
-        </View>
+        </GlassSurface>
       </View>
     </Modal>
   );

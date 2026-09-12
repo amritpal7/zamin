@@ -28,6 +28,16 @@ const LIGHT = {
   blue:        "#2D74CB",
   purple:      "#6A45C0",
   ink:         "#0E1320",
+  // Liquid-glass material tokens (iOS-26 style): a frosted blur + translucent fill + a
+  // specular top-edge highlight + soft depth. Consumed by <GlassSurface>.
+  glass: {
+    intensity: 34,               // BlurView intensity
+    tint:      "light",          // BlurView tint
+    fill:      "rgba(255,255,255,0.42)", // translucent layer over the blur
+    border:    "rgba(255,255,255,0.65)", // rim
+    highlight: "rgba(255,255,255,0.95)", // top-edge sheen
+    shadow:    "#1B2740",
+  },
 };
 
 const DARK = {
@@ -56,6 +66,14 @@ const DARK = {
   blue:        "#4DA6FF",
   purple:      "#9B59B6",
   ink:         "#0A0E1A",
+  glass: {
+    intensity: 40,
+    tint:      "dark",
+    fill:      "rgba(16,22,38,0.52)",
+    border:    "rgba(180,200,255,0.16)",
+    highlight: "rgba(200,220,255,0.30)",
+    shadow:    "#000000",
+  },
 };
 
 export const C = { ...LIGHT };

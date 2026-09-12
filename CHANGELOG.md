@@ -12,6 +12,18 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-13 (design: liquid-glass theme — foundation + detail sheets)
+- **Liquid-glass tokens** in `mobile/src/theme/index.js` (`C.glass`: blur intensity/tint, translucent
+  fill, rim border, specular top-edge highlight, depth shadow — per light + dark).
+- **`GlassSurface` component** (`mobile/src/components/GlassSurface.js`): frosted `expo-blur` layer +
+  translucent fill + specular top-edge sheen + soft depth; `topOnly`/`fill`/`radius` props. Reusable
+  building block for the iOS-26 "liquid glass" look.
+- **Applied to the property-detail sheets/drawers** — LocationDrawer (map), VisitBookingModal,
+  ReviewModal are now frosted glass. Deliberately **not** applied to scroll-list cards (many
+  simultaneous blurs = perf cost) or the dark contrast-critical bottom action bar yet — those need
+  on-device eyeballing. iOS bundle compiles clean. Next: tune intensity/tint on device, then roll out
+  to nav/cards.
+
 ### 2026-09-13 (ops: prod DB migrated to Neon)
 - **Prod Postgres is now Neon** (managed: branching, autoscale, PITR backups) — `DATABASE_URL` on
   `api` + `worker` points at the Neon pooled endpoint (`sslmode=require`). Boot `runMigrations`
