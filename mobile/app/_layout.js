@@ -33,6 +33,16 @@ const tokenCache = {
   async clearToken(key) { try { await SecureStore.deleteItemAsync(key); } catch {} },
 };
 
+// Top-level route groups that require a signed-in user. Everything else is public:
+// index, sign-in/up, forgot-password, and the public property VIEW at /property/[id].
+// (These screens all make authed calls / show the user's own data, so a signed-out
+// user reaching them via push deep-link, web URL, or an expired session must be sent
+// to sign-in rather than landing on a broken/empty screen.)
+const PROTECTED_SEGMENTS = new Set([
+  "(tabs)", "chat", "messages", "my-listings", "settings",
+  "visits", "notifications", "saved-searches",
+]);
+
 function AuthGuard() {
   const { isSignedIn, isLoaded } = useAuth();
   const segments = useSegments();
@@ -40,8 +50,11 @@ function AuthGuard() {
 
   useEffect(() => {
     if (!isLoaded) return;
-    const inProtected = segments[0] === "(tabs)";
-    if (!isSignedIn && inProtected) router.replace("/sign-in");
+    // /property/[id] is a public listing view; /property/edit/[id] requires auth.
+    const isProtected =
+      PROTECTED_SEGMENTS.has(segments[0]) ||
+      (segments[0] === "property" && segments[1] === "edit");
+    if (!isSignedIn && isProtected) router.replace("/sign-in");
     if (isSignedIn && (segments[0] === "sign-in" || segments[0] === "sign-up")) {
       router.replace("/(tabs)/discover");
     }

@@ -24,6 +24,20 @@ of bug while building new features. Newest first. Update this whenever we fix a 
 
 ## Log
 
+### 2026-09-12 (auth hardening pass — AuthGuard only protected the tab group)
+- **Signed-out users could land on authenticated non-tab screens.** The `AuthGuard` only redirected
+  to sign-in when `segments[0] === "(tabs)"`, but `chat`, `messages`, `my-listings`, `settings`,
+  `visits`, `notifications`, `saved-searches`, and `property/edit` all require auth. Reaching them
+  signed-out (push deep-link → `/chat` or `/visits`, a web URL, or a session that expired mid-use)
+  showed a broken/empty screen with failing API calls instead of the sign-in screen. **Category:**
+  authz / navigation.
+  - *Fix:* `PROTECTED_SEGMENTS` set + a `property/edit` special-case (so the public `/property/[id]`
+    view stays open) in `mobile/app/_layout.js`. *Enhancement noted (not done):* preserve the
+    deep-link target across sign-in to return the user to where they were headed.
+  - *Reviewed OK:* `sign-in` (credentials/phone/email-MFA branches, resend cooldowns, interval
+    cleanup), `forgot-password` (email/phone reset → `needs_new_password` → `resetPassword`), `sign-up`
+    (username/phone verify). Sign-in already handles the enforced email-code 2FA branch.
+
 ### 2026-09-12 (chat/realtime hardening pass — realtime dead in prod)
 - **Realtime chat never connected in prod.** `SocketContext` hardcoded `SOCKET_PATH =
   "/api/socket.io"` (the dev nginx path — nginx strips `/api` → server's `/socket.io`). Prod has no

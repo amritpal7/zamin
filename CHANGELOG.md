@@ -12,6 +12,14 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-12 (fix: AuthGuard only protected the tab group — auth pass)
+- **Signed-out users could reach authenticated non-tab screens** (`chat`, `messages`, `my-listings`,
+  `settings`, `visits`, `notifications`, `saved-searches`, `property/edit`) via push deep-links, web
+  URLs, or an expired session — landing on a broken/empty screen instead of sign-in. `AuthGuard`
+  (`mobile/app/_layout.js`) now guards a `PROTECTED_SEGMENTS` set (+ a `property/edit` special-case so
+  the public `/property/[id]` view stays open). Reviewed sign-in / sign-up / forgot-password — solid,
+  incl. the enforced email-code 2FA branch. Bundle compiles.
+
 ### 2026-09-12 (fix: realtime chat was dead in prod + no reconnect resync — chat pass)
 - **Realtime was completely broken in prod.** `SocketContext` hardcoded the socket path to
   `/api/socket.io` (the dev nginx path); prod has no nginx and the API serves Socket.io at
