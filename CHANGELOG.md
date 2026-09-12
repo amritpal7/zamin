@@ -12,6 +12,15 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-13 (ops: CodeRabbit config + Neon-ready Postgres)
+- **CodeRabbit:** added `.coderabbit.yaml` — automated PR review + secret scanning (gitleaks) with
+  security-focused path instructions mirroring `docs/BUGLOG.md` guardrails + `vibe-check/AGENTS.md`.
+  Activate by installing the GitHub app (https://github.com/apps/coderabbitai) on the repo.
+- **Neon-ready Postgres:** `db.js` now enables TLS when `DATABASE_URL` has `?sslmode=require` (Neon)
+  or `PGSSL=true`, and `runMigrations` passes the same SSL to node-pg-migrate — so switching prod to
+  managed **Neon** is a `DATABASE_URL` swap + re-seed (schema self-provisions). Local/Railway-internal
+  (no SSL) unchanged; 99 backend tests still pass. Migration runbook in `docs/DEPLOY.md`.
+
 ### 2026-09-13 (fix: property photos never rendered — expo-image source shape)
 - **Property photos showed only the blurhash on web AND mobile.** `SmartImage` (every property photo:
   cards + detail slider) passed a bare string to expo-image's `source`; expo-image needs the object

@@ -17,7 +17,10 @@ async function runMigrations() {
   const mod = require("node-pg-migrate");
   const runner = mod.default || mod;
   await runner({
-    databaseUrl: process.env.DATABASE_URL,
+    // Reuse db.js's SSL decision so migrations connect to managed Postgres (Neon: sslmode=require).
+    databaseUrl: pool.sslConfig
+      ? { connectionString: process.env.DATABASE_URL, ssl: pool.sslConfig }
+      : process.env.DATABASE_URL,
     dir: path.join(__dirname, "..", "migrations"),
     migrationsTable: "pgmigrations",
     direction: "up",

@@ -76,9 +76,33 @@ EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_…   # swap to pk_live_… with prod 
 - **Test locally against prod** (no build): `EXPO_PUBLIC_API_URL=https://api-production-43dd.up.railway.app EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_cG9saXRlLWdpcmFmZmUtMzkuY2xlcmsuYWNjb3VudHMuZGV2JA npx expo start -c`
 - When prod Clerk lands, update the key in **both** `eas.json` profiles.
 
+## Switch to managed Postgres (Neon)
+
+The prod DB is a single Railway `postgres:16` container on a 500 MB volume (no backups). Neon
+adds branching, autoscale, and PITR backups. The code is **Neon-ready**: `db.js` enables TLS when
+the connection string has `?sslmode=require` (Neon) or `PGSSL=true`, and `runMigrations` passes the
+same SSL to node-pg-migrate. Schema self-provisions (init.sql + migrations), so migrating is a
+`DATABASE_URL` swap + re-seed (real users live in Clerk, not Postgres — only the demo data moves):
+
+1. Create a **Neon** project → copy the **pooled** connection string (ends with `...-pooler...?sslmode=require`).
+2. Set `DATABASE_URL` to it on **both** the `api` and `worker` Railway services (dashboard, or ask me
+   to set it via the Railway MCP). Remove the old `${{Postgres.RAILWAY_PRIVATE_DOMAIN}}` value.
+3. Redeploy `api` → boot runs `runMigrations` (init.sql + migrations) against Neon → schema created.
+4. Re-seed demo data (worker one-off, per the "Seed prod demo data" note above).
+5. Verify `GET /properties` returns data; then the Railway `Postgres` service + `pg-data` volume can
+   be deleted.
+
+## Code review (CodeRabbit)
+
+`.coderabbit.yaml` (repo root) configures automated PR review + secret scanning (gitleaks), with
+security-focused path instructions mirroring `docs/BUGLOG.md` guardrails + `vibe-check/AGENTS.md`.
+**To activate:** install the CodeRabbit GitHub app (https://github.com/apps/coderabbitai) on the
+`amritpal7/zamin` repo — it then reviews every PR automatically.
+
 ## Remaining follow-ups before public launch
 - [ ] **Production Clerk instance** — currently using `pk_test_/sk_test_` (test mode). Turnkey guide in **`docs/CLERK_PROD.md`** (username/password only, no Google). **Blocked on acquiring a domain** — Clerk prod needs a custom domain + DNS. Once you have live keys I wire Railway + `eas.json` + re-seed owners.
 - [ ] **Lock CORS** — set `CORS_ORIGIN` on the api service once web origins are known (currently `*`).
 - [ ] **Custom domains** — e.g. `api.zamin.app` / `cdn.zamin.app` via `generate-domain` + DNS.
 - [ ] **Node 22** — AWS SDK v3 warns node ≥22 will be required after Jan 2027; bump the backend base image.
-- [ ] **Managed Postgres/Redis at scale** — the single-container DBs are fine for launch; move to Railway's managed plugins / raise pool size as traffic grows (see `LAUNCH.md` load notes).
+- [ ] **Managed Postgres (Neon)** — code is Neon-ready (SSL); migrate via the runbook above. Redis can move to a managed plugin similarly. Raise pool size as traffic grows (see `LAUNCH.md` load notes).
+- [ ] **CodeRabbit** — config committed (`.coderabbit.yaml`); install the GitHub app to activate PR reviews.

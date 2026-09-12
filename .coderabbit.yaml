@@ -1,0 +1,45 @@
+# CodeRabbit configuration — https://docs.coderabbit.ai/guides/configure-coderabbit
+# Automated PR review + security-issue detection. Install the GitHub app on the repo
+# (https://github.com/apps/coderabbitai) and CodeRabbit reads this file per PR.
+language: en-US
+
+reviews:
+  profile: assertive            # thorough, opinionated reviews (vs. "chill")
+  request_changes_workflow: false
+  high_level_summary: true
+  review_status: true
+  poem: false
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - master
+  # Domain-specific review focus, mirroring docs/BUGLOG.md guardrails + vibe-check/AGENTS.md.
+  path_instructions:
+    - path: "backend/**"
+      instructions: >
+        Node/Express + pg + Clerk. Flag: any route missing requireAuth or an ownership check;
+        SQL not using parameterized queries ($1,$2) / possible injection; secrets committed in
+        code; missing input validation; status transitions that aren't atomic (guard the UPDATE
+        with the state check + RETURNING, don't SELECT-then-unguarded-UPDATE); denormalized
+        owner_name/owner_avatar/owner_image copies not propagated (reconcile). Enforce the rules
+        in vibe-check/AGENTS.md (secrets, SSRF, headers, CORS, rate limiting, error handling).
+    - path: "mobile/**"
+      instructions: >
+        Expo/React Native + expo-router. Flag: dev-only URL/path assumptions that break in prod
+        (e.g. "/media", "/api/socket.io"); expo-image source/placeholder passed as a bare string
+        instead of { uri }; useApi()/useFocusEffect dependency mistakes causing render loops or a
+        request per keystroke; router.back() without a canGoBack() fallback; Modals rendered
+        always-mounted instead of conditionally; Platform-specific (native vs web) code that isn't
+        guarded.
+    - path: "**/*.test.js"
+      instructions: >
+        Tests must be hermetic — assert on rows/data the test itself creates, never on shared
+        dev/seed data (which changes and makes tests flaky).
+
+  tools:
+    gitleaks:
+      enabled: true             # secret scanning on every PR
+
+chat:
+  auto_reply: true
