@@ -848,6 +848,7 @@ export default function PropertyDetail() {
                 </View>
                 <Text style={{ color: (!isOwn && p.owner_active === false) ? C.red : C.muted, fontSize: 12, marginTop: 2, fontFamily: FONT }}>
                   {isOwn ? "Your listing" : (p.owner_active === false ? "⚠ No longer available" : "Property Owner")}
+                  {p.owner_username ? `  ·  @${p.owner_username}` : ""}
                 </Text>
               </View>
               {isOwn && (

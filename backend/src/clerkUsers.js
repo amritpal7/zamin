@@ -29,7 +29,7 @@ async function getUser(id) {
       (u.phone_numbers || []).some((p) => p.verification?.status === "verified");
     // Owner's default location visibility for new listings (set in Settings). null = unset.
     const locationDefault = u.public_metadata?.default_location_visibility || null;
-    return { reliable: true, exists: true, imageUrl: u.has_image ? u.image_url : null, name, avatar, verified, locationDefault };
+    return { reliable: true, exists: true, imageUrl: u.has_image ? u.image_url : null, name, avatar, username: uname || null, verified, locationDefault };
   } catch {
     return { reliable: false, exists: true, imageUrl: null, name: null, avatar: null, verified: false };
   }
@@ -86,13 +86,14 @@ async function reconcileOwner(pool, clerkUserId) {
   }
   const { rowCount } = await pool.query(
     `UPDATE properties
-       SET owner_active = true,
-           owner_image  = $1,
-           owner_name   = COALESCE($2, owner_name),
-           owner_avatar = COALESCE($3, owner_avatar),
-           verified     = $4
-     WHERE clerk_user_id = $5`,
-    [u.imageUrl, u.name, u.avatar, u.verified, clerkUserId]
+       SET owner_active   = true,
+           owner_image    = $1,
+           owner_name     = COALESCE($2, owner_name),
+           owner_avatar   = COALESCE($3, owner_avatar),
+           owner_username = COALESCE($4, owner_username),
+           verified       = $5
+     WHERE clerk_user_id = $6`,
+    [u.imageUrl, u.name, u.avatar, u.username || null, u.verified, clerkUserId]
   );
   return { updated: rowCount, verified: u.verified };
 }
@@ -112,13 +113,14 @@ async function reconcileOwners(pool) {
       // prefers the full name and falls back to @username.
       await pool.query(
         `UPDATE properties
-           SET owner_active = true,
-               owner_image  = $1,
-               owner_name   = COALESCE($2, owner_name),
-               owner_avatar = COALESCE($3, owner_avatar),
-               verified     = $4
-         WHERE clerk_user_id = $5`,
-        [u.imageUrl, u.name, u.avatar, u.verified, clerk_user_id]
+           SET owner_active   = true,
+               owner_image    = $1,
+               owner_name     = COALESCE($2, owner_name),
+               owner_avatar   = COALESCE($3, owner_avatar),
+               owner_username = COALESCE($4, owner_username),
+               verified       = $5
+         WHERE clerk_user_id = $6`,
+        [u.imageUrl, u.name, u.avatar, u.username || null, u.verified, clerk_user_id]
       );
       active++;
     } else {

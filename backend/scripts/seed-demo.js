@@ -121,9 +121,9 @@ function makeProperty(city, area, owner, i, force) {
     const tags = [...p.tags, "demo-seed"];
     await pool.query(
       `INSERT INTO properties
-        (clerk_user_id, owner_name, owner_phone, owner_avatar, title, description, type, status, price, area, beds, baths, location, latitude, longitude, tags, img, color, images, thumbnails, verified, location_visibility)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)`,
-      [p.owner.id, p.owner.name, p.owner.phone, p.owner.avatar, p.title, p.description, p.type, p.status, p.price, p.area, p.beds, p.baths, p.location, p.latitude, p.longitude, tags, p.img, p.color, p.images, p.images, p.verified, p.visibility]
+        (clerk_user_id, owner_name, owner_phone, owner_avatar, owner_username, title, description, type, status, price, area, beds, baths, location, latitude, longitude, tags, img, color, images, thumbnails, verified, location_visibility)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)`,
+      [p.owner.id, p.owner.name, p.owner.phone, p.owner.avatar, p.owner.username, p.title, p.description, p.type, p.status, p.price, p.area, p.beds, p.baths, p.location, p.latitude, p.longitude, tags, p.img, p.color, p.images, p.images, p.verified, p.visibility]
     );
     n++;
   };

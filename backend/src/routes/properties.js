@@ -445,18 +445,18 @@ router.post("/", requireAuth, async (req, res) => {
     // able to self-assign a "verified" badge. Falls back to false if Clerk is
     // unreachable; the scheduled reconcile heals it. Same call also yields the owner's
     // default location visibility (used when the listing doesn't specify one).
-    let verified = false, ownerDefault = null;
-    try { const u = await getUser(userId); verified = u.verified === true; ownerDefault = u.locationDefault; } catch { /* keep defaults */ }
+    let verified = false, ownerDefault = null, ownerUsername = null;
+    try { const u = await getUser(userId); verified = u.verified === true; ownerDefault = u.locationDefault; ownerUsername = u.username || null; } catch { /* keep defaults */ }
     const visibility = LOCATION_VISIBILITIES.includes(location_visibility)
       ? location_visibility
       : (LOCATION_VISIBILITIES.includes(ownerDefault) ? ownerDefault : "exact");
 
     const { rows } = await pool.query(
       `INSERT INTO properties
-        (clerk_user_id, owner_name, owner_phone, owner_avatar, owner_image, title, description, type, status, price, area, beds, baths, location, latitude, longitude, tags, img, color, images, thumbnails, verified, location_visibility, photo_geo, on_site_verified, parcel)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
+        (clerk_user_id, owner_name, owner_phone, owner_avatar, owner_image, title, description, type, status, price, area, beds, baths, location, latitude, longitude, tags, img, color, images, thumbnails, verified, location_visibility, photo_geo, on_site_verified, parcel, owner_username)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)
        RETURNING *`,
-      [userId, owner_name, owner_phone, owner_avatar, owner_image || null, title, description, type, status, price, area, beds, baths, location, trust.latitude, trust.longitude, tags, img || "🏠", color || "#f0a500", images || [], thumbnails || [], verified, visibility, JSON.stringify(trust.photo_geo), trust.on_site_verified, Array.isArray(parcel) ? JSON.stringify(parcel) : null]
+      [userId, owner_name, owner_phone, owner_avatar, owner_image || null, title, description, type, status, price, area, beds, baths, location, trust.latitude, trust.longitude, tags, img || "🏠", color || "#f0a500", images || [], thumbnails || [], verified, visibility, JSON.stringify(trust.photo_geo), trust.on_site_verified, Array.isArray(parcel) ? JSON.stringify(parcel) : null, ownerUsername]
     );
     // Notify users whose saved search matches this new listing (best-effort; never fails create).
     try { await notifyListingMatch(pool, rows[0]); } catch (e) { console.error("saved-search notify failed:", e.message); }

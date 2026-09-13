@@ -133,7 +133,7 @@ describe("geo / near-me search", () => {
       .send({ ...sampleListing, title: "Mid BLR", latitude: 13.05, longitude: 77.66 });
     const midId = mid.body.id;
 
-    const res = await request(app).get("/properties?lat=12.9716&lng=77.5946&radius=25");
+    const res = await request(app).get("/properties?lat=12.9716&lng=77.5946&radius=25&limit=100");
     expect(res.status).toBe(200);
     const near = res.body.items.find((p) => p.id === nearId);
     const midItem = res.body.items.find((p) => p.id === midId);

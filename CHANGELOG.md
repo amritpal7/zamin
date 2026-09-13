@@ -12,6 +12,17 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-14 (feat: @username next to owner name + demo listings for real owners)
+- **Owner @username disambiguation.** New denormalized `owner_username` column (migration
+  `1726300000000_owner_username.js` — new file, not editing the frozen baseline) set on create from the
+  owner's Clerk user (server-authoritative) and kept in sync by the reconcile job (`clerkUsers.js`) +
+  the demo seed. Shown as **"@username"** next to the owner name on **PropertyCard** + **property
+  detail**, so accounts that share a display name (e.g. two "Meera Patil"s) are distinguishable.
+- **`scripts/seed-owner-demo.js`:** publishes 3 demo listings each under the real accounts
+  **@amrit5377** and **@meera_estates** (direct insert, idempotent via an `owner-demo-seed` tag).
+- Geo test now requests `limit=100` so shared-dev-DB pollution can't push a controlled row to page 2.
+  100 backend tests pass; bundle compiles.
+
 ### 2026-09-14 (diag: /mine proven correct; show signed-in account; quiet socket noise)
 - **Verified the My-Listings backend is correct**: signing in as demo_meera via Clerk's real
   frontend sign-in flow and calling `GET /properties/mine` returns her **10 listings**. So an empty
