@@ -12,6 +12,17 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-14 (chat: composer UX + realtime poll fallback)
+- **Composer, WhatsApp-style** (`mobile/app/chat/[id].js`): input is now **multiline & grows** with the
+  text (`maxHeight` 120) so you can see the whole message; **Enter no longer sends** (newline; send only
+  via the button — removed `onSubmitEditing`, added `multiline` + `blurOnSubmit={false}`); buttons anchor
+  to the bottom as it grows; rounded-rect input.
+- **Keyboard dismisses on scroll** — `keyboardDismissMode="on-drag"` on the message list.
+- **Realtime poll fallback:** while a thread is open, refetch every 5s so new messages appear even when
+  the socket isn't delivering (observed on the **web** client — device receives live, web didn't). Server
+  rows are source of truth; not-yet-persisted optimistic sends are preserved. (Root-cause of the web
+  socket gap still worth investigating once Sentry is in — this makes delivery reliable meanwhile.)
+
 ### 2026-09-13 (design: liquid-glass theme — foundation + detail sheets)
 - **Liquid-glass tokens** in `mobile/src/theme/index.js` (`C.glass`: blur intensity/tint, translucent
   fill, rim border, specular top-edge highlight, depth shadow — per light + dark).

@@ -252,6 +252,24 @@ export default function Chat() {
     };
   }, [socket, id, peer, user?.id, markRead]);
 
+  // Safety net: while the thread is open, poll for new messages every few seconds so the
+  // conversation stays live even when the realtime socket isn't delivering (observed on web).
+  // Server rows are the source of truth; we keep any not-yet-persisted optimistic messages.
+  useEffect(() => {
+    const poll = setInterval(() => {
+      apiRef.current.getMessages(id, peer).then((rows) => {
+        if (!Array.isArray(rows)) return;
+        setMessages((prev) => {
+          const serverIds = new Set(rows.map((r) => r.id));
+          const pendingLocal = prev.filter((m) => String(m.id).startsWith("tmp-") && !serverIds.has(m.id));
+          return [...rows, ...pendingLocal];
+        });
+        markRead();
+      }).catch(() => {});
+    }, 5000);
+    return () => clearInterval(poll);
+  }, [id, peer, markRead]);
+
   // Create / respond to / counter a proposal (visit or offer).
   const ident = () => ({ sender_name: myName, sender_avatar: myAvatar, sender_image: myImage });
   const onPickValue = async (value) => {
@@ -448,7 +466,12 @@ export default function Chat() {
       )}
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-        <ScrollView ref={scrollRef} contentContainerStyle={{ padding: 16, gap: 10 }}>
+        <ScrollView
+          ref={scrollRef}
+          contentContainerStyle={{ padding: 16, gap: 10 }}
+          keyboardDismissMode="on-drag"
+          keyboardShouldPersistTaps="handled"
+        >
 
           {/* Property pill */}
           {p && (
@@ -546,7 +569,7 @@ export default function Chat() {
           paddingBottom: insets.bottom + 14,
           borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.line,
           backgroundColor: C.glassBg,
-          alignItems: "center",
+          alignItems: "flex-end",   // buttons hug the bottom as the input grows
         }}>
           {!peerGone && !blocked && (
             <Pressable
@@ -560,16 +583,19 @@ export default function Chat() {
           )}
           <View style={{
             flex: 1, backgroundColor: C.bg,
-            borderRadius: 999,
-            paddingHorizontal: 16, paddingVertical: 4,
+            borderRadius: 22,
+            paddingHorizontal: 16, paddingVertical: 2,
             borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder,
             flexDirection: "row", alignItems: "center", gap: 8,
           }}>
             <TextInput
-              value={msg} onChangeText={onChangeMsg} onSubmitEditing={send}
+              value={msg} onChangeText={onChangeMsg}
               editable={!blocked}
-              placeholder={blocked ? "Messaging unavailable" : "Type a message…"} placeholderTextColor={C.fgDim}
-              style={{ flex: 1, paddingVertical: 10, color: C.fg, fontFamily: FONT, fontSize: 14, letterSpacing: 0.3 }}
+              multiline                              // grows with the text; Enter = newline, not send
+              blurOnSubmit={false}
+              textAlignVertical="center"
+              placeholder={blocked ? "Messaging unavailable" : "Message…"} placeholderTextColor={C.fgDim}
+              style={{ flex: 1, paddingVertical: 10, maxHeight: 120, color: C.fg, fontFamily: FONT, fontSize: 15, lineHeight: 20, letterSpacing: 0.2 }}
             />
           </View>
           <Pressable
