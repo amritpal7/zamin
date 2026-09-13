@@ -131,6 +131,7 @@ export function useApi() {
     // Notifications store
     getNotifications: () => request("/notifications"),
     markNotificationsRead: () => request("/notifications/read", { method: "POST" }),
+    markNotificationRead: (id) => request(`/notifications/${id}/read`, { method: "POST" }),
 
     // Saved searches
     createSavedSearch: (body) => request("/saved-searches", { method: "POST", body: JSON.stringify(body) }),

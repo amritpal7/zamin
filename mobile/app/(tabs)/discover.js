@@ -1,5 +1,5 @@
 import { useTheme } from "../../src/context/ThemeContext";
-import React, { useState, useCallback, useRef } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import {
   View, Text, ScrollView, Pressable, TextInput,
   ActivityIndicator, RefreshControl, StyleSheet, Alert,
@@ -18,6 +18,7 @@ import PressableScale from "../../src/components/PressableScale";
 import { Avatar } from "../../src/components/ui";
 import { SEED_PROPERTIES } from "../../src/data/properties";
 import { useApi } from "../../src/hooks/useApi";
+import { useSocket } from "../../src/context/SocketContext";
 
 const TYPE_FILTERS   = ["All", "House", "Apartment", "Land", "Commercial"];
 const STATUS_FILTERS = ["All", "For Sale", "For Rent"];
@@ -87,8 +88,10 @@ export default function Discover() {
   const apiRef  = useRef(api);
   apiRef.current = api;
 
+  const socket = useSocket();
   const [properties, setProperties] = useState(SEED_PROPERTIES);
   const [saved,      setSaved]      = useState([]);
+  const [unreadNotifs, setUnreadNotifs] = useState(0);
   const [type,       setType]       = useState("All");
   const [status,     setStatus]     = useState("All");
   const [search,     setSearch]     = useState("");
@@ -146,8 +149,17 @@ export default function Discover() {
     useCallback(() => {
       if (!isSignedIn) return;
       apiRef.current.getSaved().then(d => setSaved(d.map(p => p.id))).catch(() => {});
+      apiRef.current.getNotifications().then(d => setUnreadNotifs(d.unread || 0)).catch(() => {});
     }, [isSignedIn])
   );
+
+  // Live-update the bell badge when a new message/notification arrives while Home is open.
+  useEffect(() => {
+    if (!socket || !isSignedIn) return;
+    const refresh = () => apiRef.current.getNotifications().then(d => setUnreadNotifs(d.unread || 0)).catch(() => {});
+    socket.on("message", refresh);
+    return () => socket.off("message", refresh);
+  }, [socket, isSignedIn]);
 
   const toggleNearMe = async () => {
     if (geo) { setGeo(null); return; }
@@ -253,6 +265,18 @@ export default function Discover() {
             style={[styles.iconBtn, { backgroundColor: C.glassBg, borderColor: C.glassBorder }]}
           >
             <Icon name="bell" size={18} color={C.fg} />
+            {unreadNotifs > 0 && (
+              <View style={{
+                position: "absolute", top: -4, right: -4,
+                minWidth: 18, height: 18, borderRadius: 9,
+                backgroundColor: C.red, alignItems: "center", justifyContent: "center",
+                paddingHorizontal: 4, borderWidth: 1.5, borderColor: C.bg,
+              }}>
+                <Text style={{ color: "#fff", fontSize: 10, fontFamily: FONT_MED }}>
+                  {unreadNotifs > 99 ? "99+" : unreadNotifs}
+                </Text>
+              </View>
+            )}
           </Pressable>
         </View>
 

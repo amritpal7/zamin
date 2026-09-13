@@ -36,11 +36,7 @@ export default function Notifications() {
   useFocusEffect(
     useCallback(() => {
       setLoading(true);
-      Promise.resolve(load()).finally(() => {
-        setLoading(false);
-        // Opening the screen marks everything read.
-        apiRef.current.markNotificationsRead().then(() => setUnread(0)).catch(() => {});
-      });
+      Promise.resolve(load()).finally(() => setLoading(false));
     }, [load])
   );
 
@@ -55,6 +51,10 @@ export default function Notifications() {
   );
 
   const open = (n) => {
+    // Tapping a notification dismisses it (marks read + removes from the feed), then navigates.
+    setItems((prev) => prev.filter((x) => x.id !== n.id));
+    if (!n.read_at) setUnread((u) => Math.max(0, u - 1));
+    apiRef.current.markNotificationRead(n.id).catch(() => {});
     const d = n.data || {};
     if (d.kind === "visit") router.push("/visits");
     else if (d.kind === "listing" && d.propertyId) router.push(`/property/${d.propertyId}`);

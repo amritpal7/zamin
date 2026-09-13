@@ -12,6 +12,14 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-14 (notifications: unread bell badge + per-notification dismiss)
+- **Unread badge on the Home bell** (`discover.js`): shows the unread count, fetched on focus and
+  refreshed live on socket `message`. Previously no indicator when new messages arrived.
+- **Tap-to-dismiss:** tapping a notification now marks **that one** read and removes it from the feed
+  (was: opening the screen bulk-marked everything read). New owner-scoped `POST /notifications/:id/read`
+  (`routes/notifications.js`) + `markNotificationRead` client method; `notifications.js` updated.
+- +1 backend test (per-item read: owner-scoped + invalid-id 400). **100 backend tests pass.**
+
 ### 2026-09-14 (chat: composer UX + realtime poll fallback)
 - **Composer, WhatsApp-style** (`mobile/app/chat/[id].js`): input is now **multiline & grows** with the
   text (`maxHeight` 120) so you can see the whole message; **Enter no longer sends** (newline; send only

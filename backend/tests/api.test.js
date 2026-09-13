@@ -610,6 +610,27 @@ describe("saved searches + notifications", () => {
     notifs = await request(app).get("/notifications").set("x-test-user", USER_A);
     expect(notifs.body.unread).toBe(0);
   });
+
+  test("tapping a single notification marks only that one read (owner-scoped, valid id)", async () => {
+    const listing = await request(app).post("/properties").set("x-test-user", USER_A).send({ ...sampleListing, title: "One-notif Listing" });
+    await request(app).post(`/messages/${listing.body.id}`).set("x-test-user", USER_B)
+      .send({ text: "Ping", receiver_id: USER_A, sender_name: "Ram" });
+
+    const before = await request(app).get("/notifications").set("x-test-user", USER_A);
+    const target = before.body.notifications.find((n) => n.type === "new_message" && !n.read_at);
+    expect(target).toBeDefined();
+    const unreadBefore = before.body.unread;
+
+    // invalid id → 400; another user can't mark it read (owner-scoped → 0 rows)
+    expect((await request(app).post("/notifications/not-a-uuid/read").set("x-test-user", USER_A)).status).toBe(400);
+    expect((await request(app).post(`/notifications/${target.id}/read`).set("x-test-user", USER_B)).body.read).toBe(0);
+
+    // owner marks that one read → unread drops by exactly one and it's flagged read
+    expect((await request(app).post(`/notifications/${target.id}/read`).set("x-test-user", USER_A)).body.read).toBe(1);
+    const after = await request(app).get("/notifications").set("x-test-user", USER_A);
+    expect(after.body.unread).toBe(unreadBefore - 1);
+    expect(after.body.notifications.find((n) => n.id === target.id).read_at).toBeTruthy();
+  });
 });
 
 describe("authorization audit fixes", () => {
