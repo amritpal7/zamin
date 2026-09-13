@@ -12,11 +12,11 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
-### 2026-09-14 (auth: Google + Apple sign-in via Clerk SSO)
-- New **`SocialAuth`** component (`mobile/src/components/SocialAuth.js`) — "Continue with Google / Apple"
-  buttons using Clerk's `useSSO` + `expo-web-browser`/`expo-auth-session` (deps already installed). On
-  success → `setActive` → discover. Apple is hidden on Android. Added to **sign-in** + **sign-up**
-  (credentials/details stages). Bundle compiles.
+### 2026-09-14 (auth: Google + Apple + Facebook sign-in via Clerk SSO)
+- New **`SocialAuth`** component (`mobile/src/components/SocialAuth.js`) — "Continue with Google /
+  Facebook / Apple" buttons using Clerk's `useSSO` + `expo-web-browser`/`expo-auth-session` (deps already
+  installed; wrapping 2-per-row layout). On success → `setActive` → discover. Apple is hidden on Android.
+  Added to **sign-in** + **sign-up** (credentials/details stages). Bundle compiles.
 - **Requires Clerk dashboard setup to work:** enable the Google + Apple SSO connections (Google uses
   Clerk's shared creds in dev; Apple needs Apple Developer credentials), and allowlist the app's redirect
   URL. Until enabled, tapping a provider shows a graceful "not enabled yet" error.

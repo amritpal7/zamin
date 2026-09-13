@@ -41,10 +41,14 @@ export default function SocialAuth({ onError }) {
         <View style={{ flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: C.glassBorder }} />
       </View>
 
-      <View style={{ flexDirection: "row", gap: 10 }}>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
         <Pressable onPress={() => go("oauth_google")} style={btn}>
           <Text style={{ color: "#EA4335", fontFamily: FONT_MED, fontSize: 15, fontWeight: "900" }}>G</Text>
           <Text style={{ color: C.fg, fontFamily: FONT_MED, fontSize: 14 }}>Google</Text>
+        </Pressable>
+        <Pressable onPress={() => go("oauth_facebook")} style={btn}>
+          <Text style={{ color: "#1877F2", fontFamily: FONT_MED, fontSize: 16, fontWeight: "900" }}>f</Text>
+          <Text style={{ color: C.fg, fontFamily: FONT_MED, fontSize: 14 }}>Facebook</Text>
         </Pressable>
         {Platform.OS !== "android" && (
           <Pressable onPress={() => go("oauth_apple")} style={btn}>
@@ -58,7 +62,8 @@ export default function SocialAuth({ onError }) {
 }
 
 const btn = {
-  flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+  flexGrow: 1, flexBasis: "46%",   // 2 per row; wraps the 3rd provider to the next line
+  flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
   paddingVertical: 13, borderRadius: 14,
   backgroundColor: C.glassBg, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder,
 };
