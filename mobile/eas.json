@@ -17,14 +17,16 @@
       "distribution": "internal",
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api-production-43dd.up.railway.app",
-        "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_cG9saXRlLWdpcmFmZmUtMzkuY2xlcmsuYWNjb3VudHMuZGV2JA"
+        "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_cG9saXRlLWdpcmFmZmUtMzkuY2xlcmsuYWNjb3VudHMuZGV2JA",
+        "EXPO_PUBLIC_SENTRY_DSN": "https://c5f6996d23edc1e8989e38dabc10cc03@o4511984198418432.ingest.us.sentry.io/4512080644997120"
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api-production-43dd.up.railway.app",
-        "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_cG9saXRlLWdpcmFmZmUtMzkuY2xlcmsuYWNjb3VudHMuZGV2JA"
+        "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_cG9saXRlLWdpcmFmZmUtMzkuY2xlcmsuYWNjb3VudHMuZGV2JA",
+        "EXPO_PUBLIC_SENTRY_DSN": "https://c5f6996d23edc1e8989e38dabc10cc03@o4511984198418432.ingest.us.sentry.io/4512080644997120"
       }
     }
   },

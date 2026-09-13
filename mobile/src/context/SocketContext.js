@@ -1,7 +1,9 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from "react";
+import { Platform } from "react-native";
 import { io } from "socket.io-client";
 import { useAuth } from "@clerk/clerk-expo";
 import Constants from "expo-constants";
+import * as Sentry from "@sentry/react-native";
 import { socketConfig } from "../utils/net";
 
 const BASE = Constants.expoConfig?.extra?.apiUrl
@@ -35,6 +37,18 @@ export function SocketProvider({ children }) {
       });
       // Refresh the auth token on each (re)connect attempt so it never goes stale.
       s.io.on("reconnect_attempt", () => { getToken().then((t) => { if (t) s.auth = { token: t }; }); });
+      // Surface WHY a socket won't connect (esp. the web client's realtime gap): the error
+      // message tells us transport vs auth vs CORS vs path. Logged + sent to Sentry.
+      s.on("connect_error", (err) => {
+        console.warn("socket connect_error:", err?.message, "→", ORIGIN, SOCKET_PATH);
+        try {
+          Sentry.captureException(
+            Object.assign(new Error(`socket connect_error: ${err?.message || "unknown"}`), {
+              origin: ORIGIN, path: SOCKET_PATH, platform: Platform.OS,
+            })
+          );
+        } catch {}
+      });
       ref.current = s;
       setSocket(s);
     })();

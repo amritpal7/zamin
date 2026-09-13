@@ -12,6 +12,14 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-14 (ops: Sentry error monitoring — mobile + web socket capture)
+- Added `@sentry/react-native` + the Expo config plugin (`app.json`). `_layout.js` inits Sentry and
+  wraps the root (no-op without `EXPO_PUBLIC_SENTRY_DSN`). **`SocketContext` captures the client socket
+  `connect_error`** (message + origin/path/platform) — this, with the backend `connection_error`
+  capture, should finally reveal *why* the web client's realtime socket doesn't deliver.
+- Sentry project **`zamin-mobile`**; DSN wired into `eas.json` (preview + production) and an opt-in
+  docker-compose var for local repro. Bundle compiles; 39 mobile tests pass.
+
 ### 2026-09-14 (ops: Sentry error monitoring — backend + socket diagnostics)
 - Added `@sentry/node`. `src/instrument.js` inits Sentry (no-op without `SENTRY_DSN`), required before
   `./app` in `index.js` + `worker.js` so express/http/pg auto-instrument. Express 5xx captured via

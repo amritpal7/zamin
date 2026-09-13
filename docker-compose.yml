@@ -160,6 +160,9 @@ services:
       # Clerk publishable key (safe to expose in client)
       - EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=${CLERK_PUBLISHABLE_KEY}
       - EXPO_PUBLIC_API_URL=http://${HOST_IP:-localhost}/api
+      # Opt-in: set EXPO_PUBLIC_SENTRY_DSN in .env to report local/dev client errors to Sentry
+      # (handy for reproducing the web realtime socket issue). Empty by default = no dev noise.
+      - EXPO_PUBLIC_SENTRY_DSN=${EXPO_PUBLIC_SENTRY_DSN:-}
     volumes:
       - ./mobile:/app
       - /app/node_modules

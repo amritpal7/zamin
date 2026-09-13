@@ -24,6 +24,16 @@ import { C } from "../src/theme";
 import { ThemeProvider } from "../src/context/ThemeContext";
 import { SocketProvider } from "../src/context/SocketContext";
 import PushManager from "../src/components/PushManager";
+import * as Sentry from "@sentry/react-native";
+
+// Client error/crash monitoring. No-op without EXPO_PUBLIC_SENTRY_DSN (so local dev is quiet).
+// Pairs with SocketContext's connect_error capture to surface the web realtime socket failures.
+const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN;
+if (SENTRY_DSN) {
+  try {
+    Sentry.init({ dsn: SENTRY_DSN, tracesSampleRate: 0.1, enableAutoSessionTracking: true });
+  } catch (e) { console.warn("Sentry init failed:", e?.message); }
+}
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -63,7 +73,7 @@ function AuthGuard() {
   return null;
 }
 
-export default function RootLayout() {
+function RootLayout() {
   const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
   if (!publishableKey) {
@@ -124,3 +134,6 @@ export default function RootLayout() {
     </ClerkProvider>
   );
 }
+
+// Wrap with Sentry when enabled (captures render errors + navigation context); passthrough otherwise.
+export default SENTRY_DSN ? Sentry.wrap(RootLayout) : RootLayout;
