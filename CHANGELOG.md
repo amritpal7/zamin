@@ -12,6 +12,15 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-14 (fix: web realtime socket — root cause found via Sentry)
+- **The web client's realtime gap is fixed at the source.** Sentry captured `socket connect_error:
+  websocket error` (web) + `JWT is expired` (api handshake). `SocketContext` now uses
+  **`transports: ["polling", "websocket"]`** (the browser's raw WS to Railway's proxy was failing and
+  not downgrading; polling connects reliably then upgrades) and passes **`auth` as a function** so a
+  fresh Clerk token is sent on every (re)connect (fixes the expired-JWT handshake). Native was
+  unaffected — this is why the device worked and web didn't. The 5s chat poll remains as a safety net.
+  Bundle compiles. BUGLOG entry + guardrail added.
+
 ### 2026-09-14 (auth: Google + Apple + Facebook sign-in via Clerk SSO)
 - New **`SocialAuth`** component (`mobile/src/components/SocialAuth.js`) — "Continue with Google /
   Facebook / Apple" buttons using Clerk's `useSSO` + `expo-web-browser`/`expo-auth-session` (deps already

@@ -26,6 +26,22 @@ of bug while building new features. Newest first. Update this whenever we fix a 
 
 ## Log
 
+### 2026-09-14 (web realtime finally diagnosed via Sentry — websocket transport + expired JWT)
+- **Root cause of the web chat not delivering live.** Sentry (wired the day before) captured it:
+  `zamin-mobile` → **"socket connect_error: websocket error"** (web only, 18×), and `zamin-api` →
+  **"JWT is expired"** at the socket handshake (`realtime`). **Causes:** (1) `SocketContext` forced
+  **websocket-first** transport — the browser's raw WS to Railway's proxy failed and didn't downgrade,
+  so realtime never established on web (React Native's native WS was fine, which is why the device
+  worked); (2) a stale Clerk token could reach the handshake (`auth: { token }` captured once).
+  **Category:** realtime transport / proxy.
+  - *Fix (`mobile/src/context/SocketContext.js`):* `transports: ["polling", "websocket"]` (polling
+    connects reliably through the HTTP proxy, then Socket.io upgrades to ws) + `auth` as a **function**
+    so a fresh token is fetched on every (re)connect. The 5s chat poll stays as a safety net.
+  - *How found:* the Sentry `connect_error` capture added to SocketContext + `io.engine`
+    `connection_error`/auth capture on the server. Exactly what the instrumentation was for.
+  - *Guardrail:* for Socket.io behind a proxy / on web, prefer **polling-first** transport and pass
+    `auth` as a function (fresh token per attempt), not a one-shot value.
+
 ### 2026-09-13 (property photos never rendered — bare-string expo-image source)
 - **No property photos on web OR mobile — only the blurhash placeholder.** `SmartImage` (used for
   every property photo: cards + the detail slider) passed a **bare string** to expo-image's `source`

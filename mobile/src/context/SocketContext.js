@@ -23,38 +23,34 @@ export function SocketProvider({ children }) {
   const ref = useRef(null);
 
   useEffect(() => {
-    let cancelled = false;
     if (!isSignedIn) return;
 
-    (async () => {
-      const token = await getToken();
-      if (cancelled || !token) return;
-      const s = io(ORIGIN, {
-        path: SOCKET_PATH,
-        auth: { token },
-        transports: ["websocket", "polling"],
-        reconnection: true,
-      });
-      // Refresh the auth token on each (re)connect attempt so it never goes stale.
-      s.io.on("reconnect_attempt", () => { getToken().then((t) => { if (t) s.auth = { token: t }; }); });
-      // Surface WHY a socket won't connect (esp. the web client's realtime gap): the error
-      // message tells us transport vs auth vs CORS vs path. Logged + sent to Sentry.
-      s.on("connect_error", (err) => {
-        console.warn("socket connect_error:", err?.message, "→", ORIGIN, SOCKET_PATH);
-        try {
-          Sentry.captureException(
-            Object.assign(new Error(`socket connect_error: ${err?.message || "unknown"}`), {
-              origin: ORIGIN, path: SOCKET_PATH, platform: Platform.OS,
-            })
-          );
-        } catch {}
-      });
-      ref.current = s;
-      setSocket(s);
-    })();
+    const s = io(ORIGIN, {
+      path: SOCKET_PATH,
+      // `auth` as a function is invoked before EVERY (re)connect, so the handshake always
+      // carries a fresh Clerk token — fixes the "JWT is expired" handshake rejections.
+      auth: (cb) => { getToken().then((t) => cb({ token: t || "" })).catch(() => cb({ token: "" })); },
+      // Polling FIRST, then upgrade to websocket. The browser's raw websocket to Railway's
+      // proxy was failing ("websocket error") and blocking realtime on web; polling connects
+      // reliably through the HTTP proxy and Socket.io transparently upgrades to ws when it can.
+      transports: ["polling", "websocket"],
+      reconnection: true,
+    });
+    // Surface WHY a socket won't connect — logged + sent to Sentry (origin/path/platform).
+    s.on("connect_error", (err) => {
+      console.warn("socket connect_error:", err?.message, "→", ORIGIN, SOCKET_PATH);
+      try {
+        Sentry.captureException(
+          Object.assign(new Error(`socket connect_error: ${err?.message || "unknown"}`), {
+            origin: ORIGIN, path: SOCKET_PATH, platform: Platform.OS,
+          })
+        );
+      } catch {}
+    });
+    ref.current = s;
+    setSocket(s);
 
     return () => {
-      cancelled = true;
       if (ref.current) { ref.current.disconnect(); ref.current = null; }
       setSocket(null);
     };
