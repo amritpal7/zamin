@@ -11,6 +11,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { C, FONT, FONT_HEAD } from "../src/theme";
 import NeoButton from "../src/components/NeoButton";
 import { NeoInput } from "../src/components/ui";
+import SocialAuth from "../src/components/SocialAuth";
 
 const RESEND_COOLDOWN = 30;
 
@@ -253,6 +254,8 @@ export default function SignIn() {
                 <NeoButton full title={loading ? "Sending code…" : "Send Code →"} fill={C.amber} fg={C.ink} onPress={startPhoneSignIn} disabled={loading} />
               </>
             )}
+
+            <SocialAuth onError={setError} />
           </>
         )}
 

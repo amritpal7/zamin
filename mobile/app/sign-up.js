@@ -10,6 +10,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { C, FONT, FONT_HEAD } from "../src/theme";
 import NeoButton from "../src/components/NeoButton";
 import { NeoInput } from "../src/components/ui";
+import SocialAuth from "../src/components/SocialAuth";
 
 export default function SignUp() {
   useTheme();
@@ -180,6 +181,8 @@ export default function SignUp() {
               <Text key={item} style={{ color: C.muted, fontSize: 10, fontFamily: FONT, fontWeight: "600" }}>{item}</Text>
             ))}
           </View>
+
+          <SocialAuth onError={setError} />
         </>
       )}
 
