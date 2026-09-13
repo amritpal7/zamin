@@ -12,6 +12,27 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-14 (feat: real iOS-26 Liquid Glass navbar via expo-glass-effect)
+**Added** `mobile/src/components/LiquidGlass.js` — one glass primitive that renders Apple's
+real Liquid Glass (`expo-glass-effect` `GlassView`, `isLiquidGlassAvailable()`) on iOS 26 and
+falls back to the existing BlurView faux-glass (blur + fill + specular sheen) on iOS<26 /
+Android / web. Drives `GlassView.colorScheme` from our theme toggle; `isInteractive` on the
+navbar so the bar responds to touch like a native iOS tab bar.
+**Changed** `mobile/app/(tabs)/_layout.js` — navbar container swapped from raw `BlurView` to
+`LiquidGlass` (real glass on device); our hand-drawn top-sheen now renders **only** on the
+fallback (`!NATIVE_GLASS`) so we don't double the specular on real glass. Layout/anim/pills
+unchanged. `mobile/src/components/GlassSurface.js` — now a thin wrapper over `LiquidGlass`, so
+property-detail drawers/modals (the only `GlassSurface` call site, `app/property/[id].js`) get
+real glass on iOS 26 with zero call-site changes.
+**Ripple checked:** BlurView/GlassSurface/LiquidGlass usages swept — navbar + sheets covered;
+`PropertyCard`/`discover` keep cheap `C.glass` rim tokens (no blur) on purpose for list perf.
+Follows expo.dev/blog/liquid-glass-app-with-expo-ui (used its RN-native `expo-glass-effect`
+path rather than a SwiftUI `Host` rewrite, which would be iOS-only and break Android/web).
+**Ops** `expo install expo-glass-effect@57.0.3` (autolinked, no config plugin). Real glass
+appears after the next `eas build`/dev-client rebuild; Expo Go can't load the native module.
+**Validated** iOS/Android/web bundles compile (0 errors, ~10–13 MB each).
+**Docs** `docs/ARCHITECTURE.md` §9 — documented the `LiquidGlass` primitive.
+
 ### 2026-09-14 (feat: @username next to owner name + demo listings for real owners)
 - **Owner @username disambiguation.** New denormalized `owner_username` column (migration
   `1726300000000_owner_username.js` — new file, not editing the frozen baseline) set on create from the

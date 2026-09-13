@@ -332,8 +332,15 @@ swappable (MinIO → S3/R2) by changing only `S3_*` env vars.
 
 Shared code in `mobile/src`:
 - `components/` — Neo* UI kit (NeoBox, NeoButton), PropertyCard, SmartImage, ConfirmModal, Header, Icon, ui (NeoInput, Tag, Avatar).
+- `components/LiquidGlass.js` — the single glass primitive. Renders Apple's **real** iOS-26
+  Liquid Glass (`expo-glass-effect` `GlassView`) when `isLiquidGlassAvailable()`, else the
+  BlurView faux-glass (frosted blur + fill + specular top sheen) on iOS<26 / Android / web.
+  `GlassSurface` (sheets/drawers) and the **tab bar navbar** both go through it, so glass
+  upgrades/degrades everywhere at once. Real glass needs a dev-client/EAS build (native
+  module); Metro serves safe `.web`/base variants so Android/web bundles never throw.
+  Keep full-glass off long scroll rows (list rows use cheap `C.glass` rim tokens instead).
 - `hooks/useApi.js` — typed API client, auto-injects Clerk JWT.
-- `context/ThemeContext.js`, `theme/index.js` — theming (`C` colors, `FONT`, `FONT_HEAD`).
+- `context/ThemeContext.js`, `theme/index.js` — theming (`C` colors incl. `C.glass`, `FONT`, `FONT_HEAD`).
 - `utils/` — `imageCache.js`, `property.js`, `cluster.js` (grid map clustering: `clusterProperties`, `withCoords`).
 - `data/properties.js` — seed/fallback data.
 
