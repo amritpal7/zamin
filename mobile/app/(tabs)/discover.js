@@ -46,7 +46,7 @@ function Chip({ label, active, onPress }) {
 function SmallCard({ property: p, onPress }) {
   const ambientColor = p.color || C.amber;
   return (
-    <PressableScale onPress={onPress} style={[styles.smallCard, { backgroundColor: C.glassBg, borderColor: C.glassBorder }]}>
+    <PressableScale onPress={onPress} style={[styles.smallCard, { backgroundColor: C.glassBg, borderColor: C.glass?.border || C.glassBorder }]}>
       {/* mini hero */}
       <View style={styles.smallHero}>
         <View style={[StyleSheet.absoluteFill, { backgroundColor: ambientColor + "45" }]} />
@@ -74,6 +74,12 @@ function SmallCard({ property: p, onPress }) {
           <Text style={[styles.priceText, { color: C.fg, fontFamily: FONT_MED }]}>₹{p.price}</Text>
         </View>
       </View>
+      <LinearGradient
+        colors={["rgba(255,255,255,0.26)", "transparent"]}
+        locations={[0, 1]}
+        pointerEvents="none"
+        style={{ position: "absolute", top: 0, left: 0, right: 0, height: 7 }}
+      />
     </PressableScale>
   );
 }

@@ -12,6 +12,14 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-14 (design: liquid-glass rollout — nav + cards)
+- **Tab bar** (`(tabs)/_layout.js`): added the specular top-edge sheen to the frosted blur bar — the
+  signature liquid-glass highlight on the app's most-visible chrome.
+- **Cards** (`PropertyCard`, discover `SmallCard`): brighter glass rim (`C.glass.border`) + a subtle
+  top-edge specular sheen. Intentionally NOT a full backdrop-blur per card — that would frost the
+  photos and cost perf in scroll lists; the sheen+rim give the glass look while keeping images crisp.
+- iOS bundle compiles clean. Tune intensity on device; extend to other chrome as desired.
+
 ### 2026-09-14 (notifications: unread bell badge + per-notification dismiss)
 - **Unread badge on the Home bell** (`discover.js`): shows the unread count, fetched on focus and
   refreshed live on socket `message`. Previously no indicator when new messages arrived.

@@ -2,6 +2,7 @@ import React, { useRef, useEffect } from "react";
 import { View, Text, Pressable, Animated, StyleSheet } from "react-native";
 import { Tabs } from "expo-router";
 import { BlurView } from "expo-blur";
+import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { C, FONT, FONT_MED } from "../../src/theme";
 import { Icon } from "../../src/components/Icon";
@@ -64,6 +65,13 @@ function TabBar({ state, navigation }) {
           },
         ]}
       >
+        {/* Liquid-glass specular sheen along the top edge of the bar */}
+        <LinearGradient
+          colors={[C.glass?.highlight || "rgba(255,255,255,0.5)", "transparent"]}
+          locations={[0, 0.8]}
+          pointerEvents="none"
+          style={{ position: "absolute", top: 0, left: 0, right: 0, height: 18, borderTopLeftRadius: 32, borderTopRightRadius: 32 }}
+        />
         {state.routes.map((route, i) => {
           const tab    = TABS.find(t => t.name === route.name);
           if (!tab) return null;
