@@ -1,4 +1,5 @@
 require("dotenv").config();
+require("./instrument"); // Sentry.init — must run before ./app so express/http/pg get instrumented
 const http = require("http");
 const app = require("./app");
 const { ensureBucket } = require("./storage");

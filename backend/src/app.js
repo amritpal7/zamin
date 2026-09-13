@@ -57,6 +57,9 @@ app.use("/notifications", notificationsRouter);
 app.use("/saved-searches", savedSearchesRouter);
 app.use("/visits", visitsRouter);
 
+// Sentry error capture (after routes, before our own handlers). No-op if SENTRY_DSN is unset.
+if (process.env.SENTRY_DSN) require("@sentry/node").setupExpressErrorHandler(app);
+
 // ── 404 / error handlers ────────────────────────────────────
 app.use((_, res) => res.status(404).json({ error: "Not found" }));
 app.use((err, _req, res, _next) => {

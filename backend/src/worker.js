@@ -1,4 +1,5 @@
 require("dotenv").config();
+const Sentry = require("./instrument"); // Sentry.init (no-op without SENTRY_DSN)
 const { Worker } = require("bullmq");
 const sharp = require("sharp");
 const { GetObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3");
@@ -44,7 +45,7 @@ const worker = new Worker(
 );
 
 worker.on("completed", (job) => console.log(`✅ thumbnail job ${job.id} done (${job.data.base})`));
-worker.on("failed", (job, err) => console.error(`❌ thumbnail job ${job?.id} failed:`, err?.message));
+worker.on("failed", (job, err) => { console.error(`❌ thumbnail job ${job?.id} failed:`, err?.message); try { Sentry.captureException(err); } catch {} });
 
 console.log("🖼️  Thumbnail worker started, waiting for jobs…");
 
@@ -63,7 +64,7 @@ const maintenanceWorker = new Worker(
   },
   { connection }
 );
-maintenanceWorker.on("failed", (job, err) => console.error(`❌ maintenance job ${job?.id} failed:`, err?.message));
+maintenanceWorker.on("failed", (job, err) => { console.error(`❌ maintenance job ${job?.id} failed:`, err?.message); try { Sentry.captureException(err); } catch {} });
 
 // Register the repeatable schedule (idempotent by repeat key) + run once on boot.
 (async () => {

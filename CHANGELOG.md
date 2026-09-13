@@ -12,6 +12,16 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-14 (ops: Sentry error monitoring — backend + socket diagnostics)
+- Added `@sentry/node`. `src/instrument.js` inits Sentry (no-op without `SENTRY_DSN`), required before
+  `./app` in `index.js` + `worker.js` so express/http/pg auto-instrument. Express 5xx captured via
+  `setupExpressErrorHandler`; BullMQ thumbnail + maintenance failures captured.
+- **Socket.io handshake failures now logged + sent to Sentry** — `io.engine` `connection_error` +
+  socket-auth failures in `realtime.js`. This is aimed squarely at diagnosing the web client's realtime
+  gap (whether the web socket fails to connect / authenticate).
+- Sentry project **`zamin-api`** (org `aps-6c`); `SENTRY_DSN` set on the Railway api + worker services.
+  100 backend tests still pass (Sentry is a no-op in tests). DSNs are client-side identifiers, not secrets.
+
 ### 2026-09-14 (design: liquid-glass rollout — nav + cards)
 - **Tab bar** (`(tabs)/_layout.js`): added the specular top-edge sheen to the frosted blur bar — the
   signature liquid-glass highlight on the app's most-visible chrome.
