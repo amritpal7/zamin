@@ -12,6 +12,16 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-14 (diag: /mine proven correct; show signed-in account; quiet socket noise)
+- **Verified the My-Listings backend is correct**: signing in as demo_meera via Clerk's real
+  frontend sign-in flow and calling `GET /properties/mine` returns her **10 listings**. So an empty
+  My-Listings is a **login-state** issue (the client isn't signed in as that owner), not a data/API bug.
+- **My-Listings empty state now shows "Signed in as @username"** so the active account is obvious
+  (`useUser`) — an empty list almost always means you're on a different account than expected.
+- **`realtime.js`:** `io.engine` `connection_error` is now **log-only** (was also Sentry) — "Session ID
+  unknown"/transport blips are benign and recur on every deploy; the actionable signal is the client
+  `connect_error` + socket-auth failures.
+
 ### 2026-09-14 (ux: clear "Your listing" badge + surface My-Listings errors)
 - **PropertyCard** now shows a prominent **"★ Your listing"** badge on the hero when the viewer owns
   the property (previously only a subtle "Me" label). **Saved** screen now also passes `isOwn`.

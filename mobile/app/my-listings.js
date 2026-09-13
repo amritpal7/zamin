@@ -5,7 +5,7 @@ import { useTheme } from "../src/context/ThemeContext";
 import React, { useState, useCallback, useRef } from "react";
 import { View, Text, ScrollView, Pressable, ActivityIndicator, Alert, StyleSheet } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
-import { useAuth } from "@clerk/clerk-expo";
+import { useAuth, useUser } from "@clerk/clerk-expo";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { C, FONT, FONT_MED, FONT_HEAD, FONT_HEAD_ITALIC } from "../src/theme";
@@ -115,6 +115,7 @@ export default function MyListings() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { isSignedIn } = useAuth();
+  const { user } = useUser();
   const api    = useApi();
   const apiRef = useRef(api);
   apiRef.current = api;
@@ -203,8 +204,12 @@ export default function MyListings() {
               <Icon name="home" size={24} color={C.fgDim} strokeWidth={1.4} />
             </View>
             <Text style={{ color: C.fg, fontFamily: FONT_HEAD, fontSize: 22, letterSpacing: -0.4, marginBottom: 8 }}>No listings yet.</Text>
-            <Text style={{ color: C.fgDim, fontSize: 13, fontFamily: FONT, textAlign: "center", marginBottom: 24, lineHeight: 20, paddingHorizontal: 24 }}>
+            <Text style={{ color: C.fgDim, fontSize: 13, fontFamily: FONT, textAlign: "center", marginBottom: 10, lineHeight: 20, paddingHorizontal: 24 }}>
               Post your first property — free, no brokerage, direct buyer connect.
+            </Text>
+            {/* Show WHICH account is signed in — an empty list usually means you're on a different account. */}
+            <Text style={{ color: C.fgFaint || C.muted, fontSize: 11, fontFamily: FONT, textAlign: "center", marginBottom: 22 }}>
+              Signed in as @{user?.username || user?.id?.slice(0, 12) || "—"}
             </Text>
             <Pressable
               onPress={() => router.navigate("/(tabs)/post")}

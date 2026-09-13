@@ -14,8 +14,10 @@ function attachRealtime(server, app) {
   // Surface handshake/transport failures (e.g. the web client not connecting) — logged and
   // sent to Sentry so we can finally see WHY a client's socket won't establish.
   io.engine.on("connection_error", (err) => {
-    console.error("socket.io connection_error:", err.code, err.message, err.context || "");
-    try { Sentry.captureException(Object.assign(new Error(`socket connection_error: ${err.message}`), { code: err.code })); } catch {}
+    // Log only — these engine-level errors ("Session ID unknown" after a restart, transport
+    // blips) are transient/benign and would flood Sentry on every deploy. The actionable signal
+    // is the CLIENT-side connect_error (captured in SocketContext) + socket-auth failures below.
+    console.error("socket.io connection_error:", err.code, err.message);
   });
 
   // Multi-instance fan-out: route Socket.io events through Redis pub/sub so
