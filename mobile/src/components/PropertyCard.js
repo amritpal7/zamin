@@ -55,8 +55,8 @@ export default function PropertyCard({ property: p, onPress, onSave, saved, isOw
             style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: heroHeight * 0.72 }}
           />
 
-          {/* Date/region label — top left (reference style) */}
-          <View style={{ position: "absolute", top: 16, left: 16 }}>
+          {/* Status + (when it's yours) a clear "Your listing" badge — top left */}
+          <View style={{ position: "absolute", top: 16, left: 16, gap: 8, alignItems: "flex-start" }}>
             <View style={{
               backgroundColor: "rgba(10,14,26,0.55)",
               borderRadius: 999,
@@ -69,6 +69,11 @@ export default function PropertyCard({ property: p, onPress, onSave, saved, isOw
                 {p.status}
               </Text>
             </View>
+            {isOwn && (
+              <View style={{ backgroundColor: C.amber, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 }}>
+                <Text style={{ color: C.ink, fontSize: 11, fontFamily: FONT, fontWeight: "800" }}>★ Your listing</Text>
+              </View>
+            )}
           </View>
 
           {/* Save + price — top right */}

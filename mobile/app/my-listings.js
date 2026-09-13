@@ -130,7 +130,7 @@ export default function MyListings() {
       setLoading(true);
       apiRef.current.getMyProperties()
         .then(setListings)
-        .catch(() => {})
+        .catch((e) => Alert.alert("Couldn't load your listings", e?.message || "Please try again."))
         .finally(() => setLoading(false));
     }, [isSignedIn])
   );

@@ -12,6 +12,16 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-14 (ux: clear "Your listing" badge + surface My-Listings errors)
+- **PropertyCard** now shows a prominent **"★ Your listing"** badge on the hero when the viewer owns
+  the property (previously only a subtle "Me" label). **Saved** screen now also passes `isOwn`.
+- **My-Listings** surfaces load errors (Alert) instead of silently swallowing them — so an auth/401
+  failure is visible (aids diagnosing an empty list).
+- Diagnostic note: an empty My-Listings **and** a missing "Your listing" tag together mean the app's
+  signed-in user id ≠ the listing's `clerk_user_id` — i.e. the session isn't that owner. Verified the
+  seed data is correct (Meera's 8 listings carry her exact Clerk id), so this is a login-state check,
+  not a data bug — confirm via the Profile tab.
+
 ### 2026-09-14 (fix: web realtime socket — root cause found via Sentry)
 - **The web client's realtime gap is fixed at the source.** Sentry captured `socket connect_error:
   websocket error` (web) + `JWT is expired` (api handshake). `SocketContext` now uses

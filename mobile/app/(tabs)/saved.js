@@ -14,7 +14,7 @@ export default function Saved() {
   useTheme();
   const router   = useRouter();
   const insets   = useSafeAreaInsets();
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, userId } = useAuth();
   const api      = useApi();
   const apiRef   = useRef(api);
   apiRef.current = api;
@@ -92,6 +92,7 @@ export default function Saved() {
             key={p.id}
             property={p}
             saved
+            isOwn={!!userId && p.clerk_user_id === userId}
             onSave={() => unsave(p)}
             onPress={() => router.push(`/property/${p.id}`)}
           />
