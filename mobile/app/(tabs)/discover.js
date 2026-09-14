@@ -2,7 +2,7 @@ import { useTheme } from "../../src/context/ThemeContext";
 import React, { useState, useCallback, useRef, useEffect } from "react";
 import {
   View, Text, ScrollView, Pressable, TextInput,
-  ActivityIndicator, RefreshControl, StyleSheet, Alert,
+  ActivityIndicator, RefreshControl, StyleSheet, Alert, Platform,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Image } from "expo-image";
@@ -74,12 +74,14 @@ function SmallCard({ property: p, onPress }) {
           <Text style={[styles.priceText, { color: C.fg, fontFamily: FONT_MED }]}>₹{p.price}</Text>
         </View>
       </View>
-      <LinearGradient
-        colors={["rgba(255,255,255,0.26)", "transparent"]}
-        locations={[0, 1]}
-        pointerEvents="none"
-        style={{ position: "absolute", top: 0, left: 0, right: 0, height: 7 }}
-      />
+      {Platform.OS !== "android" && (
+        <LinearGradient
+          colors={["rgba(255,255,255,0.26)", "transparent"]}
+          locations={[0, 1]}
+          pointerEvents="none"
+          style={{ position: "absolute", top: 0, left: 0, right: 0, height: 7 }}
+        />
+      )}
     </PressableScale>
   );
 }

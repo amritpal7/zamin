@@ -12,6 +12,26 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-14 (fix: platform-adaptive UI — Android looked washed out)
+**Fixed** the app looked flat/washed-out on Android (screenshots: muddy translucent cards, hard
+white boxes behind text, weak nav bar). **Root cause:** `expo-blur`'s `BlurView` **doesn't truly
+blur on Android** (no `experimentalBlurMethod`) — it renders a flat translucent tint, so every
+liquid-glass surface (cards, list rows, sheets, nav bar) + the white specular sheens came out
+muddy. iOS blurs natively, so it only showed on Android.
+**Approach (per design decision): iOS/web keep Liquid Glass; Android gets clean opaque
+Material-style surfaces + a single genuinely-blurred nav bar.**
+- `src/theme/index.js` — on Android, override the "glass" tokens (`glassBg`, `card`, `cardAlt`,
+  `chipBg`, `glass.fill`) to **opaque** surfaces and `glass.highlight → transparent` (no sheen).
+  One place → fixes PropertyCard, SmallCard, GlassCard, map rows, chips, sheets at once.
+- `src/components/LiquidGlass.js` — Android branch: solid opaque surface by default; new
+  `androidBlur` prop uses a real `experimentalBlurMethod="dimezisBlurView"` blur (nav bar only).
+  iOS 26 `GlassView` / iOS<26·web `BlurView` paths unchanged.
+- `app/(tabs)/_layout.js` — nav bar passes `androidBlur`; top sheen gated off on Android.
+- `src/components/PropertyCard.js` + `app/(tabs)/discover.js` (SmallCard) — white top-edge sheen
+  gated to non-Android (`Platform.OS !== "android"`).
+**Validated** android/ios/web bundles compile (0 errors); `npx jest` 39/39 pass.
+**Docs** ARCHITECTURE (LiquidGlass platform split) + BUGLOG guardrail.
+
 ### 2026-09-14 (fix: native map crash — DECIMAL lat/lng serialized as strings)
 **Fixed** Sentry `ZAMIN-MOBILE-9` — a **fatal** Android crash on `/property/[id]`
 (`UnexpectedNativeTypeException: Value for longitude cannot be cast from String to double`,

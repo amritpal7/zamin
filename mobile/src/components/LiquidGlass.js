@@ -6,13 +6,15 @@ import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
 import { C } from "../theme";
 import { useTheme } from "../context/ThemeContext";
 
-// The ONE decision point for glass in the app. On iOS 26+ this renders Apple's real
-// Liquid Glass (`expo-glass-effect`'s GlassView — a live, refractive, specular material
-// that samples what's behind it). Everywhere else (iOS < 26, Android, web) it falls back
-// to our previous BlurView faux-glass: frosted blur + translucent fill + top-edge sheen.
-// Because it's one component, the whole app (navbar, sheets, drawers) upgrades/degrades
-// together — see docs/ARCHITECTURE.md. Ref: expo.dev/blog/liquid-glass-app-with-expo-ui.
+// The ONE decision point for glass in the app.
+// - iOS 26+  → Apple's real Liquid Glass (expo-glass-effect GlassView).
+// - iOS < 26 / web → BlurView faux-glass (blur + translucent fill + specular sheen).
+// - Android → CLEAN OPAQUE surfaces (expo-blur doesn't truly blur on Android → the glass
+//   looked muddy/washed-out). Pass `androidBlur` to opt a single element (the nav bar) into a
+//   real Android blur via `experimentalBlurMethod`.
+// So the whole app upgrades/degrades together — see docs/ARCHITECTURE.md.
 export const NATIVE_GLASS = Platform.OS === "ios" && isLiquidGlassAvailable();
+const IS_ANDROID = Platform.OS === "android";
 
 export default function LiquidGlass({
   children,
@@ -20,17 +22,19 @@ export default function LiquidGlass({
   radius = 24,
   topOnly = false,
   fill = false,
-  // native GlassView knobs
-  glassStyle = "regular", // 'regular' | 'clear' | 'none'
-  interactive = false,    // glass reacts to touch/press (great for the nav bar)
+  // native GlassView knobs (iOS 26)
+  glassStyle = "regular",
+  interactive = false,
   tintColor,
-  // fallback (BlurView) knobs — kept so existing call sites look identical pre-iOS-26
+  // fallback (BlurView) knobs
   intensity,
   tint,
   fillColor,
   sheen = true,
+  // Android: opt into a real blur (used by the nav bar). Default = solid.
+  androidBlur = false,
 }) {
-  const { scheme } = useTheme(); // re-read tokens + drive GlassView colorScheme on toggle
+  const { scheme } = useTheme();
   const g = C.glass || {};
   const corners = topOnly
     ? { borderTopLeftRadius: radius, borderTopRightRadius: radius }
@@ -43,7 +47,36 @@ export default function LiquidGlass({
     elevation: 12,
   };
 
-  // Real Liquid Glass: let the native material own the fill/border/highlight.
+  // ── Android ──────────────────────────────────────────────────────────────
+  if (IS_ANDROID) {
+    // Nav bar: a genuinely-blurred bar (dimezis method actually blurs on Android).
+    if (androidBlur) {
+      return (
+        <View style={[corners, shadow, style]}>
+          <View style={[corners, { overflow: "hidden", borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder }, fill && { flex: 1 }]}>
+            <BlurView
+              intensity={intensity ?? 30}
+              tint={scheme === "dark" ? "dark" : "light"}
+              experimentalBlurMethod="dimezisBlurView"
+              style={StyleSheet.absoluteFill}
+            />
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: scheme === "dark" ? "rgba(10,14,26,0.55)" : "rgba(255,255,255,0.62)" }]} />
+            {children}
+          </View>
+        </View>
+      );
+    }
+    // Everything else: clean opaque Material surface (tokens are opaque on Android).
+    return (
+      <View style={[corners, shadow, style]}>
+        <View style={[corners, { overflow: "hidden", backgroundColor: C.card, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder }, fill && { flex: 1 }]}>
+          {children}
+        </View>
+      </View>
+    );
+  }
+
+  // ── iOS 26: real Liquid Glass ────────────────────────────────────────────
   if (NATIVE_GLASS) {
     return (
       <View style={[corners, shadow, style]}>
@@ -60,7 +93,7 @@ export default function LiquidGlass({
     );
   }
 
-  // Fallback material (unchanged look): frosted blur + fill + specular top sheen.
+  // ── iOS < 26 / web: BlurView faux-glass ──────────────────────────────────
   return (
     <View style={[corners, shadow, style]}>
       <View

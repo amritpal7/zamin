@@ -76,8 +76,32 @@ const DARK = {
   },
 };
 
-export const C = { ...LIGHT };
-export function applyTheme(s) { Object.assign(C, s === "dark" ? DARK : LIGHT); }
+// Android: expo-blur doesn't truly blur (it renders a flat translucent tint), so the
+// liquid-glass translucency looks muddy/washed-out. On Android we swap the "glass" surfaces
+// for clean OPAQUE Material-style surfaces and drop the white sheen. iOS/web keep the glass.
+const IS_ANDROID = Platform.OS === "android";
+const LIGHT_ANDROID = {
+  glassBg:     "#FFFFFF",
+  card:        "#FFFFFF",
+  cardAlt:     "#FFFFFF",
+  chipBg:      "#EDF1F7",
+  glassBorder: "rgba(14,19,32,0.10)",
+  glass: { intensity: 0, tint: "light", fill: "#FFFFFF", border: "rgba(14,19,32,0.10)", highlight: "transparent", shadow: "#1B2740" },
+};
+const DARK_ANDROID = {
+  glassBg:     "#141C2E",
+  card:        "#141C2E",
+  cardAlt:     "#1B2440",
+  chipBg:      "#1B2440",
+  glassBorder: "rgba(180,200,255,0.14)",
+  glass: { intensity: 0, tint: "dark", fill: "#141C2E", border: "rgba(180,200,255,0.14)", highlight: "transparent", shadow: "#000000" },
+};
+
+export const C = { ...LIGHT, ...(IS_ANDROID ? LIGHT_ANDROID : {}) };
+export function applyTheme(s) {
+  Object.assign(C, s === "dark" ? DARK : LIGHT);
+  if (IS_ANDROID) Object.assign(C, s === "dark" ? DARK_ANDROID : LIGHT_ANDROID);
+}
 
 // Mono display type — GeistMono across the board (matches the app2 reference)
 export const FONT      = "GeistMono_400Regular";

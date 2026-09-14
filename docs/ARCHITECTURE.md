@@ -332,9 +332,12 @@ swappable (MinIO → S3/R2) by changing only `S3_*` env vars.
 
 Shared code in `mobile/src`:
 - `components/` — Neo* UI kit (NeoBox, NeoButton), PropertyCard, SmartImage, ConfirmModal, Header, Icon, ui (NeoInput, Tag, Avatar).
-- `components/LiquidGlass.js` — the single glass primitive. Renders Apple's **real** iOS-26
-  Liquid Glass (`expo-glass-effect` `GlassView`) when `isLiquidGlassAvailable()`, else the
-  BlurView faux-glass (frosted blur + fill + specular top sheen) on iOS<26 / Android / web.
+- `components/LiquidGlass.js` — the single glass primitive, **platform-adaptive**: iOS 26 →
+  Apple's real Liquid Glass (`expo-glass-effect` `GlassView`); iOS<26 / web → BlurView faux-glass
+  (blur + fill + specular sheen); **Android → clean opaque Material surface** (expo-blur doesn't
+  truly blur on Android, so glass looked washed-out — theme also swaps the glass tokens to opaque
+  there). `androidBlur` prop opts one element (the nav bar) into a real Android blur
+  (`experimentalBlurMethod`). White sheens are gated to non-Android.
   `GlassSurface` (sheets/drawers) and the **tab bar navbar** both go through it, so glass
   upgrades/degrades everywhere at once. Real glass needs a dev-client/EAS build (native
   module); Metro serves safe `.web`/base variants so Android/web bundles never throw.

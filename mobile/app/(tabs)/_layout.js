@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from "react";
-import { View, Text, Pressable, Animated, StyleSheet } from "react-native";
+import { View, Text, Pressable, Animated, StyleSheet, Platform } from "react-native";
 import { Tabs } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import LiquidGlass, { NATIVE_GLASS } from "../../src/components/LiquidGlass";
@@ -86,7 +86,8 @@ function TabBar({ state, navigation }) {
         interactive
         glassStyle="regular"
         sheen={false}
-        intensity={50}
+        androidBlur
+        intensity={40}
         tint={isDark ? "dark" : "light"}
         fillColor={isDark ? "rgba(13,18,32,0.94)" : "rgba(248,250,253,0.94)"}
       >
@@ -127,9 +128,9 @@ function TabBar({ state, navigation }) {
             }} />
           </Animated.View>
         )}
-        {/* Liquid-glass specular sheen along the top edge — fallback only; real iOS-26
-            glass renders its own specular highlight, so drawing our own would double it. */}
-        {!NATIVE_GLASS && (
+        {/* Liquid-glass specular sheen along the top edge — iOS/web fallback only (real iOS-26
+            glass has its own specular; Android nav bar is kept clean). */}
+        {!NATIVE_GLASS && Platform.OS !== "android" && (
           <LinearGradient
             colors={[C.glass?.highlight || "rgba(255,255,255,0.5)", "transparent"]}
             locations={[0, 0.8]}

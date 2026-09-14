@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { C, FONT, FONT_HEAD } from "../theme";
 import { useTheme } from "../context/ThemeContext";
@@ -159,13 +159,15 @@ export default function PropertyCard({ property: p, onPress, onSave, saved, isOw
           </View>
         )}
 
-        {/* Liquid-glass top-edge sheen (subtle rim light) */}
-        <LinearGradient
-          colors={["rgba(255,255,255,0.28)", "transparent"]}
-          locations={[0, 1]}
-          pointerEvents="none"
-          style={{ position: "absolute", top: 0, left: 0, right: 0, height: 8 }}
-        />
+        {/* Liquid-glass top-edge sheen (subtle rim light) — iOS/web only; Android is solid. */}
+        {Platform.OS !== "android" && (
+          <LinearGradient
+            colors={["rgba(255,255,255,0.28)", "transparent"]}
+            locations={[0, 1]}
+            pointerEvents="none"
+            style={{ position: "absolute", top: 0, left: 0, right: 0, height: 8 }}
+          />
+        )}
       </View>
     </PressableScale>
   );
