@@ -12,6 +12,22 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-14 (fix: native map crash — DECIMAL lat/lng serialized as strings)
+**Fixed** Sentry `ZAMIN-MOBILE-9` — a **fatal** Android crash on `/property/[id]`
+(`UnexpectedNativeTypeException: Value for longitude cannot be cast from String to double`,
+in `MapView.latLngBoundsFromRegion`). **Root cause:** `latitude/longitude` are Postgres
+`DECIMAL`, and node-postgres returns `DECIMAL/NUMERIC` as **strings**, so the API emitted
+`"18.559"`; `property/[id].js` passed those straight into react-native-maps' `region`/markers,
+and the Android bridge can't cast String→double. Web never hit it (maps are web-stubbed) — a
+native-only, consumer-perspective bug.
+**Fix (backend, `backend/src/db.js`):** `pg.types.setTypeParser(1700, parseFloat)` so `NUMERIC`
+(our only such columns are lat/lng) is emitted as a JS number API-wide. This resolves the
+**already-installed APK** after the api redeploy — no new app build needed. Deployed to prod
+(Railway api `abf7b67`); verified the prod API now returns `latitude` as a float.
+**Fix (client, `mobile/app/property/[id].js`):** added a `num()` coercion on all map coords
+(LocationDrawer region + markers, parcel map/polygon) as defense-in-depth for future builds.
+**Validated:** backend 100/100 tests pass; mobile bundle compiles clean. Sentry issue resolved.
+
 ### 2026-09-14 (fix: LocationDrawer ✕ vanishing + hard-to-drag bottom sheets)
 **Fixed** `mobile/src/components/BottomSheet.js` — (1) the sheet now exposes an **animated
 `close()` via ref** (`forwardRef`/`useImperativeHandle`); the "Nearby & saved" drawer's ✕
