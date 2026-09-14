@@ -228,12 +228,16 @@ function ReviewModal({ initial, onClose, onSubmit }) {
 // Location drawer: an in-app map showing THIS property + nearby listings + the viewer's
 // saved/favourite properties. Tapping any pin or row pans the map to it live. Replaces the
 // old "jump to the Map tab" behaviour so the map stays in the context of this listing.
+// react-native-maps requires numeric coords; API DECIMAL columns can arrive as strings
+// (Android crashes casting String→double — Sentry ZAMIN-MOBILE-9). Coerce or null.
+const num = (v) => (v == null || v === "" || !Number.isFinite(Number(v)) ? null : Number(v));
+
 function LocationDrawer({ property, api, onClose }) {
   const insets  = useSafeAreaInsets();
   const mapRef  = useRef(null);
   const sheetRef = useRef(null); // animated close so the ✕ slides out (not vanish)
-  const baseLat = property.latitude ?? property.lat;
-  const baseLng = property.longitude ?? property.lng;
+  const baseLat = num(property.latitude ?? property.lat);
+  const baseLng = num(property.longitude ?? property.lng);
   const [nearby, setNearby] = useState([]);
   const [saved,  setSaved]  = useState([]);
   const [activeId, setActiveId] = useState(property.id);
@@ -266,7 +270,7 @@ function LocationDrawer({ property, api, onClose }) {
     return [...m.values()].filter(x => (x.latitude ?? x.lat) != null && (x.longitude ?? x.lng) != null);
   }, [nearby, saved]);
 
-  const coordsOf = (x) => ({ latitude: x.latitude ?? x.lat, longitude: x.longitude ?? x.lng });
+  const coordsOf = (x) => ({ latitude: num(x.latitude ?? x.lat), longitude: num(x.longitude ?? x.lng) });
 
   // Live pan/zoom onto a property. On web (map stubbed) open external Maps instead.
   const locate = (x) => {
@@ -775,7 +779,7 @@ export default function PropertyDetail() {
 
           {/* Plot boundary (Land) — shown when the parcel is available (owner or exact visibility) */}
           {p.type === "Land" && Array.isArray(p.parcel) && p.parcel.length >= 3 && MapView && (() => {
-            const lats = p.parcel.map(pt => pt.lat), lngs = p.parcel.map(pt => pt.lng);
+            const lats = p.parcel.map(pt => num(pt.lat)), lngs = p.parcel.map(pt => num(pt.lng));
             const region = {
               latitude: (Math.min(...lats) + Math.max(...lats)) / 2,
               longitude: (Math.min(...lngs) + Math.max(...lngs)) / 2,
@@ -793,7 +797,7 @@ export default function PropertyDetail() {
                   </View>
                   <View style={{ height: 240, borderRadius: 14, overflow: "hidden", borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder }}>
                     <MapView style={{ flex: 1 }} initialRegion={region} mapType={parcelSat ? "satellite" : "standard"} pointerEvents="none">
-                      <Polygon coordinates={p.parcel.map(pt => ({ latitude: pt.lat, longitude: pt.lng }))} strokeColor={C.green} fillColor={C.green + "40"} strokeWidth={2} />
+                      <Polygon coordinates={p.parcel.map(pt => ({ latitude: num(pt.lat), longitude: num(pt.lng) }))} strokeColor={C.green} fillColor={C.green + "40"} strokeWidth={2} />
                     </MapView>
                   </View>
                 </View>
