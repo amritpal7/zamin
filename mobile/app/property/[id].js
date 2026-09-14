@@ -2,7 +2,7 @@ import { useTheme } from "../../src/context/ThemeContext";
 import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import {
   View, Text, ScrollView, Pressable, Dimensions, Platform,
-  Linking, Alert, ActivityIndicator, Share, StyleSheet, Modal, TextInput,
+  Linking, Alert, ActivityIndicator, Share, StyleSheet, TextInput,
 } from "react-native";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { useAuth, useUser } from "@clerk/clerk-expo";
@@ -12,6 +12,7 @@ import { C, FONT, FONT_MED, FONT_HEAD } from "../../src/theme";
 import { Icon } from "../../src/components/Icon";
 import SmartImage from "../../src/components/SmartImage";
 import GlassSurface from "../../src/components/GlassSurface";
+import BottomSheet from "../../src/components/BottomSheet";
 import { Avatar, Tag } from "../../src/components/ui";
 import { useApi } from "../../src/hooks/useApi";
 import { SEED_PROPERTIES } from "../../src/data/properties";
@@ -161,11 +162,9 @@ function VisitBookingModal({ onClose, onSubmit }) {
     try { await onSubmit(d.toISOString(), note.trim()); } finally { setBusy(false); }
   };
   return (
-    <Modal transparent animationType="slide" visible onRequestClose={onClose}>
-      <Pressable onPress={onClose} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" }}>
-        <Pressable onPress={() => {}}>
-          <GlassSurface topOnly radius={24}>
-            <View style={{ padding: 20, paddingBottom: 36 }}>
+    <BottomSheet onClose={onClose}>
+      <GlassSurface topOnly radius={24}>
+        <View style={{ padding: 20, paddingBottom: 36, paddingTop: 30 }}>
           <Text style={{ color: C.fg, fontFamily: FONT_HEAD, fontSize: 20, marginBottom: 14 }}>Schedule a visit</Text>
           <Text style={{ color: C.fgDim, fontFamily: FONT, fontSize: 12, marginBottom: 8 }}>DAY</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
@@ -187,11 +186,9 @@ function VisitBookingModal({ onClose, onSubmit }) {
           <Pressable disabled={busy} onPress={confirm} style={{ backgroundColor: C.amber, borderRadius: 100, paddingVertical: 14, alignItems: "center", opacity: busy ? 0.6 : 1 }}>
             <Text style={{ color: C.ink, fontFamily: FONT_MED, fontSize: 15 }}>{busy ? "Sending…" : "Request visit →"}</Text>
           </Pressable>
-            </View>
-          </GlassSurface>
-        </Pressable>
-      </Pressable>
-    </Modal>
+        </View>
+      </GlassSurface>
+    </BottomSheet>
   );
 }
 
@@ -203,11 +200,9 @@ function ReviewModal({ initial, onClose, onSubmit }) {
   const [busy, setBusy] = useState(false);
   const submit = async () => { setBusy(true); try { await onSubmit(rating, text.trim()); } finally { setBusy(false); } };
   return (
-    <Modal transparent animationType="slide" visible onRequestClose={onClose}>
-      <Pressable onPress={onClose} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" }}>
-        <Pressable onPress={() => {}}>
-          <GlassSurface topOnly radius={24}>
-            <View style={{ padding: 20, paddingBottom: 36 }}>
+    <BottomSheet onClose={onClose}>
+      <GlassSurface topOnly radius={24}>
+        <View style={{ padding: 20, paddingBottom: 36, paddingTop: 30 }}>
           <Text style={{ color: C.fg, fontFamily: FONT_HEAD, fontSize: 20, marginBottom: 14 }}>Rate this owner</Text>
           <View style={{ flexDirection: "row", gap: 8, marginBottom: 16 }}>
             {[1, 2, 3, 4, 5].map(n => (
@@ -224,11 +219,9 @@ function ReviewModal({ initial, onClose, onSubmit }) {
           <Pressable disabled={busy} onPress={submit} style={{ backgroundColor: C.amber, borderRadius: 100, paddingVertical: 14, alignItems: "center", opacity: busy ? 0.6 : 1 }}>
             <Text style={{ color: C.ink, fontFamily: FONT_MED, fontSize: 15 }}>{busy ? "Submitting…" : "Submit review"}</Text>
           </Pressable>
-            </View>
-          </GlassSurface>
-        </Pressable>
-      </Pressable>
-    </Modal>
+        </View>
+      </GlassSurface>
+    </BottomSheet>
   );
 }
 
@@ -238,6 +231,7 @@ function ReviewModal({ initial, onClose, onSubmit }) {
 function LocationDrawer({ property, api, onClose }) {
   const insets  = useSafeAreaInsets();
   const mapRef  = useRef(null);
+  const sheetRef = useRef(null); // animated close so the ✕ slides out (not vanish)
   const baseLat = property.latitude ?? property.lat;
   const baseLng = property.longitude ?? property.lng;
   const [nearby, setNearby] = useState([]);
@@ -293,16 +287,15 @@ function LocationDrawer({ property, api, onClose }) {
   };
 
   return (
-    <Modal transparent animationType="slide" visible onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" }}>
-        <GlassSurface topOnly fill radius={24} style={{ height: "88%" }}>
+    <BottomSheet ref={sheetRef} onClose={onClose}>
+      <GlassSurface topOnly fill radius={24} style={{ height: Dimensions.get("window").height * 0.88 }}>
           {/* header */}
-          <View style={{ paddingTop: 14, paddingHorizontal: 18, paddingBottom: 10, flexDirection: "row", alignItems: "center", gap: 10 }}>
+          <View style={{ paddingTop: 24, paddingHorizontal: 18, paddingBottom: 10, flexDirection: "row", alignItems: "center", gap: 10 }}>
             <View style={{ flex: 1 }}>
               <Text style={{ color: C.fg, fontFamily: FONT_HEAD, fontSize: 20 }}>Nearby & saved</Text>
               <Text numberOfLines={1} style={{ color: C.fgDim, fontFamily: FONT, fontSize: 12, marginTop: 2 }}>{property.location}</Text>
             </View>
-            <Pressable onPress={onClose} style={navBtnStyle()}>
+            <Pressable onPress={() => (sheetRef.current ? sheetRef.current.close() : onClose())} style={navBtnStyle()}>
               <Icon name="close" size={18} color={C.fg} strokeWidth={2} />
             </Pressable>
           </View>
@@ -370,9 +363,8 @@ function LocationDrawer({ property, api, onClose }) {
               );
             })}
           </ScrollView>
-        </GlassSurface>
-      </View>
-    </Modal>
+      </GlassSurface>
+    </BottomSheet>
   );
 }
 

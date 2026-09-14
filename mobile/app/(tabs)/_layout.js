@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import { View, Text, Pressable, Animated, StyleSheet } from "react-native";
 import { Tabs } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
@@ -37,6 +37,38 @@ function TabBar({ state, navigation }) {
     });
   }, [state.index]);
 
+  // ── Liquid "water bubble" active-tab indicator ───────────────────────────
+  // A single glassy bubble slides between tab centers; a softer blob trails
+  // behind it (the "water" wake), it squashes/stretches mid-travel like a
+  // droplet, and a ripple ring pulses out where it lands.
+  const [bar, setBar] = useState({ w: 0, h: 0 });      // measured content box
+  const pos    = useRef(new Animated.Value(state.index)).current; // bubble x
+  const trail  = useRef(new Animated.Value(state.index)).current; // lagging wake
+  const wobble = useRef(new Animated.Value(0)).current;           // squash/stretch
+  const ripple = useRef(new Animated.Value(0)).current;           // landing pulse
+
+  useEffect(() => {
+    Animated.spring(pos,   { toValue: state.index, useNativeDriver: true, friction: 9,  tension: 80 }).start();
+    Animated.spring(trail, { toValue: state.index, useNativeDriver: true, friction: 16, tension: 55 }).start();
+    wobble.setValue(0);
+    Animated.sequence([
+      Animated.timing(wobble, { toValue: 1, duration: 130, useNativeDriver: true }),
+      Animated.spring(wobble, { toValue: 0, friction: 5, tension: 120, useNativeDriver: true }),
+    ]).start();
+    ripple.setValue(0);
+    Animated.timing(ripple, { toValue: 1, duration: 440, useNativeDriver: true }).start();
+  }, [state.index]);
+
+  const pad = 6;                                        // row padding (styles.row)
+  const n = TABS.length;
+  const tabW = bar.w > 0 ? (bar.w - pad * 2) / n : 0;
+  const bubbleW = Math.max(0, tabW - 10);
+  const bubbleH = Math.max(0, bar.h - pad * 2);
+  // left edge of the bubble when centered on tab i  →  pad + tabW*i + (tabW-bubbleW)/2
+  const xAt = (i) => pad + tabW * i + (tabW - bubbleW) / 2;
+  const range = { inputRange: [0, Math.max(1, n - 1)], outputRange: [xAt(0), xAt(n - 1)] };
+  const showBubble = bar.w > 0;
+
   return (
     <View
       pointerEvents="box-none"
@@ -58,7 +90,43 @@ function TabBar({ state, navigation }) {
         tint={isDark ? "dark" : "light"}
         fillColor={isDark ? "rgba(13,18,32,0.94)" : "rgba(248,250,253,0.94)"}
       >
-        <View style={styles.row}>
+        <View
+          style={styles.row}
+          onLayout={(e) => setBar({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}
+        >
+        {/* Water wake — a softer, larger blob that lags behind the bubble (the trail). */}
+        {showBubble && (
+          <Animated.View pointerEvents="none" style={{
+            position: "absolute", top: pad - 2, height: bubbleH + 4, width: bubbleW + 10, borderRadius: 30,
+            backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.40)",
+            transform: [{ translateX: trail.interpolate(range) }, { scale: 1.04 }],
+          }} />
+        )}
+        {/* The water bubble + its landing ripple, sharing one x-translation. */}
+        {showBubble && (
+          <Animated.View pointerEvents="none" style={{
+            position: "absolute", top: pad, height: bubbleH, width: bubbleW,
+            transform: [{ translateX: pos.interpolate(range) }],
+          }}>
+            {/* ripple ring pulsing out where the bubble lands */}
+            <Animated.View style={{
+              position: "absolute", left: bubbleW / 2 - bubbleH / 2, top: 0, width: bubbleH, height: bubbleH, borderRadius: bubbleH / 2,
+              borderWidth: 2, borderColor: C.amber,
+              opacity: ripple.interpolate({ inputRange: [0, 0.15, 1], outputRange: [0, 0.5, 0] }),
+              transform: [{ scale: ripple.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1.7] }) }],
+            }} />
+            {/* the glassy droplet — squashes/stretches as it travels between icons */}
+            <Animated.View style={{
+              ...StyleSheet.absoluteFillObject, borderRadius: 26,
+              backgroundColor: isDark ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.60)",
+              borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder,
+              transform: [
+                { scaleX: wobble.interpolate({ inputRange: [0, 1], outputRange: [1, 1.28] }) },
+                { scaleY: wobble.interpolate({ inputRange: [0, 1], outputRange: [1, 0.78] }) },
+              ],
+            }} />
+          </Animated.View>
+        )}
         {/* Liquid-glass specular sheen along the top edge — fallback only; real iOS-26
             glass renders its own specular highlight, so drawing our own would double it. */}
         {!NATIVE_GLASS && (
@@ -84,21 +152,13 @@ function TabBar({ state, navigation }) {
               onPress={() => navigation.navigate(route.name)}
               style={styles.tab}
             >
-              {/* Highlight pill. Post is a persistent amber CTA; other tabs fade + scale
-                  their soft warm pill in/out as focus transitions between screens. */}
-              {isPost ? (
+              {/* Post is a persistent amber CTA pill; the active-tab highlight for every
+                  other tab is the traveling water bubble rendered behind the row. */}
+              {isPost && (
                 <View style={[StyleSheet.absoluteFill, styles.pill, {
                   backgroundColor: C.amber,
                   shadowColor: C.amber, shadowOffset: { width: 0, height: 4 },
                   shadowOpacity: 0.35, shadowRadius: 10, elevation: 6,
-                }]} />
-              ) : (
-                <Animated.View style={[StyleSheet.absoluteFill, styles.pill, {
-                  backgroundColor: C.chipBg,
-                  borderColor: C.glassBorder,
-                  borderWidth: StyleSheet.hairlineWidth,
-                  opacity: a,
-                  transform: [{ scale: a.interpolate({ inputRange: [0, 1], outputRange: [0.82, 1] }) }],
                 }]} />
               )}
 

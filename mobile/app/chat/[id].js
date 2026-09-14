@@ -3,7 +3,7 @@
 
 import { useTheme } from "../../src/context/ThemeContext";
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { View, Text, ScrollView, TextInput, Pressable, KeyboardAvoidingView, Platform, ActivityIndicator, StyleSheet, Modal, Alert, Animated } from "react-native";
+import { View, Text, ScrollView, TextInput, Pressable, KeyboardAvoidingView, Platform, ActivityIndicator, StyleSheet, Alert, Animated } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -17,6 +17,7 @@ import { SEED_PROPERTIES } from "../../src/data/properties";
 import { useApi } from "../../src/hooks/useApi";
 import { useSocket } from "../../src/context/SocketContext";
 import { setActiveChat } from "../../src/components/PushManager";
+import BottomSheet from "../../src/components/BottomSheet";
 
 // A visit or offer rendered inline. While pending, the recipient can Accept,
 // Decline, or Counter (propose a new time/amount). Both sides see the outcome.
@@ -65,9 +66,8 @@ function OfferModal({ onClose, onPick, counter }) {
   const [amount, setAmount] = useState("");
   const num = Number(amount.replace(/[^\d.]/g, ""));
   return (
-    <Modal transparent animationType="slide" visible onRequestClose={onClose}>
-      <Pressable onPress={onClose} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" }}>
-        <Pressable onPress={() => {}} style={{ backgroundColor: C.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 36 }}>
+    <BottomSheet onClose={onClose}>
+      <View style={{ backgroundColor: C.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingTop: 30, paddingBottom: 36 }}>
           <Text style={{ color: C.fg, fontFamily: FONT_HEAD, fontSize: 20, marginBottom: 14 }}>{counter ? "Counter offer" : "Make an offer"}</Text>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: C.glassBg, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder, borderRadius: 14, paddingHorizontal: 16, marginBottom: 20 }}>
             <Text style={{ color: C.amberText, fontFamily: FONT_HEAD, fontSize: 18 }}>₹</Text>
@@ -77,9 +77,8 @@ function OfferModal({ onClose, onPick, counter }) {
           <Pressable onPress={() => num > 0 && onPick(num)} disabled={!(num > 0)} style={{ backgroundColor: C.amber, borderRadius: 100, paddingVertical: 14, alignItems: "center", opacity: num > 0 ? 1 : 0.4 }}>
             <Text style={{ color: C.ink, fontFamily: FONT_MED, fontSize: 15 }}>{counter ? "Send counter-offer →" : "Send offer →"}</Text>
           </Pressable>
-        </Pressable>
-      </Pressable>
-    </Modal>
+      </View>
+    </BottomSheet>
   );
 }
 
@@ -92,9 +91,8 @@ function VisitModal({ onClose, onPick }) {
   const slots = [{ label: "Morning", h: 10 }, { label: "Afternoon", h: 14 }, { label: "Evening", h: 17 }];
   const confirm = () => { const d = new Date(days[day]); d.setHours(slots[slot].h, 0, 0, 0); onPick(d.toISOString()); };
   return (
-    <Modal transparent animationType="slide" visible onRequestClose={onClose}>
-      <Pressable onPress={onClose} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" }}>
-        <Pressable onPress={() => {}} style={{ backgroundColor: C.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 36 }}>
+    <BottomSheet onClose={onClose}>
+      <View style={{ backgroundColor: C.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingTop: 30, paddingBottom: 36 }}>
           <Text style={{ color: C.fg, fontFamily: FONT_HEAD, fontSize: 20, marginBottom: 14 }}>Propose a visit</Text>
           <Text style={{ color: C.fgDim, fontFamily: FONT, fontSize: 12, marginBottom: 8 }}>DAY</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
@@ -116,9 +114,8 @@ function VisitModal({ onClose, onPick }) {
           <Pressable onPress={confirm} style={{ backgroundColor: C.amber, borderRadius: 100, paddingVertical: 14, alignItems: "center" }}>
             <Text style={{ color: C.ink, fontFamily: FONT_MED, fontSize: 15 }}>Send visit request →</Text>
           </Pressable>
-        </Pressable>
-      </Pressable>
-    </Modal>
+      </View>
+    </BottomSheet>
   );
 }
 
@@ -653,33 +650,29 @@ export default function Chat() {
 
       {/* Header overflow menu */}
       {menuOpen && (
-      <Modal transparent animationType="slide" visible onRequestClose={() => setMenuOpen(false)}>
-        <Pressable onPress={() => setMenuOpen(false)} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" }}>
-          <Pressable onPress={() => {}} style={{ backgroundColor: C.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 16, paddingBottom: 36 }}>
+      <BottomSheet onClose={() => setMenuOpen(false)}>
+          <View style={{ backgroundColor: C.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 16, paddingTop: 28, paddingBottom: 36 }}>
             <SheetRow icon="home" label="View listing" onPress={() => { setMenuOpen(false); router.push(`/property/${id}`); }} />
             <SheetRow icon="bell" label="Report user" onPress={() => { setMenuOpen(false); setReportOpen(true); }} />
             {block.blockedByMe
               ? <SheetRow icon="user" label="Unblock user" onPress={() => { setMenuOpen(false); doUnblock(); }} />
               : <SheetRow icon="close" label="Block user" danger onPress={doBlock} />}
-          </Pressable>
-        </Pressable>
-      </Modal>
+          </View>
+      </BottomSheet>
       )}
 
       {/* Report reason picker */}
       {reportOpen && (
-      <Modal transparent animationType="slide" visible onRequestClose={() => setReportOpen(false)}>
-        <Pressable onPress={() => setReportOpen(false)} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" }}>
-          <Pressable onPress={() => {}} style={{ backgroundColor: C.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 36 }}>
+      <BottomSheet onClose={() => setReportOpen(false)}>
+          <View style={{ backgroundColor: C.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingTop: 30, paddingBottom: 36 }}>
             <Text style={{ color: C.fg, fontFamily: FONT_HEAD, fontSize: 20, marginBottom: 14 }}>Report this user</Text>
             {["Spam", "Scam or fraud", "Fake listing", "Inappropriate", "Other"].map((r) => (
               <Pressable key={r} onPress={() => doReport(r)} style={{ paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.line }}>
                 <Text style={{ color: C.fg, fontFamily: FONT, fontSize: 15 }}>{r}</Text>
               </Pressable>
             ))}
-          </Pressable>
-        </Pressable>
-      </Modal>
+          </View>
+      </BottomSheet>
       )}
     </View>
   );

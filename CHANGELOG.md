@@ -12,6 +12,44 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-09-14 (fix: LocationDrawer ✕ vanishing + hard-to-drag bottom sheets)
+**Fixed** `mobile/src/components/BottomSheet.js` — (1) the sheet now exposes an **animated
+`close()` via ref** (`forwardRef`/`useImperativeHandle`); the "Nearby & saved" drawer's ✕
+(`app/property/[id].js`) calls it so the sheet **slides out** instead of vanishing (it was
+calling the parent `onClose` directly, which unmounted before the exit animation). (2) The drag
+target was a thin 34px strip with the pill inside it — widened to a **44px full-width strip**
+(inset 64px on the right so corner ✕ stays tappable), the visible pill is now a non-interactive
+overlay, lowered the drag threshold (dy>2 to engage, close at dy>110 or vy>0.5), and added
+`onPanResponderTerminate` to spring back cleanly. Dragging the drawer down to close is smooth now.
+**Validated** iOS/web bundles compile (0 errors); `npx jest` 39/39 pass.
+
+### 2026-09-14 (feat: notifications "Read all", navbar water-bubble, drag-to-close sheets)
+**Added** `mobile/app/notifications.js` — a **Read all** button in the header (shown only when
+`unread > 0`) that marks every notification read at once via the existing
+`markNotificationsRead()` (`POST /notifications/read`). Optimistic: clears the bold/amber
+styling + the discover bell badge instantly, keeps items in the feed.
+**Added** navbar **liquid "water bubble"** indicator (`mobile/app/(tabs)/_layout.js`): a single
+glassy droplet that slides between tab centers when you switch tabs, with (a) a softer, larger
+blob that **lags behind** it as a water wake, (b) a **squash/stretch** mid-travel like a real
+droplet, and (c) a **ripple ring** pulsing out where it lands. Replaces the per-tab fade pills
+(Post keeps its persistent amber CTA pill; the bubble is translucent so amber reads through on
+Post). All transforms are native-driven (`useNativeDriver: true`); geometry comes from the row's
+`onLayout`. Pure core `Animated` — no new deps.
+**Added** `mobile/src/components/BottomSheet.js` — reusable Google/Material-style drag-to-close
+sheet: slides up on mount, drag the grab-handle down and it **follows your finger** with the
+backdrop dimming; release past a distance/velocity threshold dismisses, else springs back.
+Core `PanResponder` + `Animated` so it works on web + native (no reanimated). Drag is scoped to
+a top grabber so inner ScrollViews/maps still scroll.
+**Changed** adopted `BottomSheet` for every bottom sheet: `app/property/[id].js` (VisitBooking,
+Review, LocationDrawer — LocationDrawer's `height: "88%"` → `Dimensions * 0.88` since % can't
+resolve in the auto-height sheet) and `app/chat/[id].js` (Offer, Visit, overflow menu, report
+picker). Removed now-unused `Modal` imports from both files.
+**Ripple checked:** swept `<Modal … flex-end>` sheet usages — all 7 bottom sheets migrated;
+`post.js`'s centered `animationType="fade"` modal and `ConfirmModal` (centered dialog) are not
+drawers, left as-is.
+**Validated** iOS/Android/web bundles compile (0 errors); `npx jest` 39/39 pass.
+**Docs** `docs/ARCHITECTURE.md` §9 — documented `BottomSheet` + the navbar indicator.
+
 ### 2026-09-14 (feat: real iOS-26 Liquid Glass navbar via expo-glass-effect)
 **Added** `mobile/src/components/LiquidGlass.js` — one glass primitive that renders Apple's
 real Liquid Glass (`expo-glass-effect` `GlassView`, `isLiquidGlassAvailable()`) on iOS 26 and

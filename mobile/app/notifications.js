@@ -50,6 +50,16 @@ export default function Notifications() {
     }, [socket, load])
   );
 
+  // Mark every notification read at once (clears the bold/amber styling + the bell badge),
+  // keeping them in the feed. Optimistic: update locally, then fire the request.
+  const markAll = () => {
+    if (unread === 0) return;
+    const now = new Date().toISOString();
+    setItems((prev) => prev.map((x) => (x.read_at ? x : { ...x, read_at: now })));
+    setUnread(0);
+    apiRef.current.markNotificationsRead().catch(() => {});
+  };
+
   const open = (n) => {
     // Tapping a notification dismisses it (marks read + removes from the feed), then navigates.
     setItems((prev) => prev.filter((x) => x.id !== n.id));
@@ -72,7 +82,22 @@ export default function Notifications() {
           <Icon name="back" size={18} color={C.fg} />
         </Pressable>
         <Text style={{ flex: 1, textAlign: "center", fontFamily: FONT_MED, fontSize: 14, color: C.fg }}>Notifications</Text>
-        <View style={{ width: 44 }} />
+        {unread > 0 ? (
+          <Pressable
+            onPress={markAll}
+            hitSlop={8}
+            style={({ pressed }) => ({
+              height: 44, paddingHorizontal: 14, borderRadius: 22, flexDirection: "row", alignItems: "center", gap: 6,
+              backgroundColor: C.amberDim, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder,
+              opacity: pressed ? 0.7 : 1,
+            })}
+          >
+            <Icon name="check" size={15} color={C.amber} strokeWidth={2} />
+            <Text style={{ color: C.amber, fontFamily: FONT_MED, fontSize: 12 }}>Read all</Text>
+          </Pressable>
+        ) : (
+          <View style={{ width: 44 }} />
+        )}
       </View>
 
       <ScrollView contentContainerStyle={{ paddingBottom: 48 }}>

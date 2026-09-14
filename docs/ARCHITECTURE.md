@@ -339,6 +339,14 @@ Shared code in `mobile/src`:
   upgrades/degrades everywhere at once. Real glass needs a dev-client/EAS build (native
   module); Metro serves safe `.web`/base variants so Android/web bundles never throw.
   Keep full-glass off long scroll rows (list rows use cheap `C.glass` rim tokens instead).
+- `components/BottomSheet.js` — Google/Material-style drag-to-close bottom sheet (slide-up on
+  mount, finger-follow drag with backdrop dimming, velocity/threshold dismiss). Core
+  `PanResponder`+`Animated` (web + native). Used by every bottom sheet (property-detail
+  Visit/Review/Location, chat Offer/Visit/menu/report). Drag scoped to a top grab-handle so
+  inner scrolls still work.
+- Tab bar (`app/(tabs)/_layout.js`) — the active-tab highlight is a liquid "water bubble" that
+  slides between tab centers with a lagging wake blob, droplet squash/stretch, and a landing
+  ripple ring (native-driven `Animated`; geometry from row `onLayout`).
 - `hooks/useApi.js` — typed API client, auto-injects Clerk JWT.
 - `context/ThemeContext.js`, `theme/index.js` — theming (`C` colors incl. `C.glass`, `FONT`, `FONT_HEAD`).
 - `utils/` — `imageCache.js`, `property.js`, `cluster.js` (grid map clustering: `clusterProperties`, `withCoords`).
