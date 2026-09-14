@@ -50,9 +50,16 @@ Now/Near/Medium as we pick them up.
       or a share-sheet: Save, Share, Contact/WhatsApp, Hide, Report) so common tasks skip the detail screen.
 - [ ] **Delete account** — Settings UI + confirm flow. Clerk `delete_self` is already enabled;
       also soft-remove/anonymize the user's listings + data (owner rows are denormalized — see rule #1).
-- [ ] **OAuth: Google & Apple sign-in.** Needs the **production Clerk instance** (`docs/CLERK_PROD.md`)
-      + each provider's OAuth creds. **Apple sign-in is App-Store-required** if any social login is offered.
-      (Note: the app has no social button today — dropping Google for launch was the Phase-2 decision.)
+- [~] **OAuth: Google / Facebook / Apple sign-in.** *Wired* via `SocialAuth.js` (`useSSO().startSSOFlow`,
+      web/browser flow) in `sign-in.js` + `sign-up.js`; all three enabled in the dev Clerk instance.
+      Works only in a **dev/EAS build** (browser→`zamin://` redirect; not Expo Go/web). Google uses Clerk's
+      shared dev creds (works now); **Facebook/Apple need each provider's own creds** in Clerk (Apple never
+      shares). **Apple sign-in is App-Store-required** if any social login is offered (the web flow satisfies it).
+      For prod: production Clerk instance (`docs/CLERK_PROD.md`) + prod OAuth creds.
+      - [ ] **Native Apple sheet (deferred)** — the nicer native flow (`useSignInWithApple` from `@clerk/expo/apple`
+            + `appleSignIn: true` plugin + `expo-apple-authentication`/`expo-crypto`) requires migrating
+            `@clerk/clerk-expo@2` → `@clerk/expo@4` (major, touches all auth hooks). Chosen to ship web-Apple
+            first, migrate later.
 - [~] **Login with phone number** — *already partially built*: `sign-in.js` has a phone→SMS-code flow and
       `sign-up.js` supports phone signup. TODO: finalize + verify E2E against prod Clerk (needs SMS enabled).
 - [ ] **In-app video calls** — [Stream](https://getstream.io) video for buyer↔owner calls (SDK + tokens

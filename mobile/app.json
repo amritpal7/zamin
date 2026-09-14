@@ -17,7 +17,8 @@
         "googleMapsApiKey": "YOUR_IOS_GOOGLE_MAPS_KEY"
       },
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Zamin uses your location to show nearby properties."
+        "NSLocationWhenInUseUsageDescription": "Zamin uses your location to show nearby properties.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -28,7 +29,9 @@
         }
       },
       "permissions": [
-        "ACCESS_FINE_LOCATION"
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.ACCESS_COARSE_LOCATION"
       ]
     },
     "web": {
@@ -69,6 +72,13 @@
           "project": "zamin-mobile"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "48189e32-e886-468b-9921-4d59d06dbac9"
+      }
+    },
+    "owner": "mramrrit007"
   }
 }
