@@ -7,6 +7,7 @@ const sharp = require("sharp");
 const { GetObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3");
 const { s3, BUCKET } = require("../storage");
 const { setProfileImage, reconcileOwner } = require("../clerkUsers");
+const { forgetSenderIdentity } = require("../messaging");
 
 router.use(requireAuth);
 
@@ -63,6 +64,7 @@ router.post("/me/photo", photoLimiter, async (req, res) => {
     }
 
     const imageUrl = await setProfileImage(userId, jpeg);
+    forgetSenderIdentity(userId);
     await reconcileOwner(pool, userId).catch((e) => console.error("[me/photo] reconcile", e.message));
     res.json({ imageUrl });
   } catch (err) {

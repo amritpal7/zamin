@@ -12,6 +12,25 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-11-07 (Security: messaging authorization audit + stale-upload sweeper)
+**Audit (ROADMAP item):** saved, messages, saved-searches, visits, notifications, push — every read/update
+is scoped to `getAuth(req).userId`. Gaps found + fixed in **sending**:
+- **Anyone could message/propose to any account** under any listing (`receiver_id` unchecked). New
+  `canMessage` (`backend/src/messaging.js`): receiver must be the listing owner, or the owner replying to
+  someone who already messaged them about it; else 403 (404 for unknown listing). Applied to
+  `POST /messages/:propertyId` and `/:propertyId/proposal` (counter already bound to the original).
+- **Impersonation:** `sender_name/avatar/image` were taken from the request body. Now from Clerk
+  (`senderIdentity`, 2-min cache, cleared on photo change); never falls back to client values in prod.
+  Live-verified: forged "Zamin Support" stored as "@zamintest01".
+- **Image messages accepted any URL** (tracking pixels / phishing). `safeImageMeta`: only our processed
+  `(/api)/media/properties/<id>(_thumb).jpg` on the API or storage host; app's real format verified 201.
+- `messages.js` 500s no longer echo `err.message`.
+- Tests no longer call the live Clerk API (`api.test.js` unsets the secret). +6 authz/image tests.
+**Added — stale-upload sweeper:** hourly maintenance job (`backend/src/uploadSweep.js`, scheduled in
+`worker.js`) removes `pending_uploads` older than 1 h (`STALE_UPLOAD_MS`) and their `_orig` objects. +1 test.
+Backend **113/113**. Ripple: client chat sends to owner (from listing) or to the enquirer (from inbox) —
+both allowed; visits use `/visits` (owner derived server-side, unaffected).
+
 ### 2026-11-07 (Security: upload pipeline hardening — zamin-security review)
 Review of the photo route found nothing blocking in it, but one **pre-existing HIGH** next to it:
 - **HIGH fixed — `/properties/process` trusted a client `origKey`.** The worker GETs *and deletes* that key,

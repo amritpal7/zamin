@@ -6,6 +6,7 @@ const { validateMessage, isUuid } = require("../validation");
 const { sendPush } = require("../push");
 const { areBlocked } = require("../blocks");
 const { createNotification } = require("../notify");
+const { canMessage, senderIdentity, safeImageMeta } = require("../messaging");
 
 router.use(requireAuth);
 
@@ -52,7 +53,8 @@ router.get("/", async (req, res) => {
     rows.sort((a, b) => new Date(b.last_time) - new Date(a.last_time));
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("[messages]", err.message);
+    res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });
 
@@ -79,7 +81,8 @@ router.get("/:propertyId", async (req, res) => {
         );
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("[messages]", err.message);
+    res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });
 
@@ -88,7 +91,7 @@ router.post("/:propertyId", async (req, res) => {
   try {
     if (!isUuid(req.params.propertyId)) return res.status(400).json({ error: "Invalid property id" });
     const { userId } = getAuth(req);
-    const { receiver_id, sender_name, sender_avatar, sender_image, image } = req.body;
+    const { receiver_id, image } = req.body;
     const isImage = image && typeof image.url === "string";
     // Text messages must pass validation; image messages just need a recipient.
     if (!isImage) {
@@ -104,9 +107,15 @@ router.post("/:propertyId", async (req, res) => {
     if (await areBlocked(pool, userId, receiver_id)) {
       return res.status(403).json({ error: "Messaging is unavailable with this user." });
     }
+    const allowed = await canMessage(pool, req.params.propertyId, userId, receiver_id);
+    if (!allowed.ok) return res.status(allowed.status).json({ error: allowed.error });
+    const safeImg = isImage ? safeImageMeta(image, req) : null;
+    if (isImage && !safeImg) return res.status(400).json({ error: "Invalid image." });
+    // Display identity comes from Clerk, never the request body (prevents impersonation).
+    const { sender_name, sender_avatar, sender_image } = await senderIdentity(userId, req.body);
 
     const type = isImage ? "image" : "text";
-    const meta = isImage ? JSON.stringify({ url: image.url, thumb: image.thumb || image.url }) : null;
+    const meta = isImage ? JSON.stringify(safeImg) : null;
     const text = isImage ? (req.body.text || "📷 Photo") : req.body.text;
 
     const { rows } = await pool.query(
@@ -131,7 +140,8 @@ router.post("/:propertyId", async (req, res) => {
     } catch (e) { console.error("notification insert failed:", e.message); }
     res.status(201).json(rows[0]);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("[messages]", err.message);
+    res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });
 
@@ -167,20 +177,24 @@ router.post("/:propertyId/proposal", async (req, res) => {
     const v = proposalValue(kind, value);
     if (v === null) return res.status(400).json({ error: kind === "visit" ? "Invalid date/time" : "Invalid amount" });
     if (await areBlocked(pool, userId, receiver_id)) return res.status(403).json({ error: "Unavailable with this user." });
+    const allowed = await canMessage(pool, req.params.propertyId, userId, receiver_id);
+    if (!allowed.ok) return res.status(allowed.status).json({ error: allowed.error });
+    const sender = await senderIdentity(userId, req.body);
 
     const row = await createProposal(pool, {
-      propertyId: req.params.propertyId, senderId: userId, receiverId: receiver_id, kind, value: v, sender: req.body,
+      propertyId: req.params.propertyId, senderId: userId, receiverId: receiver_id, kind, value: v, sender,
     });
     const io = req.app.get("io");
     if (io) io.to(String(receiver_id)).to(String(userId)).emit("message", row);
     sendPush(receiver_id, {
-      title: req.body.sender_name || (kind === "visit" ? "Visit request" : "New offer"),
+      title: sender.sender_name || (kind === "visit" ? "Visit request" : "New offer"),
       body: kind === "visit" ? "Proposed a property visit" : "Made an offer",
       data: { propertyId: req.params.propertyId, peer: userId },
     });
     res.status(201).json(row);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("[messages]", err.message);
+    res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });
 
@@ -215,7 +229,8 @@ router.post("/proposal/:id/respond", async (req, res) => {
     } catch (e) { console.error("proposal-respond notification failed:", e.message); }
     res.json(rows[0]);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("[messages]", err.message);
+    res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });
 
@@ -245,9 +260,10 @@ router.post("/proposal/:id/counter", async (req, res) => {
       [orig.id, userId]
     )).rows[0];
     if (!updatedOrig) return res.status(409).json({ error: "This proposal was already answered." });
+    const counterSender = await senderIdentity(userId, req.body);
     const created = await createProposal(pool, {
       propertyId: orig.property_id, senderId: userId, receiverId: orig.sender_id, kind, value: v,
-      extraMeta: { counter_of: orig.id }, sender: req.body,
+      extraMeta: { counter_of: orig.id }, sender: counterSender,
     });
     const io = req.app.get("io");
     if (io) {
@@ -255,13 +271,14 @@ router.post("/proposal/:id/counter", async (req, res) => {
       io.to(String(orig.sender_id)).to(String(userId)).emit("message", created);
     }
     sendPush(orig.sender_id, {
-      title: req.body.sender_name || "Counter proposal",
+      title: counterSender.sender_name || "Counter proposal",
       body: kind === "visit" ? "Proposed another time" : "Countered your offer",
       data: { propertyId: orig.property_id, peer: userId },
     });
     res.status(201).json({ original: updatedOrig, proposal: created });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("[messages]", err.message);
+    res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });
 
@@ -282,7 +299,8 @@ router.post("/:propertyId/read", async (req, res) => {
     if (io && rowCount) io.to(String(peer)).emit("read", { propertyId: req.params.propertyId, by: userId });
     res.json({ read: rowCount });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("[messages]", err.message);
+    res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });
 

@@ -269,7 +269,7 @@ Base path through nginx: `/api`. Direct: `http://localhost:4000`.
 |--------|------|---------|
 | GET | `/messages` | List conversations, grouped by (property, **peer**); returns `peer_id` per row |
 | GET | `/messages/:propertyId?peer=<id>` | The two-person thread (me ↔ peer); without `peer`, all my messages on the property |
-| POST | `/messages/:propertyId` | Send message (`{ text, receiver_id }`) — receiver is the **peer**, not always the owner |
+| POST | `/messages/:propertyId` | Send message (`{ text, receiver_id }` or `{ image:{url,thumb}, receiver_id }`) — receiver is the **peer**, not always the owner. **Guards (`src/messaging.js`):** receiver must be the listing owner, or (owner replying) someone who already messaged them about it — else 403 (same for `/proposal`); `sender_name/avatar/image` are taken from Clerk, not the body; image URLs must be our own `(/api)/media/properties/<id>(_thumb).jpg` on the API/storage host. |
 
 ### Users / trust & safety (`routes/users.js`, all 🔒)
 | Method | Path | Purpose |

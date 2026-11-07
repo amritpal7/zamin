@@ -7,6 +7,7 @@ const { connection, THUMBNAIL_QUEUE, MAINTENANCE_QUEUE, maintenanceQueue } = req
 const { s3, putObject, BUCKET } = require("./storage");
 const pool = require("./db");
 const { reconcileOwners, backfillMessageSenders } = require("./clerkUsers");
+const { sweepStaleUploads } = require("./uploadSweep");
 
 async function streamToBuffer(stream) {
   const chunks = [];
@@ -61,6 +62,11 @@ const maintenanceWorker = new Worker(
       console.log("🧹 reconcile:", JSON.stringify({ owners, senders }));
       return { owners, senders };
     }
+    if (job.name === "sweep-uploads") {
+      const r = await sweepStaleUploads(pool, s3, BUCKET);
+      if (r.bindings) console.log("🧹 upload sweep:", JSON.stringify(r));
+      return r;
+    }
   },
   { connection }
 );
@@ -75,6 +81,11 @@ maintenanceWorker.on("failed", (job, err) => { console.error(`❌ maintenance jo
     );
     await maintenanceQueue.add("reconcile-owners", {}, { removeOnComplete: true });
     console.log(`🗓️  Owner reconcile scheduled every ${Math.round(RECONCILE_EVERY_MS / 60000)}m`);
+    await maintenanceQueue.add(
+      "sweep-uploads", {},
+      { repeat: { every: 60 * 60 * 1000 }, removeOnComplete: true, removeOnFail: 20 }
+    );
+    console.log("🗓️  Stale-upload sweep scheduled hourly");
   } catch (e) {
     console.error("Failed to schedule owner reconcile:", e.message);
   }

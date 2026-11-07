@@ -13,6 +13,10 @@ jest.mock("@clerk/express", () => ({
   getAuth: (req) => ({ userId: req.headers["x-test-user"] || null }),
 }));
 
+// Never call the live Clerk API from tests (CI has no secret; local containers do). Must be set
+// before the app (and clerkUsers.js, which reads the secret at load) is required.
+delete process.env.CLERK_SECRET_KEY;
+
 const request = require("supertest");
 const app = require("../src/app");
 const pool = require("../src/db");
@@ -930,10 +934,18 @@ describe("messaging: two-way delivery", () => {
 
   test("image message: sends a photo without requiring text", async () => {
     const res = await request(app).post(`/messages/${pid}`).set("x-test-user", USER_B)
-      .send({ receiver_id: USER_A, image: { url: "http://x/img.jpg", thumb: "http://x/thumb.jpg" } });
+      .send({ receiver_id: USER_A, image: { url: "/media/properties/abc-1.jpg", thumb: "/media/properties/abc-1_thumb.jpg" } });
     expect(res.status).toBe(201);
     expect(res.body.type).toBe("image");
-    expect(res.body.meta.url).toBe("http://x/img.jpg");
+    expect(res.body.meta.url).toBe("/media/properties/abc-1.jpg");
+  });
+
+  test("image message: external / non-media URLs are rejected (no tracking pixels)", async () => {
+    for (const url of ["http://evil.example/img.jpg", "http://evil.example/media/properties/a.jpg", "javascript:alert(1)", "/media/../secret.jpg"]) {
+      const res = await request(app).post(`/messages/${pid}`).set("x-test-user", USER_B)
+        .send({ receiver_id: USER_A, image: { url } });
+      expect(res.status).toBe(400);
+    }
   });
 });
 
@@ -965,5 +977,57 @@ describe("upload pipeline: /properties/process ignores client origKey (security)
       .send({ items: [{ base: "../etc", origKey: "properties/victim.jpg" }] });
     expect(res.status).toBe(200);
     expect(res.body.processed).toBe(0);
+  });
+});
+
+describe("maintenance: stale upload sweep", () => {
+  const { sweepStaleUploads } = require("../src/uploadSweep");
+  test("deletes only bindings older than the cutoff, and their _orig objects", async () => {
+    const old = `properties/jest-sweep-old-${Date.now()}`, fresh = `properties/jest-sweep-new-${Date.now()}`;
+    await pool.query("INSERT INTO pending_uploads (base, clerk_user_id, created_at) VALUES ($1, $2, NOW() - INTERVAL '2 hours')", [old, USER_A]);
+    await pool.query("INSERT INTO pending_uploads (base, clerk_user_id) VALUES ($1, $2)", [fresh, USER_A]);
+    const sent = [];
+    const fakeS3 = { send: async (cmd) => { sent.push(cmd.input.Key); } };
+    const r = await sweepStaleUploads(pool, fakeS3, "zamin", 60 * 60 * 1000);
+    expect(r.bindings).toBeGreaterThanOrEqual(1);
+    expect(sent).toContain(`${old}_orig`);
+    expect(sent).not.toContain(`${fresh}_orig`);
+    const { rowCount } = await pool.query("SELECT 1 FROM pending_uploads WHERE base = $1", [fresh]);
+    expect(rowCount).toBe(1);
+    await pool.query("DELETE FROM pending_uploads WHERE base = $1", [fresh]);
+  });
+});
+
+describe("messaging authorization: only owner <-> enquirer conversations", () => {
+  const USER_C = "test_user_jest_c";
+  let pid;
+  beforeAll(async () => {
+    const create = await request(app).post("/properties").set("x-test-user", USER_A).send({ ...sampleListing, title: "Authz Chat Listing" });
+    pid = create.body.id;
+  });
+  test("a third user cannot message another non-owner under someone's listing", async () => {
+    const res = await request(app).post(`/messages/${pid}`).set("x-test-user", USER_B).send({ text: "spam", receiver_id: USER_C });
+    expect(res.status).toBe(403);
+  });
+  test("owner cannot cold-message someone who never enquired", async () => {
+    const res = await request(app).post(`/messages/${pid}`).set("x-test-user", USER_A).send({ text: "hi", receiver_id: USER_C });
+    expect(res.status).toBe(403);
+  });
+  test("owner CAN reply once the enquirer has messaged", async () => {
+    expect((await request(app).post(`/messages/${pid}`).set("x-test-user", USER_C).send({ text: "Available?", receiver_id: USER_A })).status).toBe(201);
+    expect((await request(app).post(`/messages/${pid}`).set("x-test-user", USER_A).send({ text: "Yes", receiver_id: USER_C })).status).toBe(201);
+  });
+  test("proposals follow the same rule", async () => {
+    const res = await request(app).post(`/messages/${pid}/proposal`).set("x-test-user", USER_B)
+      .send({ kind: "offer", receiver_id: USER_C, value: 100000 });
+    expect(res.status).toBe(403);
+  });
+  test("unknown listing → 404", async () => {
+    const res = await request(app).post("/messages/00000000-0000-0000-0000-000000000000").set("x-test-user", USER_B).send({ text: "hi", receiver_id: USER_A });
+    expect(res.status).toBe(404);
+  });
+  afterAll(async () => {
+    await pool.query("DELETE FROM messages WHERE property_id = $1", [pid]);
+    await pool.query("DELETE FROM properties WHERE id = $1", [pid]);
   });
 });

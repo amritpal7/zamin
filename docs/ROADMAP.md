@@ -38,14 +38,15 @@ Three pillars we judge every change against:
       (presign upload → API → Clerk Backend API), replacing clerk-expo@2's broken native upload.
 - [ ] **Android Google Maps API key** — `app.json` still has `YOUR_ANDROID_GOOGLE_MAPS_KEY`; map tiles
       blank + pin picker unusable on Android until a real key is added and the dev build is rebuilt.
-- [ ] **Sweep stale uploads** — worker cron deleting `pending_uploads` rows older than ~1 h plus their
-      `<base>_orig` objects (abandoned uploads currently linger; no longer public since 2026-11-07).
+- [x] **Sweep stale uploads** (2026-11-07) — hourly worker job (`src/uploadSweep.js`) deletes
+      `pending_uploads` older than 1 h (`STALE_UPLOAD_MS`) + their `<base>_orig` objects.
 - [ ] **Terms of service / Privacy policy / Rate app** — rows removed from Settings (were dead); add
       back with real documents + store listing before launch.
 - [x] **Listing photo upload verified on native Android** (2026-11-07) — presign → MinIO PUT →
       BullMQ resize/thumb → listing renders. Recheck the presign `x-amz-checksum-crc32` param on real S3/R2.
-- [ ] **Confirm authorization on `saved`/`messages` routes** — ensure every handler enforces
-      the Clerk user and ownership (audit `getAuth` usage).
+- [x] **Confirm authorization on `saved`/`messages` routes** (2026-11-07) — audited saved, messages,
+      saved-searches, visits, notifications, push: all reads/updates scoped to the Clerk user. Fixed in
+      messaging: arbitrary-recipient DMs/proposals, sender-identity spoofing, arbitrary image URLs.
 
 ## Requested backlog — user wishlist (2026-09-13)
 
