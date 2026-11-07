@@ -4,7 +4,7 @@ import { View, Text, ScrollView, Pressable, Platform, StyleSheet } from "react-n
 import { useRouter, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useAuth } from "@clerk/clerk-expo";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { C, FONT, FONT_MED, FONT_HEAD } from "../../src/theme";
+import { C, FONT, FONT_MED, FONT_HEAD, elevate } from "../../src/theme";
 import { Icon } from "../../src/components/Icon";
 import NeoButton from "../../src/components/NeoButton";
 import { SEED_PROPERTIES } from "../../src/data/properties";
@@ -34,11 +34,7 @@ const glassCard = () => ({
   borderRadius: 20,
   borderWidth: StyleSheet.hairlineWidth,
   borderColor: C.glassBorder,
-  shadowColor: C.shadow,
-  shadowOffset: { width: 0, height: 6 },
-  shadowOpacity: 0.12,
-  shadowRadius: 16,
-  elevation: 4,
+  ...elevate(2),
 });
 
 export default function MapScreen() {
@@ -137,8 +133,9 @@ export default function MapScreen() {
           </View>
         )}
 
-        {/* Map card */}
-        <View style={[glassCard(), { marginBottom: 18, overflow: "hidden", height: 320 }]}>
+        {/* Map card — depth on the wrapper, overflow:hidden on the inner clip (Android-safe). */}
+        <View style={[glassCard(), { marginBottom: 18 }]}>
+        <View style={{ borderRadius: 20, overflow: "hidden", height: 320 }}>
           {isSignedIn && MapView ? (
             <MapView
               ref={mapRef}
@@ -231,6 +228,7 @@ export default function MapScreen() {
               </Text>
             </Pressable>
           )}
+        </View>
         </View>
 
         {/* Property list */}

@@ -14,9 +14,6 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.zamin.app",
-      "config": {
-        "googleMapsApiKey": "YOUR_IOS_GOOGLE_MAPS_KEY"
-      },
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Zamin uses your location to show nearby properties.",
         "ITSAppUsesNonExemptEncryption": false

@@ -33,6 +33,16 @@ export default function SocialAuth({ onError }) {
     }
   }, [startSSOFlow, router, onError]);
 
+  // Computed here (not module-level) so it reads LIVE theme tokens — a module-level const would
+  // freeze C.glassBg/glassBorder to the light-mode defaults captured before applyTheme() runs,
+  // giving a white button in dark mode (with near-white C.fg text → invisible).
+  const btn = {
+    flexGrow: 1, flexBasis: "46%",   // 2 per row; wraps the 3rd provider to the next line
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    paddingVertical: 13, borderRadius: 14,
+    backgroundColor: C.glassBg, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder,
+  };
+
   return (
     <View style={{ marginTop: 6 }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginVertical: 16 }}>
@@ -60,10 +70,3 @@ export default function SocialAuth({ onError }) {
     </View>
   );
 }
-
-const btn = {
-  flexGrow: 1, flexBasis: "46%",   // 2 per row; wraps the 3rd provider to the next line
-  flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-  paddingVertical: 13, borderRadius: 14,
-  backgroundColor: C.glassBg, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder,
-};

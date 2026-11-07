@@ -12,6 +12,174 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-11-07 (Ops: emulator API host fix ✅ + native profile-photo upload BLOCKED on @clerk/clerk-expo@2)
+**Fixed (Ops) — emulator↔backend connectivity.** The dev build (`com.zamin.app`) couldn't reach the
+API from the emulator: `docker-compose.yml:162` sets `EXPO_PUBLIC_API_URL=http://${HOST_IP:-localhost}/api`
+and `HOST_IP` resolved to a stale LAN IP (`192.168.29.228`), inlined into the bundle → `socket
+connect_error: timeout`, "Couldn't load your listings". Recreated the Metro container with
+`HOST_IP=10.0.2.2` (`docker compose up -d mobile`, the canonical Android-emulator→host address) so
+`EXPO_PUBLIC_API_URL=http://10.0.2.2/api`. Also **restarted nginx** — it was 502ing because it had
+cached a stale upstream IP for `api` (api was restarted earlier for the instrument.js change).
+**Verified:** home feed now loads fresh API data (new listings, stats, no error). This is a runtime
+override — non-destructive to the repo (reverts on a normal `docker compose up`).
+
+**Investigated (NOT fixed) — native profile-photo upload.** Confirmed broken and characterized it
+precisely: `mobile/app/settings.js` `changePhoto` → Clerk `setProfileImage({file})`, which does
+`FormData.append("file", file)`. On this stack (`@clerk/clerk-expo@2`, this Expo/RN, Android) EVERY
+no-dep path to produce a valid upload fails, each with a captured on-device error:
+- `fetch(content://).blob()` (original) → empty **1×1-pixel** JPEG upload (Android picker/crop
+  returns a `content://ImagePickerFileProvider/…` URI that `fetch` can't read).
+- `{ uri, name, type }` → no crash, but Clerk did **not** persist it (`updated_at` unchanged).
+- base64 → `fetch("data:…")` → **"unknown protocol: data"** (RN fetch rejects the data: scheme).
+- base64 → `atob` → `new Blob([Uint8Array])` → **"Creating blobs from ArrayBuffer/ArrayBufferView
+  are not supported"** (RN Blob can't be built from bytes).
+**Conclusion:** this needs the `@clerk/clerk-expo@2 → @clerk/expo@4` migration (ROADMAP.md:59-62,
+major, touches all auth hooks) OR bypassing the SDK via `expo-file-system` `uploadAsync` straight to
+Clerk's image endpoint — beyond a safe inline change. Left `settings.js` on the non-crashing
+`{uri,name,type}` path with a NOTE comment documenting the above. **ROADMAP.md:36-39 stays open.**
+Flow (b) (listing image E2E) was not reached — deferred to a follow-up now that the env is reachable.
+
+### 2026-11-03 (fix: double-rupee price + invisible OAuth button text in dark mode)
+**Fixed** two display bugs surfaced during Android verification:
+- **`₹₹` double rupee.** `property.price` is always a pre-formatted string that already contains
+  `₹` (e.g. `"₹2.4 Cr"`), but several screens prepended another `₹`. Switched them to the
+  codebase's number-vs-string guard (`typeof p.price === "number" ? \`₹${p.price}\` : p.price`,
+  as already used in `map.js`/`property/[id].js`). **Ripple — all prepend sites updated:**
+  `mobile/src/components/PropertyCard.js:103`, `mobile/app/(tabs)/discover.js:74`,
+  `mobile/app/chat/[id].js:495`, `mobile/app/my-listings.js:63`. `map.js:257` already guarded.
+- **Invisible "Google/Facebook" text on the OAuth buttons (dark mode).** `SocialAuth.js` defined
+  its button style as a **module-level const** that captured `C.glassBg`/`C.glassBorder` at import
+  time — i.e. the *light* defaults (white) before `applyTheme("dark")` runs — while the label used
+  the live `C.fg` (near-white in dark mode) → white text on a frozen-white button. Moved the `btn`
+  style **inside the component** so it reads live theme tokens; in dark mode the buttons are now
+  dark navy with legible white labels. (Same stale-`C`-at-module-eval class the UI review flagged
+  for `elevate()`.)
+- **Validated:** iOS + Android bundles compile (13.0 / 13.4 MB). Verified on the Pixel_7_Pro
+  emulator (dark mode): home-feed card now shows `₹2.4 Cr` (single `₹`); the sign-in OAuth buttons
+  render dark with visible white "Google"/"Facebook" text + coloured `G`/`f` glyphs.
+
+### 2026-11-03 (fix: Android grey-plate sweep + harden Sentry instrument.js)
+**Fixed** four surfaces that combined `overflow:"hidden"` + shadow/`elevation` on the SAME node
+— the Android grey-plate pattern (BUGLOG guardrail "iOS shadow props + `elevation` on the same
+node"). Split each into an outer shadow/elevation wrapper (no clip) + an inner `overflow:"hidden"`
+clip, matching the `LiquidGlass`/`PropertyCard` pattern:
+- `mobile/app/property/[id].js` — `ImageSlider` hero and the emoji-card hero fallback (both kept
+  their intentional *coloured* glow `shadowColor: color`, now on the non-clipping outer wrapper).
+- `mobile/app/sign-in.js` + `mobile/app/sign-up.js` — the username `@`-prefix row (the clip that
+  rounds the prefix panel now lives on an inner view; `elevate(1)` on the outer).
+**Changed** `backend/src/instrument.js` — the `require("@sentry/node")` is now wrapped in
+`try/catch` so a missing SDK (minimal build / stale node_modules volume) degrades to a no-op
+instead of boot-crashing api/worker. Makes the file's "never a hard dependency" comment true.
+- **Ripple checked:** grepped all `shadow*`+`elevation`/`overflow:"hidden"` combos across the diff
+  — remaining raw shadows (`map.js` overlays, `post.js` filled input, `property/[id].js` CTA bar,
+  amber "glow" pills) are either intentional coloured glows or have no `overflow:"hidden"`, so no
+  plate risk (left as design-token cleanup). Instrument consumers (`worker.js:48/67`,
+  `realtime.js:53`) already wrap `Sentry.*` in `try/catch`, so a null export is safe. NOTE:
+  `realtime.js:9` still does an unguarded top-level `require("@sentry/node")` — out of scope here.
+- **Validated:** iOS + Android bundles compile (13.0 / 13.4 MB, valid `__BUNDLE_START_TIME__`);
+  api + worker restarted clean, `/properties` 200, worker healthy (no `MODULE_NOT_FOUND`).
+  **Android on-device verified** on the Pixel_7_Pro emulator (dev build `com.zamin.app`, Android 17):
+  sign-in + sign-up username `@`-prefix rows and the property-detail `ImageSlider` hero all render
+  as clean rounded surfaces with NO grey plate (the hero keeps its soft coloured glow). The
+  emoji-card hero fallback uses the identical split and was not separately screenshotted (needs a
+  photo-less listing). Noted pre-existing bug: `PropertyCard` price shows `₹₹` (double rupee) on
+  the home feed — the detail screen's badge is correct `₹`.
+
+### 2026-11-03 (fix: zamin_worker crash-loop — @sentry/node MODULE_NOT_FOUND)
+**Fixed** `zamin_worker` crash-looping with `Error: Cannot find module '@sentry/node'`.
+- `@sentry/node` is in `backend/package.json` and the Dockerfile runs `npm install`, so both
+  `api` and `worker` images install it. However the worker container's **anonymous `/app/node_modules`
+  volume** was created from a stale image build that predated `@sentry/node` being added; Docker
+  Compose reuses existing anonymous volumes across `docker compose up --build`, so the new image
+  layers were shadowed by the old volume.
+- The `api` container was unaffected because its anonymous volume happened to be current (rebuilt
+  around the same time `@sentry/node` was added to `package.json`).
+- **Fix:** rebuilt the worker image (`docker compose up -d --build --renew-anon-volumes worker`),
+  which forces a fresh anonymous volume populated from the new image's npm install layer.
+- No source changes required — `backend/package.json` already declared `"@sentry/node": "^10.74.0"`.
+- **Ripple checked:** `backend/src/instrument.js`, `src/realtime.js`, `src/index.js`, `src/app.js`,
+  `src/worker.js` all depend on `@sentry/node` — all are in the same `backend/` build context,
+  so the fix applies to all. `mobile`, `nginx`, `db`, `redis`, `minio` have no Sentry dependency.
+
+### 2026-10-01 (docs/tooling: engineering "team" of Claude Code sub-agents)
+**Added** a role-based sub-agent team so the growing project can be split by discipline:
+`.claude/agents/` — `zamin-planner` (architect, read-only), `zamin-coder` (implementer), `zamin-ui`
+(design system), `zamin-tester` (QA), `zamin-security` (reviewer); `.claude/commands/feature.md` — a
+`/feature` orchestration command (plan → implement → test → security); `docs/TEAM.md` — how the team
+works (orchestrator + cold-start specialists; docs are the shared memory) + how to extend it; CLAUDE.md
+gains a "The team" pointer. Security + testing are wired into every feature by design.
+
+### 2026-10-01 (feat: native platform tab bar on dev builds, with Expo Go/web JS fallback)
+**Added** Expo Router **native tabs** (`expo-router/unstable-native-tabs`, SDK 57) — a real `UITabBar`
+on iOS (→ system **Liquid Glass** on iOS 26) and Material `BottomNavigation` on Android.
+- `src/navigation/NativeTabsLayout.js` — 5 `NativeTabs.Trigger`s with per-platform icons (`sf` SF
+  Symbols on iOS incl. filled "selected" variants; `md` Material Symbols on Android), labels, and an
+  amber selected tint. No new deps (SF/Material symbols are built in; `react-native-screens` 4.26 present).
+- `app/(tabs)/_layout.js` — native tabs **require a dev build** and don't exist in Expo Go/web, so we
+  gate: `USE_NATIVE_TABS = Platform.OS!=="web" && executionEnvironment!=="storeClient"`. In a dev/prod
+  build it renders `<NativeTabsLayout/>`; in **Expo Go + web** it falls back to the clean JS `<Tabs>`.
+  The native module is **lazy-`require`d** so Expo Go never evaluates it (no crash). To go native-only
+  once you ship dev builds, render `<NativeTabsLayout/>` unconditionally.
+- Verified: iOS/Android/web bundles compile; Expo Go (both sims) renders the JS fallback with no crash.
+  The native tab bar itself can only be seen in a dev build (`npx expo run:ios` / `run:android`).
+
+### 2026-10-01 (change: retire liquid glass app-wide → opaque cards on both platforms + reset tab bar)
+Design pivot (verified on iOS Simulator + Android emulator). Two parts:
+
+**Changed — liquid glass retired; all surfaces opaque on iOS *and* Android.** Previously iOS used
+frosted glass for cards/sheets (iOS 26 `GlassView` / BlurView faux-glass) while Android was opaque;
+now both render clean opaque Material surfaces.
+- `src/theme/index.js`: the opaque surface overrides (`glassBg`/`card`/`cardAlt`/`chipBg`/`glass.*`,
+  with `highlight:"transparent"`) now apply on **all** platforms (were Android-only). Renamed
+  `*_ANDROID` → `*_OPAQUE`.
+- `src/components/LiquidGlass.js`: collapsed to a **single opaque implementation** (dropped the
+  `GlassView` + BlurView + specular-sheen branches). Keeps the shadow-wrapper / `overflow:hidden`
+  clip split + `elevate()`. Legacy glass props (glassStyle/intensity/tint/sheen/androidBlur/…) are
+  accepted as no-ops; removed the `NATIVE_GLASS` export. `GlassSurface`/`BottomSheet`/`property/[id]`
+  sheets inherit the opaque look unchanged.
+- Removed the iOS-only top-edge "sheen" gradients in `PropertyCard.js` and `app/(tabs)/discover.js`
+  (and their now-unused `Platform` imports). Left the Apple-sign-in gate in `SocialAuth.js` (not a sheen).
+
+**Changed — custom tab bar stripped to a clean minimal base** (`app/(tabs)/_layout.js`). Removed the
+bespoke "liquid water-bubble" `TabBar` (sliding glass droplet, trailing wake, squash/stretch, ripple,
+LiquidGlass background, amber Post pill) and all its `Animated` code. Now a plain expo-router `<Tabs>`:
+icon + label, opaque bar (`C.card` + hairline top border), amber active tint. This is the base for a
+future **native liquid-glass tab bar** on iOS. Android design is otherwise unchanged.
+
+> Note: `expo-glass-effect` / `expo-blur` are no longer used for surfaces (kept in deps for now).
+
+### 2026-09-17 (fix: Android card "grey plate" artifact + Expo Go crash + dead navbar blur)
+Tested on the iOS Simulator + Android emulator (both driven off one Metro). Three Android-only issues:
+
+**Fixed — grey rectangular "plate" behind every card on Android.** Cards mixed iOS shadow props
+(`shadowColor: C.shadow` = dark navy) **with** `elevation` on the same node; Android ignores the iOS
+props for layout but **does tint the elevation shadow** with `shadowColor`, painting a hard navy-grey
+rectangle around each white card (looked like a "double card"). Combined with `overflow:"hidden"` on
+the same node it got worse (shadow outline can't round).
+- **New `elevate(level)` helper** in `src/theme/index.js`: Android → `elevation` only (Material-style);
+  iOS/web → the soft layered shadow, tuned per level. One place decides depth cross-platform.
+- Rolled out to every neutral card surface: `PropertyCard.js` (also split the shadow wrapper from the
+  `overflow:hidden` clip so Android rounds the shadow), `app/(tabs)/map.js` (`glassCard()` + the map
+  container split), `app/property/[id].js` (`GlassCard`), `ui.js` (`NeoInput`), `sign-in.js` /
+  `sign-up.js` (method selector), `app/(tabs)/post.js` (review card). Intentional **coloured** glows
+  (amber buttons, avatars, hero image) were left as-is.
+- iOS is pixel-unchanged (verified): `elevate()` returns the same soft shadow there.
+
+**Fixed — app crashed on launch in Expo Go on Android** (redbox `PushManager.js:3`). Merely *importing*
+`expo-notifications` throws at module-eval in Expo Go (SDK 53 removed remote push from Expo Go). Guarded
+it in `src/components/PushManager.js`: `PUSH_ENABLED` (dev/prod build only, not `storeClient`) + a **lazy
+`require`** so the module is never evaluated in Expo Go / web. Push still works in real builds. This also
+unblocked reliable Fast Refresh (every reload had been hitting the redbox).
+
+**Fixed — Android nav-bar blur silently did nothing + warned.** `expo-blur`'s `experimentalBlurMethod`
+is deprecated in v57 and its `dimezisBlurView` needs a `blurTarget` (else it no-ops + warns). Removed the
+prop and made the Android nav bar a crisp near-opaque Material bar in `LiquidGlass.js` (matches our
+"Android = clean opaque surfaces" rule).
+
+**Dev-env note:** `watchman` was not installed, so Metro wasn't detecting file edits (served stale
+modules → fixes appeared not to work). Installed `watchman`; restart Metro with `expo start -c` after
+installing it.
+
 ### 2026-09-14 (fix: platform-adaptive UI — Android looked washed out)
 **Fixed** the app looked flat/washed-out on Android (screenshots: muddy translucent cards, hard
 white boxes behind text, weak nav bar). **Root cause:** `expo-blur`'s `BlurView` **doesn't truly

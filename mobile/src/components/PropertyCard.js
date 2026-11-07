@@ -1,7 +1,7 @@
 import React from "react";
-import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
+import { View, Text, Pressable, StyleSheet } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { C, FONT, FONT_HEAD } from "../theme";
+import { C, FONT, FONT_HEAD, elevate } from "../theme";
 import { useTheme } from "../context/ThemeContext";
 import { Icon } from "./Icon";
 import SmartImage from "./SmartImage";
@@ -19,16 +19,19 @@ export default function PropertyCard({ property: p, onPress, onSave, saved, isOw
 
   return (
     <PressableScale onPress={onPress} style={{ marginBottom: 16 }}>
+      {/* Shadow wrapper — depth lives here (NO overflow:hidden, so Android rounds the
+          elevation shadow instead of painting a hard grey plate). */}
+      <View style={{
+        backgroundColor: C.glassBg,
+        borderRadius: 28,
+        ...elevate(featured ? 4 : 2),
+      }}>
+      {/* Clip layer — rounds the hero image/gradient. overflow:hidden stays OFF the shadow node. */}
       <View style={{
         backgroundColor: C.glassBg,
         borderRadius: 28,
         borderWidth: StyleSheet.hairlineWidth,
         borderColor: C.glass?.border || C.glassBorder,
-        shadowColor: C.shadow,
-        shadowOffset: { width: 0, height: featured ? 12 : 6 },
-        shadowOpacity: featured ? 0.18 : 0.10,
-        shadowRadius: featured ? 28 : 16,
-        elevation: featured ? 10 : 5,
         overflow: "hidden",
       }}>
 
@@ -97,7 +100,7 @@ export default function PropertyCard({ property: p, onPress, onSave, saved, isOw
               paddingHorizontal: 12,
               paddingVertical: 5,
             }}>
-              <Text style={{ fontSize: 14, fontWeight: "800", color: color, fontFamily: FONT }}>₹{p.price}</Text>
+              <Text style={{ fontSize: 14, fontWeight: "800", color: color, fontFamily: FONT }}>{typeof p.price === "number" ? `₹${p.price}` : p.price}</Text>
             </View>
           </View>
 
@@ -159,15 +162,7 @@ export default function PropertyCard({ property: p, onPress, onSave, saved, isOw
           </View>
         )}
 
-        {/* Liquid-glass top-edge sheen (subtle rim light) — iOS/web only; Android is solid. */}
-        {Platform.OS !== "android" && (
-          <LinearGradient
-            colors={["rgba(255,255,255,0.28)", "transparent"]}
-            locations={[0, 1]}
-            pointerEvents="none"
-            style={{ position: "absolute", top: 0, left: 0, right: 0, height: 8 }}
-          />
-        )}
+      </View>
       </View>
     </PressableScale>
   );

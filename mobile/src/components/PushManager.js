@@ -1,10 +1,17 @@
 import { useEffect, useRef } from "react";
 import { Platform } from "react-native";
-import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 import { useAuth } from "@clerk/clerk-expo";
 import { useRouter } from "expo-router";
 import { useApi } from "../hooks/useApi";
+
+// Remote push was removed from Expo Go with SDK 53 — merely *importing* expo-notifications in
+// Expo Go on Android throws at module-eval (redbox). We only want push in a real dev/prod build,
+// so gate everything on `PUSH_ENABLED` and load the native module with a lazy require (never
+// evaluated in Expo Go / web). In those environments this whole module is an inert no-op.
+// (`executionEnvironment === "storeClient"` ⇒ running inside the Expo Go sandbox.)
+const PUSH_ENABLED = Platform.OS !== "web" && Constants.executionEnvironment !== "storeClient";
+const Notifications = PUSH_ENABLED ? require("expo-notifications") : null;
 
 // Which chat is currently open, so we don't buzz the user for a message they're
 // already reading. The chat screen sets/clears this on focus/unmount.
@@ -12,13 +19,15 @@ let activePropertyId = null;
 export function setActiveChat(propertyId) { activePropertyId = propertyId ? String(propertyId) : null; }
 
 // Foreground behavior: show a banner unless the matching chat is already open.
-Notifications.setNotificationHandler({
-  handleNotification: async (notification) => {
-    const data = notification.request?.content?.data || {};
-    const suppress = activePropertyId && String(data.propertyId) === activePropertyId;
-    return { shouldShowAlert: !suppress, shouldPlaySound: !suppress, shouldSetBadge: false };
-  },
-});
+if (PUSH_ENABLED) {
+  Notifications.setNotificationHandler({
+    handleNotification: async (notification) => {
+      const data = notification.request?.content?.data || {};
+      const suppress = activePropertyId && String(data.propertyId) === activePropertyId;
+      return { shouldShowAlert: !suppress, shouldPlaySound: !suppress, shouldSetBadge: false };
+    },
+  });
+}
 
 // Null-rendering manager: registers the device's Expo push token and routes taps
 // to the right chat. Silently no-ops in Expo Go / web (remote push needs a dev build).
@@ -31,7 +40,7 @@ export default function PushManager() {
 
   // Register this device's push token with the backend on sign-in.
   useEffect(() => {
-    if (!isSignedIn || Platform.OS === "web") return;
+    if (!isSignedIn || !PUSH_ENABLED) return;
     let cancelled = false;
     (async () => {
       try {
@@ -56,6 +65,7 @@ export default function PushManager() {
 
   // Tapping a notification opens the conversation it belongs to.
   useEffect(() => {
+    if (!PUSH_ENABLED) return;
     const sub = Notifications.addNotificationResponseReceivedListener((resp) => {
       const data = resp.notification?.request?.content?.data || {};
       if (data.kind === "visit") {

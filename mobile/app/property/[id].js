@@ -8,7 +8,7 @@ import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { C, FONT, FONT_MED, FONT_HEAD } from "../../src/theme";
+import { C, FONT, FONT_MED, FONT_HEAD, elevate } from "../../src/theme";
 import { Icon } from "../../src/components/Icon";
 import SmartImage from "../../src/components/SmartImage";
 import GlassSurface from "../../src/components/GlassSurface";
@@ -91,11 +91,7 @@ function GlassCard({ children, style }) {
       borderRadius: 22,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: C.glassBorder,
-      shadowColor: C.shadow,
-      shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 0.14,
-      shadowRadius: 18,
-      elevation: 5,
+      ...elevate(2),
       marginBottom: 14,
     }, style]}>
       {children}
@@ -108,9 +104,11 @@ function ImageSlider({ images, color }) {
   const W = Dimensions.get("window").width - 44; // 22px margin each side
   return (
     <View style={{
-      marginHorizontal: 22, borderRadius: 28, height: 260, overflow: "hidden", marginBottom: 22,
+      marginHorizontal: 22, borderRadius: 28, height: 260, marginBottom: 22, backgroundColor: C.glassBg,
+      // coloured glow (iOS/web) + elevation (Android) kept OFF the clip node → avoids the Android grey plate
       shadowColor: color, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.22, shadowRadius: 28, elevation: 10,
     }}>
+      <View style={{ flex: 1, borderRadius: 28, overflow: "hidden" }}>
       <ScrollView
         horizontal pagingEnabled showsHorizontalScrollIndicator={false}
         onMomentumScrollEnd={e => setIdx(Math.round(e.nativeEvent.contentOffset.x / W))}
@@ -143,6 +141,7 @@ function ImageSlider({ images, color }) {
           ))}
         </View>
       )}
+      </View>
     </View>
   );
 }
@@ -595,14 +594,16 @@ export default function PropertyDetail() {
             marginHorizontal: 22,
             borderRadius: 28,
             height: 240,
-            overflow: "hidden",
             marginBottom: 22,
+            backgroundColor: C.glassBg,
+            // coloured glow (iOS/web) + elevation (Android) kept OFF the clip node → avoids the Android grey plate
             shadowColor: color,
             shadowOffset: { width: 0, height: 10 },
             shadowOpacity: 0.22,
             shadowRadius: 28,
             elevation: 10,
           }}>
+          <View style={{ flex: 1, borderRadius: 28, overflow: "hidden" }}>
             {/* Coloured bg */}
             <View style={[StyleSheet.absoluteFillObject, { backgroundColor: color + "55" }]} />
 
@@ -625,6 +626,7 @@ export default function PropertyDetail() {
                 {p.location}
               </Text>
             </View>
+          </View>
           </View>
         )}
 

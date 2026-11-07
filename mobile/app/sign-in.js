@@ -8,7 +8,7 @@ import { useSignIn } from "@clerk/clerk-expo";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { C, FONT, FONT_HEAD } from "../src/theme";
+import { C, FONT, FONT_HEAD, elevate } from "../src/theme";
 import NeoButton from "../src/components/NeoButton";
 import { NeoInput } from "../src/components/ui";
 import SocialAuth from "../src/components/SocialAuth";
@@ -234,11 +234,15 @@ export default function SignIn() {
                 {/* Username with @ prefix */}
                 <View style={{ marginBottom: 14 }}>
                   <Text style={{ color: C.fgDim, fontSize: 11, fontWeight: "600", marginBottom: 6, fontFamily: FONT, letterSpacing: 0.8, textTransform: "uppercase" }}>Username</Text>
-                  <View style={{ flexDirection: "row", alignItems: "stretch", backgroundColor: C.card, borderRadius: 14, overflow: "hidden", shadowColor: C.shadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 }}>
-                    <View style={{ paddingHorizontal: 13, paddingVertical: 12, backgroundColor: C.cardAlt, justifyContent: "center" }}>
-                      <Text style={{ color: C.amberText, fontWeight: "900", fontSize: 15, fontFamily: FONT }}>@</Text>
+                  {/* elevate() on an outer wrapper (no clip); overflow:"hidden" on the inner row
+                      only — combining them on one node paints an Android grey plate. */}
+                  <View style={{ borderRadius: 14, backgroundColor: C.card, ...elevate(1) }}>
+                    <View style={{ flexDirection: "row", alignItems: "stretch", borderRadius: 14, overflow: "hidden" }}>
+                      <View style={{ paddingHorizontal: 13, paddingVertical: 12, backgroundColor: C.cardAlt, justifyContent: "center" }}>
+                        <Text style={{ color: C.amberText, fontWeight: "900", fontSize: 15, fontFamily: FONT }}>@</Text>
+                      </View>
+                      <NeoInput value={username} onChangeText={v => setUsername(clean(v))} placeholder="yourhandle" style={{ flex: 1, marginBottom: 0 }} />
                     </View>
-                    <NeoInput value={username} onChangeText={v => setUsername(clean(v))} placeholder="yourhandle" style={{ flex: 1, marginBottom: 0 }} />
                   </View>
                 </View>
                 <NeoInput label="Password" value={password} onChangeText={setPassword} placeholder="Your password" secureTextEntry />

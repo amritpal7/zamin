@@ -76,11 +76,11 @@ const DARK = {
   },
 };
 
-// Android: expo-blur doesn't truly blur (it renders a flat translucent tint), so the
-// liquid-glass translucency looks muddy/washed-out. On Android we swap the "glass" surfaces
-// for clean OPAQUE Material-style surfaces and drop the white sheen. iOS/web keep the glass.
+// Opaque Material surfaces — applied on ALL platforms. Liquid glass was retired app-wide
+// (2026-10): iOS and Android both render clean opaque cards. These override the translucent
+// base "glass" tokens with solid fills and drop the white specular sheen (`highlight`).
 const IS_ANDROID = Platform.OS === "android";
-const LIGHT_ANDROID = {
+const LIGHT_OPAQUE = {
   glassBg:     "#FFFFFF",
   card:        "#FFFFFF",
   cardAlt:     "#FFFFFF",
@@ -88,7 +88,7 @@ const LIGHT_ANDROID = {
   glassBorder: "rgba(14,19,32,0.10)",
   glass: { intensity: 0, tint: "light", fill: "#FFFFFF", border: "rgba(14,19,32,0.10)", highlight: "transparent", shadow: "#1B2740" },
 };
-const DARK_ANDROID = {
+const DARK_OPAQUE = {
   glassBg:     "#141C2E",
   card:        "#141C2E",
   cardAlt:     "#1B2440",
@@ -97,10 +97,35 @@ const DARK_ANDROID = {
   glass: { intensity: 0, tint: "dark", fill: "#141C2E", border: "rgba(180,200,255,0.14)", highlight: "transparent", shadow: "#000000" },
 };
 
-export const C = { ...LIGHT, ...(IS_ANDROID ? LIGHT_ANDROID : {}) };
+export const C = { ...LIGHT, ...LIGHT_OPAQUE };
 export function applyTheme(s) {
   Object.assign(C, s === "dark" ? DARK : LIGHT);
-  if (IS_ANDROID) Object.assign(C, s === "dark" ? DARK_ANDROID : LIGHT_ANDROID);
+  Object.assign(C, s === "dark" ? DARK_OPAQUE : LIGHT_OPAQUE);
+}
+
+// ── Cross-platform depth ──────────────────────────────────────────────────
+// iOS shadow props (shadowColor/Offset/Opacity/Radius) are NO-OPS on Android — only
+// `elevation` casts a shadow there. Worse, mixing iOS shadow props + `elevation` +
+// `overflow:"hidden"` on the SAME node makes Android paint a hard grey rectangular plate
+// instead of a soft rounded shadow (the outline provider can't round the shadow). So:
+//   • Android → emit ONLY `elevation` (Material-style), kept on a node WITHOUT
+//     overflow:"hidden" (put the clip on an inner child).
+//   • iOS/web → emit a soft layered shadow tuned per level.
+// `level` ≈ Material elevation (1 = resting card, 3 = raised, 4 = floating/featured).
+export function elevate(level = 2) {
+  if (IS_ANDROID) return { elevation: level };
+  const s = {
+    1: { height: 2,  radius: 8,  opacity: 0.10 },
+    2: { height: 6,  radius: 16, opacity: 0.12 },
+    3: { height: 10, radius: 24, opacity: 0.16 },
+    4: { height: 14, radius: 30, opacity: 0.20 },
+  }[level] || { height: 6, radius: 16, opacity: 0.12 };
+  return {
+    shadowColor: C.shadow,
+    shadowOffset: { width: 0, height: s.height },
+    shadowOpacity: s.opacity,
+    shadowRadius: s.radius,
+  };
 }
 
 // Mono display type — GeistMono across the board (matches the app2 reference)

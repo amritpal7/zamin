@@ -10,7 +10,7 @@ import { useAuth, useUser } from "@clerk/clerk-expo";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
-import { C, FONT, FONT_MED, FONT_HEAD } from "../../src/theme";
+import { C, FONT, FONT_MED, FONT_HEAD, elevate } from "../../src/theme";
 import { Icon } from "../../src/components/Icon";
 import NeoButton from "../../src/components/NeoButton";
 import { useApi } from "../../src/hooks/useApi";
@@ -1065,7 +1065,7 @@ export default function Post() {
           <View style={{ gap: 14 }}>
             <View style={{
               backgroundColor: C.card, borderRadius: 22, borderWidth: 1, borderColor: C.glassBorder,
-              shadowColor: C.shadow, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.12, shadowRadius: 16, elevation: 4,
+              ...elevate(2),
               padding: 20,
             }}>
               <Text style={{ color: C.text, fontWeight: "800", fontSize: 16, marginBottom: 18, fontFamily: FONT }}>

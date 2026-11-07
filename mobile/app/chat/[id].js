@@ -492,7 +492,7 @@ export default function Chat() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={{ color: C.fg, fontFamily: FONT_HEAD, fontSize: 16, letterSpacing: -0.2 }} numberOfLines={1}>{p.title}</Text>
-                <Text style={{ color: C.amberText, fontFamily: FONT_MED, fontSize: 13, marginTop: 2 }}>₹{p.price}</Text>
+                <Text style={{ color: C.amberText, fontFamily: FONT_MED, fontSize: 13, marginTop: 2 }}>{typeof p.price === "number" ? `₹${p.price}` : p.price}</Text>
               </View>
               <Icon name="chevR" size={16} color={C.fgDim} />
             </Pressable>

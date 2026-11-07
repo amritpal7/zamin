@@ -18,6 +18,13 @@ lives in the linked docs; this is the map + the rules + the runbook.
 Zero-brokerage property marketplace. Expo/React Native (iOS/Android/web) + Express API +
 Postgres + Clerk auth + MinIO object storage + Redis/BullMQ image worker, all via Docker Compose.
 
+## The team (sub-agents) — **`docs/TEAM.md`**
+Specialist Claude Code sub-agents in `.claude/agents/`: `zamin-planner` (architect), `zamin-coder`
+(implementer), `zamin-ui` (design system), `zamin-tester` (QA), `zamin-security` (reviewer). Run the
+whole pipeline with **`/feature <request>`** (plan → implement → test → security), or invoke one
+("use the zamin-tester subagent to…"). The orchestrator (main session) coordinates; the docs are the
+team's shared memory, so keep them current. Security + testing run on **every** feature.
+
 ## Working agreement (do this every change)
 1. **Trace the ripple — every change.** Before calling a change done, find EVERY other place
    the touched thing is used and update/verify each, so a fix here doesn't leave a bug there.

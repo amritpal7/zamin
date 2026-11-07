@@ -60,7 +60,7 @@ function MyListingCard({ property: p, onEdit, onDelete }) {
 
           <View style={{ alignItems: "flex-end" }}>
             <Text style={{ color: C.fg, fontFamily: FONT_MED, fontSize: 15 }}>
-              {p.price ? `₹${p.price}` : "—"}
+              {p.price ? (typeof p.price === "number" ? `₹${p.price}` : p.price) : "—"}
             </Text>
             {p.area ? <Text style={{ color: C.fgDim, fontSize: 11, fontFamily: FONT, marginTop: 4 }}>{p.area}</Text> : null}
           </View>

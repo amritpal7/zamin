@@ -332,16 +332,23 @@ swappable (MinIO → S3/R2) by changing only `S3_*` env vars.
 
 Shared code in `mobile/src`:
 - `components/` — Neo* UI kit (NeoBox, NeoButton), PropertyCard, SmartImage, ConfirmModal, Header, Icon, ui (NeoInput, Tag, Avatar).
-- `components/LiquidGlass.js` — the single glass primitive, **platform-adaptive**: iOS 26 →
-  Apple's real Liquid Glass (`expo-glass-effect` `GlassView`); iOS<26 / web → BlurView faux-glass
-  (blur + fill + specular sheen); **Android → clean opaque Material surface** (expo-blur doesn't
-  truly blur on Android, so glass looked washed-out — theme also swaps the glass tokens to opaque
-  there). `androidBlur` prop opts one element (the nav bar) into a real Android blur
-  (`experimentalBlurMethod`). White sheens are gated to non-Android.
-  `GlassSurface` (sheets/drawers) and the **tab bar navbar** both go through it, so glass
-  upgrades/degrades everywhere at once. Real glass needs a dev-client/EAS build (native
-  module); Metro serves safe `.web`/base variants so Android/web bundles never throw.
-  Keep full-glass off long scroll rows (list rows use cheap `C.glass` rim tokens instead).
+- `components/LiquidGlass.js` — the single **surface primitive**. Liquid glass was **retired
+  app-wide (2026-10)**: this now renders one **clean opaque Material surface** on every platform
+  (iOS + Android + web). Kept the name + call sites; legacy glass props (glassStyle/intensity/tint/
+  sheen/androidBlur/…) are accepted as no-ops. The theme's opaque surface tokens (`glassBg`/`card`/
+  `glass.*`, `highlight:"transparent"`) now apply on all platforms. `expo-glass-effect`/`expo-blur`
+  are no longer used for surfaces (kept in deps). `GlassSurface` (sheets/drawers) wraps it.
+- **Depth is cross-platform via `elevate(level)` in `theme/index.js`** — Android emits `elevation`
+  only (Material), iOS/web emit a soft layered shadow. Never hand-roll `shadow*`+`elevation` on a
+  card: Android tints the elevation shadow with `shadowColor`, so the two together paint a hard grey
+  "plate" (see BUGLOG). Coloured glows (amber buttons/avatars) intentionally keep a raw `shadowColor`.
+- **Tab bar** (`app/(tabs)/_layout.js`) — **native tabs on dev builds, JS fallback in Expo Go/web.**
+  `NativeTabsLayout` (`src/navigation/NativeTabsLayout.js`, `expo-router/unstable-native-tabs`) renders
+  a real `UITabBar` (→ iOS 26 Liquid Glass) / Material `BottomNavigation`, with `sf` (iOS) + `md`
+  (Android) icons. Native tabs need a dev build, so `_layout.js` gates on
+  `Platform.OS!=="web" && executionEnvironment!=="storeClient"` and **lazy-requires** the native module;
+  Expo Go + web fall back to a minimal JS `<Tabs>` (icon+label, opaque bar, amber active tint). The old
+  bespoke "liquid water-bubble" animated bar was removed 2026-10.
 - `components/BottomSheet.js` — Google/Material-style drag-to-close bottom sheet (slide-up on
   mount, finger-follow drag with backdrop dimming, velocity/threshold dismiss). Core
   `PanResponder`+`Animated` (web + native). Used by every bottom sheet (property-detail

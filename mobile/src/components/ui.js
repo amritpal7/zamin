@@ -1,7 +1,7 @@
 import React from "react";
 import { View, Text, TextInput } from "react-native";
 import { Image } from "expo-image";
-import { C, FONT, FONT_HEAD } from "../theme";
+import { C, FONT, FONT_HEAD, elevate } from "../theme";
 import { useTheme } from "../context/ThemeContext";
 
 export const Tag = ({ children, color, solid }) => {
@@ -71,11 +71,7 @@ export const NeoInput = ({ label, value, onChangeText, placeholder, secureTextEn
         borderRadius: 14,
         borderWidth: 1,
         borderColor: C.glassBorder,
-        shadowColor: C.shadow,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
-        shadowRadius: 8,
-        elevation: 2,
+        ...elevate(1),
       }}>
         <TextInput
           value={value}

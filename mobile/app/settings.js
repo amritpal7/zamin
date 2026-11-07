@@ -3,7 +3,7 @@
 // All business logic (Clerk profile/email/password flows + theme switching) preserved.
 
 import React, { useState, useEffect } from "react";
-import { View, Text, ScrollView, Pressable, TextInput, Alert, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, ScrollView, Pressable, TextInput, Alert, ActivityIndicator, StyleSheet, Platform } from "react-native";
 import { useRouter } from "expo-router";
 import { useUser, useClerk } from "@clerk/clerk-expo";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -208,8 +208,18 @@ export default function Settings() {
       });
       if (res.canceled) return;
       setUploadingPhoto(true);
-      const blob = await (await fetch(res.assets[0].uri)).blob();
-      await user.setProfileImage({ file: blob });
+      const asset = res.assets[0];
+      // NOTE (2026-11-07): native profile-photo upload is NOT working on @clerk/clerk-expo@2.
+      // Empirically on Android every no-dep path fails: fetch(content://).blob() → empty 1×1;
+      // fetch("data:…") → "unknown protocol: data"; new Blob([Uint8Array]) → "ArrayBuffer not
+      // supported". `{uri,name,type}` (below) is the canonical RN file shape and doesn't crash, but
+      // Clerk's setProfileImage didn't persist it either. Proper fix needs the @clerk/expo@4
+      // migration (ROADMAP.md) or expo-file-system uploadAsync straight to Clerk's endpoint.
+      // Web keeps its readable uri→blob path (verified 2026-08-05).
+      const file = Platform.OS === "web"
+        ? await (await fetch(asset.uri)).blob()
+        : { uri: asset.uri, name: asset.fileName || "avatar.jpg", type: asset.mimeType || "image/jpeg" };
+      await user.setProfileImage({ file });
       await user.reload();
       // Propagate the new photo to the denormalized owner_image on THIS user's listings,
       // so it shows for other viewers immediately (not only after the 6h reconcile sweep).
