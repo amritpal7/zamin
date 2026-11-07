@@ -12,6 +12,90 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-11-07 (Security: upload pipeline hardening — zamin-security review)
+Review of the photo route found nothing blocking in it, but one **pre-existing HIGH** next to it:
+- **HIGH fixed — `/properties/process` trusted a client `origKey`.** The worker GETs *and deletes* that key,
+  so any signed-in user could copy + delete another listing's photo (`{ base: own, origKey: victim.jpg }`).
+  Now `base` is regex-validated and `origKey` is derived server-side (`properties.js`). Verified: forged
+  request processes the attacker's own upload only; victim image still 200. Test added.
+- **Bucket policy:** public-read narrowed from `*` to `*.jpg` (`storage.js`) — raw `_orig` uploads (may carry
+  EXIF/GPS) now 403 by URL; processed images/thumbs unaffected (all DB media URLs are .jpg — checked).
+- `/users/me/photo`: per-user rate limit (10 / 10 min), format allow-list (jpeg/png/webp/heif; SVG → 400),
+  pixel cap 25 MP + `sequentialRead`, size check fails closed, server-side error logging; Clerk call has a
+  10 s timeout + encoded id (`users.js`, `clerkUsers.js`). Worker sharp calls capped at 25 MP (`worker.js`).
+- 500 responses in `properties.js` no longer echo `err.message` (13 sites) — generic message + console.error.
+- Migration seed filter tightened to `LIKE 'seed\_user\_%'`.
+- Backend **106/106**; photo + listing uploads re-verified end to end.
+- Backlog (ROADMAP): sweep stale `pending_uploads` + their `_orig` objects.
+
+### 2026-11-07 (Fixed: native profile-photo upload ✅ + A–Z QA sweep fixes)
+**Fixed — profile photo upload on native (was blocked on @clerk/clerk-expo@2).** New server-side path
+instead of the Clerk SDK upload: app uploads via the proven presign flow, then `POST /users/me/photo`
+consumes the caller's `pending_uploads` binding, sharp re-encodes to 512² JPEG (strips EXIF/GPS,
+rejects non-images, ≤10 MB), forwards to Clerk Backend API `/v1/users/:id/profile_image`, and runs
+`reconcileOwner` so `owner_image` updates on their listings. No new deps, no dev-build rebuild.
+- `backend/src/routes/users.js` (route), `backend/src/clerkUsers.js` (`setProfileImage`),
+  `mobile/src/hooks/useApi.js` (`setProfilePhoto`), `mobile/app/settings.js` (`changePhoto`, all platforms).
+- Verified: CLI (200; replay 403; bad base 400; unauth 401; non-image 400; `_orig` deleted; public
+  `owner_image` updated) and **on the Android emulator** (picker → crop → presign/PUT/photo all 200 →
+  avatar updates; Clerk stores 512×512 JPEG). Tests +3 (backend **105/105**).
+- Ripple: every avatar reads Clerk `user.imageUrl` (refreshed by `user.reload()`) or denormalized
+  `owner_image` (refreshed by reconcile). Note: `messages.sender_image` on *old* messages is not
+  re-synced (pre-existing; new messages carry the current photo).
+
+**Fixed — A–Z QA sweep (zamin-tester, Android, both themes).**
+- Status bar icons invisible in light theme → `ThemedStatusBar` follows scheme (`app/_layout.js`).
+- Android tab bar: active icon invisible on default periwinkle pill in dark → amber `indicatorColor`
+  + ink icon (`src/navigation/NativeTabsLayout.js`).
+- Posted prices stored bare ("25 K") → `formatPrice` now emits the app convention "₹25K/mo" /
+  "₹85 L" / "₹1.8 Cr" (+ "/mo" for rent); `parsePrice` fixed (`\bK\b` never matched "25K", so editing
+  would have reset the unit to L). Review step uses the same formatter (`app/(tabs)/post.js`).
+- Post wizard reached "Ready to publish" with empty fields → per-step required check (Title, Price;
+  Address) with an alert, mirroring backend `validateProperty`.
+- Dead taps: Profile → Help & Support and Settings → About now open a new FAQ screen (`app/help.js`);
+  Terms / Privacy / Rate rows removed until real docs + a store listing exist.
+- My Listings rows always showed 🏠 → show the uploaded thumbnail (`app/my-listings.js`).
+- Light-theme contrast: card price pill text → ink (`PropertyCard.js`); detail price pill → ink on amber;
+  amber chips/tags → `C.amberText` (`property/[id].js` Chip, `ui.js` Tag); detail action bar was
+  hard-coded navy → theme surface, icons/buttons tokenized inline.
+- Icons: Messages uses `chat` (profile + empty state); Change password uses new `lock` icon (`Icon.js`).
+- Settings: Sign out moved to the bottom; section labels aligned with cards.
+- Map: "Search this area" moved below the Satellite toggle (they collided on phones).
+- Edit Listing: title no longer crowds Cancel; bottom padding includes the safe-area inset.
+- Auth: "@" username rows render one box (new `bare` prop on `NeoInput`); sign-up label style matches.
+- Verified on device: photo upload, help screen, light theme (status bar, detail bar, chips, sign-out
+  placement), tab pill, Post validation alert. Bundles compile (android+ios); mobile jest 39/39.
+- **Not fixed (needs you):** Android Google Maps key is the placeholder (`app.json`
+  `YOUR_ANDROID_GOOGLE_MAPS_KEY`) → map tiles blank / pin picker unusable on Android; needs a real key
+  + dev-build rebuild.
+- Left as-is (by design): "Add & verify email" CTA (email is an optional verifiable identifier — powers
+  trust badge + password reset); forgot-password copy; seed "Online" label.
+
+### 2026-11-07 (Verified: listing image upload E2E on Android ✅ + Fixed: rental price insights "100% below median")
+**Verified — listing photo pipeline, end to end on the Pixel_7_Pro emulator (dev build).** Posted a
+real listing with a gallery photo through the 4-step Post flow: `POST /properties/presign` → native
+`fetch(file://).blob()` PUT to `/zamin/<key>_orig` (nginx → MinIO, SigV4 valid) → `POST /properties/process`
+→ BullMQ worker wrote `<base>.jpg` (1024×1024) + `<base>_thumb.jpg` (400×400) and deleted `_orig` →
+`POST /properties` 201 → photo renders on the detail screen and appears in public `GET /properties`.
+Also confirmed `/process` replay is a no-op (`processed:0`, pending_uploads binding consumed).
+Closes ROADMAP on-device item (a). Note: the AWS SDK now adds `x-amz-checksum-crc32=AAAAAA==` (empty-body
+CRC) to presigned PUTs — MinIO ignores it; **re-check if we move to real S3/R2** (they may enforce it).
+**Ops:** api/worker were presigning for a stale host (`S3_PUBLIC_ENDPOINT=http://192.168.29.228`; Mac
+is now `192.168.1.15`) — recreated with `HOST_IP=10.0.2.2` (runtime override, like Metro).
+
+**Fixed — price insights told every Mumbai rental it was "Good deal · 100% below the area median".**
+Root cause: base seed row "Luxury Apartment — Sea View" (`backend/db/init.sql`) was `For Rent` with a
+sale price `₹1.8 Cr`, duplicated into 23 demo rows → rental median ₹12,414/sqft vs real rents ~₹30/sqft.
+- `backend/src/insights.js` — `rentPlausible()`: For Rent rows priced above `MAX_MONTHLY_RENT` (₹25 L/mo)
+  are dropped from comparables, and such a listing gets no verdict (users can type anything).
+- `backend/db/init.sql` — seed row relabelled `For Sale`.
+- `backend/migrations/1730900000000_fix_sale_priced_rentals.js` — relabels existing seed-owned
+  (`clerk_user_id LIKE 'seed_%'`) Cr-priced rentals as For Sale; real users' rows untouched.
+  Applied locally (23 rows). **Prod (Railway) gets it on next api deploy.**
+- `backend/tests/insights.test.js` — 2 regression tests. Backend suite **102/102**.
+- Ripple: `GET /properties/:id/insights` is the only server consumer; client `property/[id].js:669`
+  already hides `insufficient`; client `pricePerSqft` (card/detail ₹/sqft label) is per-listing, unaffected.
+
 ### 2026-11-07 (Ops: emulator API host fix ✅ + native profile-photo upload BLOCKED on @clerk/clerk-expo@2)
 **Fixed (Ops) — emulator↔backend connectivity.** The dev build (`com.zamin.app`) couldn't reach the
 API from the emulator: `docker-compose.yml:162` sets `EXPO_PUBLIC_API_URL=http://${HOST_IP:-localhost}/api`

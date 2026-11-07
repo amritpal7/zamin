@@ -198,7 +198,7 @@ export default function MapScreen() {
               onPress={searchThisArea}
               disabled={searching}
               style={{
-                position: "absolute", top: 12, alignSelf: "center",
+                position: "absolute", top: 60, alignSelf: "center", // below the top-right Satellite toggle (they collided on phones)
                 flexDirection: "row", alignItems: "center", gap: 6,
                 backgroundColor: C.bg, borderRadius: 100, paddingHorizontal: 14, paddingVertical: 8,
                 borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder,

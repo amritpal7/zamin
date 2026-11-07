@@ -241,7 +241,7 @@ export default function SignIn() {
                       <View style={{ paddingHorizontal: 13, paddingVertical: 12, backgroundColor: C.cardAlt, justifyContent: "center" }}>
                         <Text style={{ color: C.amberText, fontWeight: "900", fontSize: 15, fontFamily: FONT }}>@</Text>
                       </View>
-                      <NeoInput value={username} onChangeText={v => setUsername(clean(v))} placeholder="yourhandle" style={{ flex: 1, marginBottom: 0 }} />
+                      <NeoInput value={username} onChangeText={v => setUsername(clean(v))} placeholder="yourhandle" style={{ flex: 1, marginBottom: 0 }} bare />
                     </View>
                   </View>
                 </View>

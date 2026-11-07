@@ -63,7 +63,11 @@ router.post("/process", requireAuth, async (req, res) => {
     const items = Array.isArray(req.body?.items) ? req.body.items.slice(0, MAX_IMAGES) : [];
     let processed = 0;
     for (const it of items) {
-      if (!it?.base || !it?.origKey) continue;
+      // SECURITY: never trust a client origKey — the worker reads AND deletes that key, so a
+      // forged one let any user copy+delete another listing's photo. Derive it from the
+      // (validated, ownership-checked) base instead.
+      if (typeof it?.base !== "string" || !/^properties\/[A-Za-z0-9-]+$/.test(it.base)) continue;
+      const origKey = `${it.base}_orig`;
       // Only process a base this user actually presigned (prevents overwriting
       // someone else's listing images). Consume the binding.
       const { rowCount } = await pool.query(
@@ -72,7 +76,7 @@ router.post("/process", requireAuth, async (req, res) => {
       );
       if (!rowCount) continue;
       const id = it.base.split("/").pop();
-      await enqueueThumb(id, it.base, it.origKey);
+      await enqueueThumb(id, it.base, origKey);
       processed++;
     }
     res.json({ ok: true, processed });
@@ -120,7 +124,8 @@ router.post("/reconcile-owners", requireAuth, async (req, res) => {
     const result = await reconcileOwners(pool);
     res.json(result);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("[properties]", err.message);
+    res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });
 
@@ -134,7 +139,8 @@ router.post("/reconcile-me", requireAuth, async (req, res) => {
     const result = await reconcileOwner(pool, userId);
     res.json(result);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("[properties]", err.message);
+    res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });
 
@@ -169,7 +175,8 @@ router.post("/:id/report", requireAuth, async (req, res) => {
     }
     res.json({ reported: true, reportCount: cnt[0].n, hidden });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("[properties]", err.message);
+    res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });
 
@@ -188,7 +195,8 @@ router.get("/moderation", requireAuth, async (req, res) => {
     );
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("[properties]", err.message);
+    res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });
 
@@ -203,7 +211,8 @@ router.post("/:id/moderate", requireAuth, async (req, res) => {
     if (!rowCount) return res.status(404).json({ error: "Not found" });
     res.json({ id: req.params.id, flagged });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("[properties]", err.message);
+    res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });
 
@@ -279,7 +288,8 @@ router.get("/", async (req, res) => {
       hasMore: offset + rows.length < total,
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("[properties]", err.message);
+    res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });
 
@@ -300,7 +310,8 @@ router.put("/location-visibility", requireAuth, async (req, res) => {
     try { defaultSaved = await setLocationDefault(userId, visibility); } catch { /* keep false */ }
     res.json({ updated: rowCount, default: visibility, defaultSaved });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("[properties]", err.message);
+    res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });
 
@@ -315,7 +326,8 @@ router.get("/mine", requireAuth, async (req, res) => {
     );
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("[properties]", err.message);
+    res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });
 
@@ -366,7 +378,8 @@ router.put("/:id", requireAuth, async (req, res) => {
     if (!rows[0]) return res.status(404).json({ error: "Not found or not owner" });
     res.json(redactLocation(rows[0], userId));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("[properties]", err.message);
+    res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });
 
@@ -378,7 +391,8 @@ router.get("/:id", async (req, res) => {
     const { userId } = getAuth(req);
     res.json(redactLocation(rows[0], userId));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("[properties]", err.message);
+    res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });
 
@@ -419,7 +433,8 @@ router.get("/:id/insights", async (req, res) => {
 
     res.json(computeInsights(listing, comps, areaLabel));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("[properties]", err.message);
+    res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });
 
@@ -462,7 +477,8 @@ router.post("/", requireAuth, async (req, res) => {
     try { await notifyListingMatch(pool, rows[0]); } catch (e) { console.error("saved-search notify failed:", e.message); }
     res.status(201).json(rows[0]);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("[properties]", err.message);
+    res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });
 
@@ -478,7 +494,8 @@ router.delete("/:id", requireAuth, async (req, res) => {
     if (!rowCount) return res.status(404).json({ error: "Not found or not owner" });
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("[properties]", err.message);
+    res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });
 

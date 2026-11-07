@@ -49,4 +49,19 @@ describe("computeInsights verdicts", () => {
   test("insufficient when this listing has no parseable ₹/sqft", () => {
     expect(computeInsights(L("Call for price", "n/a"), comps, "Testville").verdict).toBe("insufficient");
   });
+
+  test("rentals: sale-priced 'For Rent' comps are ignored (regression: 100% below median)", () => {
+    const R = (price, area) => ({ price, area, status: "For Rent", type: "Apartment" });
+    const rentComps = [R("₹30K/mo", "1000 sq ft"), R("₹30K/mo", "1000 sq ft"), R("₹30K/mo", "1000 sq ft"),
+                       R("₹1.8 Cr", "1450 sq ft"), R("₹1.8 Cr", "1450 sq ft"), R("₹1.8 Cr", "1450 sq ft"), R("₹1.8 Cr", "1450 sq ft")];
+    const r = computeInsights(R("₹25 K", "900 sq ft"), rentComps, "Mumbai"); // ₹28/sqft vs ₹30/sqft
+    expect(r.sampleSize).toBe(3);
+    expect(r.areaMedianPerSqft).toBe(30);
+    expect(r.verdict).toBe("at_market");
+  });
+  test("rentals: a sale-priced rental listing itself gets no verdict", () => {
+    const R = (price, area) => ({ price, area, status: "For Rent", type: "Apartment" });
+    const rentComps = [R("₹30K/mo", "1000 sq ft"), R("₹30K/mo", "1000 sq ft"), R("₹30K/mo", "1000 sq ft")];
+    expect(computeInsights(R("₹1.8 Cr", "1450 sq ft"), rentComps, "Mumbai").verdict).toBe("insufficient");
+  });
 });

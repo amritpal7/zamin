@@ -93,6 +93,25 @@ export function useApi() {
       });
     },
 
+    // Profile photo — same presigned direct upload as listing photos, but instead of
+    // /properties/process the API re-encodes it and sets it on the Clerk user
+    // (clerk-expo@2's setProfileImage can't send file bytes on Android). Returns { imageUrl }.
+    setProfilePhoto: async (uri) => {
+      const token = await getToken();
+      const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+      const presignRes = await fetch(`${BASE}/properties/presign`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders },
+        body: JSON.stringify({ count: 1 }),
+      });
+      if (!presignRes.ok) throw new Error("Could not start upload");
+      const { files: [f] } = await presignRes.json();
+      const blob = await (await fetch(uri)).blob();
+      const put = await fetch(f.uploadUrl, { method: "PUT", body: blob });
+      if (!put.ok) throw new Error("Photo upload failed");
+      return request("/users/me/photo", { method: "POST", body: JSON.stringify({ base: f.base }) });
+    },
+
     // Messages
     getConversations: () => request("/messages"),
     getMessages: (propertyId, peer) => request(`/messages/${propertyId}${peer ? `?peer=${encodeURIComponent(peer)}` : ""}`),

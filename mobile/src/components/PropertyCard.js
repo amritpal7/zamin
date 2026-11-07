@@ -100,7 +100,7 @@ export default function PropertyCard({ property: p, onPress, onSave, saved, isOw
               paddingHorizontal: 12,
               paddingVertical: 5,
             }}>
-              <Text style={{ fontSize: 14, fontWeight: "800", color: color, fontFamily: FONT }}>{typeof p.price === "number" ? `₹${p.price}` : p.price}</Text>
+              <Text style={{ fontSize: 14, fontWeight: "800", color: "#0E1320", fontFamily: FONT }}>{typeof p.price === "number" ? `₹${p.price}` : p.price}</Text>
             </View>
           </View>
 

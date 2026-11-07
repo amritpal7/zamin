@@ -53,11 +53,25 @@ const GOOD_DEAL = 0.9;   // <= 90% of area median
 const ABOVE_MKT = 1.1;   // >= 110% of area median
 const MIN_SAMPLE = 3;    // need at least this many comparables to call it
 
+// A monthly rent above this is almost certainly a SALE price entered on a rental
+// (e.g. "₹1.8 Cr" marked For Rent). Such rows would wreck the rental median and
+// make every honest rental read "100% below market", so they're ignored.
+const MAX_MONTHLY_RENT = 25e5; // ₹25 L / month
+
+function rentPlausible(row) {
+  if (!/rent/i.test(String(row.status || ""))) return true;
+  const rupees = priceToRupees(row.price);
+  return rupees == null || rupees <= MAX_MONTHLY_RENT;
+}
+
 // listing: the row; comparables: other rows (same type+status+area). Returns a
 // verdict + the numbers behind it. `area` is the locality/city label used.
 function computeInsights(listing, comparables, areaLabel) {
-  const mine = pricePerSqft(listing.price, listing.area);
-  const vals = comparables.map((c) => pricePerSqft(c.price, c.area)).filter((v) => v != null);
+  const mine = rentPlausible(listing) ? pricePerSqft(listing.price, listing.area) : null;
+  const vals = comparables
+    .filter((c) => rentPlausible({ status: listing.status, price: c.price }))
+    .map((c) => pricePerSqft(c.price, c.area))
+    .filter((v) => v != null);
   const areaAvg = median(vals);
   const base = {
     area: areaLabel || null,
@@ -77,4 +91,4 @@ function computeInsights(listing, comparables, areaLabel) {
   return { ...base, verdict, deltaPct };
 }
 
-module.exports = { priceToRupees, areaToSqft, pricePerSqft, median, computeInsights, MIN_SAMPLE };
+module.exports = { priceToRupees, areaToSqft, pricePerSqft, median, computeInsights, MIN_SAMPLE, MAX_MONTHLY_RENT };

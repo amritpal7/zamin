@@ -51,6 +51,25 @@ async function setLocationDefault(id, visibility) {
   return res.ok;
 }
 
+// Set a user's Clerk profile photo server-side (Backend API, secret key). Used for
+// native clients: @clerk/clerk-expo@2's setProfileImage can't send RN file bytes on
+// Android, so the app uploads via our presign pipeline and the API forwards it here.
+// `jpeg` is a Buffer. Returns the new image URL, or throws.
+async function setProfileImage(id, jpeg) {
+  if (!id || !SECRET) throw new Error("Clerk not configured");
+  const form = new FormData();
+  form.append("file", new Blob([jpeg], { type: "image/jpeg" }), "avatar.jpg");
+  const res = await fetch(`https://api.clerk.com/v1/users/${encodeURIComponent(id)}/profile_image`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${SECRET}` },
+    body: form,
+    signal: AbortSignal.timeout(10_000), // don't hold the request + buffer on a hung Clerk call
+  });
+  if (!res.ok) throw new Error(`Clerk profile_image ${res.status}`);
+  const u = await res.json();
+  return u.image_url || null;
+}
+
 // Backfill denormalized sender identity on messages that predate the feature
 // (sender_name IS NULL). New messages already carry it; this heals old ones from Clerk.
 async function backfillMessageSenders(pool) {
@@ -131,4 +150,4 @@ async function reconcileOwners(pool) {
   return { checked: rows.length, active, inactive, skipped };
 }
 
-module.exports = { getUser, userExists, setLocationDefault, reconcileOwner, reconcileOwners, backfillMessageSenders };
+module.exports = { getUser, userExists, setLocationDefault, setProfileImage, reconcileOwner, reconcileOwners, backfillMessageSenders };

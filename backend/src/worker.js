@@ -24,10 +24,10 @@ const worker = new Worker(
     const obj = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: origKey }));
     const buf = await streamToBuffer(obj.Body);
 
-    const full = await sharp(buf).rotate()
+    const full = await sharp(buf, { limitInputPixels: 25e6, sequentialRead: true }).rotate()
       .resize({ width: 1600, height: 1600, fit: "inside", withoutEnlargement: true })
       .jpeg({ quality: 80 }).toBuffer();
-    const thumb = await sharp(buf).rotate()
+    const thumb = await sharp(buf, { limitInputPixels: 25e6, sequentialRead: true }).rotate()
       .resize({ width: 400, height: 400, fit: "inside", withoutEnlargement: true })
       .jpeg({ quality: 70 }).toBuffer();
 

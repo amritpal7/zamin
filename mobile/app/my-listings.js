@@ -11,6 +11,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { C, FONT, FONT_MED, FONT_HEAD, FONT_HEAD_ITALIC } from "../src/theme";
 import { Icon } from "../src/components/Icon";
 import { Tag } from "../src/components/ui";
+import SmartImage from "../src/components/SmartImage";
 import { useApi } from "../src/hooks/useApi";
 import ConfirmModal from "../src/components/ConfirmModal";
 
@@ -39,7 +40,9 @@ function MyListingCard({ property: p, onEdit, onDelete }) {
               start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
               style={StyleSheet.absoluteFill}
             />
-            <Text style={{ fontSize: 28 }}>{p.img || "🏠"}</Text>
+            {p.images?.length
+              ? <SmartImage uri={p.thumbnails?.[0] || p.images[0]} style={StyleSheet.absoluteFill} />
+              : <Text style={{ fontSize: 28 }}>{p.img || "🏠"}</Text>}
           </View>
 
           <View style={{ flex: 1, minWidth: 0 }}>

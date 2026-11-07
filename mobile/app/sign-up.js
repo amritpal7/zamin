@@ -155,7 +155,7 @@ export default function SignUp() {
           {method === "username" ? (
             /* Username with @ prefix */
             <View style={{ marginBottom: 14 }}>
-              <Text style={{ color: C.amberText, fontSize: 12, fontWeight: "700", marginBottom: 6, fontFamily: FONT }}>Username *</Text>
+              <Text style={{ color: C.fgDim, fontSize: 11, fontWeight: "600", marginBottom: 6, fontFamily: FONT, letterSpacing: 0.8, textTransform: "uppercase" }}>Username *</Text>
               {/* elevate() on an outer wrapper (no clip); overflow:"hidden" on the inner row
                   only — combining them on one node paints an Android grey plate. */}
               <View style={{ borderRadius: 14, backgroundColor: C.card, ...elevate(1) }}>
@@ -163,7 +163,7 @@ export default function SignUp() {
                   <View style={{ paddingHorizontal: 13, paddingVertical: 12, backgroundColor: C.cardAlt, justifyContent: "center" }}>
                     <Text style={{ color: C.amberText, fontWeight: "900", fontSize: 15, fontFamily: FONT }}>@</Text>
                   </View>
-                  <NeoInput value={username} onChangeText={v => setUsername(clean(v))} placeholder="yourhandle" style={{ flex: 1, marginBottom: 0 }} />
+                  <NeoInput value={username} onChangeText={v => setUsername(clean(v))} placeholder="yourhandle" style={{ flex: 1, marginBottom: 0 }} bare />
                 </View>
               </View>
               <Text style={{ color: C.muted, fontSize: 10, marginTop: 4, fontFamily: FONT }}>Lowercase letters, numbers, _ and . only</Text>

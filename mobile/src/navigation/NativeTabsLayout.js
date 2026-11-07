@@ -1,4 +1,5 @@
 import React from "react";
+import { Platform } from "react-native";
 import { NativeTabs } from "expo-router/unstable-native-tabs";
 import { C } from "../theme";
 import { useTheme } from "../context/ThemeContext";
@@ -24,7 +25,10 @@ export default function NativeTabsLayout() {
     <NativeTabs
       backgroundColor={C.card}
       iconColor={C.fgDim}
-      selectedIconColor={C.amber}
+      // Android Material draws a pill behind the active icon; its default pale periwinkle made
+      // the amber icon invisible in dark mode. Amber pill + dark ink icon reads in both themes.
+      indicatorColor={C.amber}
+      selectedIconColor={Platform.OS === "android" ? C.ink : C.amber}
       labelStyle={{ color: C.fgDim }}
     >
       {TABS.map((t) => (

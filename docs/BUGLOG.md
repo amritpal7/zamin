@@ -28,8 +28,28 @@ of bug while building new features. Newest first. Update this whenever we fix a 
 | **Status transitions must be atomic — guard the UPDATE, not just a prior SELECT** | 1 | A SELECT that checks `status='pending'` followed by an unguarded `UPDATE … WHERE id=$1` is a TOCTOU race: a concurrent transition slips in between. Put the state guard in the UPDATE itself (`… AND meta->>'status'='pending' RETURNING *`) and treat 0 rows as "already answered" (409). Validate inputs *before* the flip so a later failure can't strand a half-applied state. (Proposal counter hit this; `respond` and `/visits` already did it right.) |
 | **Dev-only URL/path assumptions break in prod** | 2 | Dev routes everything through nginx (`/api/*`, `/media/*`); prod talks to the API directly with absolute object URLs. Hardcoded dev paths silently break in prod: (1) thumbnail derivation keyed on `u.includes("/media/")` → prod URLs are `…/zamin/properties/<id>.jpg`; (2) **Socket.io path hardcoded `/api/socket.io`** (nginx-strips-`/api`) → prod serves `/socket.io`, so realtime never connected. Derive paths from whether BASE has an `/api` prefix (`utils/net.js socketConfig`), and detect our images by a scheme-independent key pattern. After a dev→cloud switch, grep the client for `/media`, `/api/`, `localhost`, `.railway.internal`. |
 | **Stale Docker anonymous volume shadows a freshly-built image's node_modules** | 1 | `docker compose up --build` rebuilds the image (new `npm install` layer) but **reuses existing anonymous volumes** (the `- /app/node_modules` pattern). If a dep was added to `package.json` after the anonymous volume was first created, the volume's `node_modules` is stale and the new dep is missing at runtime — even though the image itself is correct. Fix: `docker compose up -d --build --renew-anon-volumes <service>` to force a fresh anonymous volume. **Guardrail:** when a service crashes with `MODULE_NOT_FOUND` for a dep that IS in `package.json`, the anonymous volume is stale — always `--renew-anon-volumes` on rebuild. Also check sibling services: if two services share the same `Dockerfile`+`package.json` context, their anonymous volumes age independently and can drift. |
+| **Aggregates over user-typed strings (medians/averages) poisoned by mislabelled rows** | 1 | A single `For Rent` row priced like a sale (`₹1.8 Cr`) — copied many times by seeds — dragged the rental ₹/sqft median 400× up, so every honest listing read "100% below market". Free-text price/status means any aggregate must **filter implausible values per category** before computing (see `rentPlausible` in `insights.js`). Also sanity-check seed data against the same rules. |
+| **Hard-coded dark-theme colours (`"#fff"`, `"#10172A"`, `StatusBar style="light"`) and raw amber text** | 1 (sweep found 6 sites) | Never hard-code a surface/text colour that should follow the theme — use `C.*` tokens, and set them **inline** (module-level `StyleSheet.create` freezes the first theme). Status bar must follow `scheme`. Amber *text* on a pale/amber tint → `C.amberText`; text on a solid amber fill → `C.ink`. Check every new screen in **light AND dark** on Android. |
+| **Trusting a client-supplied storage key** | 1 | Any object key the server (or worker) will read, overwrite or **delete** must be derived server-side from an ownership-checked id — never taken from the request body. `/properties/process` took `origKey` from the client and the worker deleted it (cross-user photo deletion). Validate ids with a strict regex too. |
 
 ## Log
+
+### 2026-11-07 (native profile photo + A–Z sweep)
+- **Profile photo (native):** clerk-expo@2 `setProfileImage` can't send RN file bytes on Android (1×1 / no
+  persist / "ArrayBuffer not supported"). Fix: server-side `POST /users/me/photo` via presign + Clerk Backend API.
+- **Price stored bare ("25 K")** because `formatPrice` omitted ₹ and /mo; `parsePrice` used `\bK\b`, which
+  can't match "25K" (no word boundary between digit and letter). Guardrail already exists for parsing
+  formatted strings — extended: test round-trips (format → parse) for every unit.
+- **Light-theme regressions** (status bar, action bar, price pill, chips): hard-coded dark colours — see guardrail row.
+- **Dead buttons** (Help, Terms, Privacy, Rate): rows rendered with no route/onPress. Don't ship a row without a destination.
+
+### 2026-11-07 (rental price insights "100% below the area median")
+- **Symptom:** a fresh ₹25K/mo, 900 sqft Andheri rental showed "Good deal · 100% below the area median".
+- **Root cause:** `backend/db/init.sql` seed "Luxury Apartment — Sea View" was `For Rent` at `₹1.8 Cr`; 23 copies
+  in demo data → Mumbai rental median ₹12,414/sqft. `computeInsights` trusted every comparable.
+- **Fix:** `rentPlausible()` filter (₹25 L/mo cap) in `insights.js`; seed row → For Sale; migration
+  `1730900000000_fix_sale_priced_rentals` relabels seed-owned rows. Tests added.
+- **Found by:** on-device E2E of the listing image pipeline (consumer-perspective check).
 
 ### 2026-11-03 (worker crash-loop — @sentry/node MODULE_NOT_FOUND from stale anonymous volume)
 - **`zamin_worker` crash-looped on every start** with `Error: Cannot find module '@sentry/node'`

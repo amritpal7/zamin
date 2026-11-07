@@ -85,7 +85,7 @@ export default function Messages() {
         ) : chats.length === 0 ? (
           <View style={{ alignItems: "center", paddingTop: 60, paddingHorizontal: 40, gap: 8 }}>
             <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: C.chipBg, alignItems: "center", justifyContent: "center", marginBottom: 8 }}>
-              <Icon name="bell" size={20} color={C.fgDim} strokeWidth={1.4} />
+              <Icon name="chat" size={20} color={C.fgDim} strokeWidth={1.4} />
             </View>
             <Text style={{ color: C.fg, fontFamily: FONT_HEAD, fontSize: 18, letterSpacing: -0.3 }}>No conversations yet.</Text>
             <Text style={{ color: C.fgDim, fontSize: 12, fontFamily: FONT, textAlign: "center", lineHeight: 18 }}>

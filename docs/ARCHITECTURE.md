@@ -274,6 +274,7 @@ Base path through nginx: `/api`. Direct: `http://localhost:4000`.
 ### Users / trust & safety (`routes/users.js`, all 🔒)
 | Method | Path | Purpose |
 |--------|------|---------|
+| POST | `/users/me/photo` | Set the caller's **profile photo**. Body `{ base }` from a prior `/properties/presign` + direct PUT. Consumes the caller's `pending_uploads` binding (403 otherwise), sharp re-encodes to 512² JPEG (strips EXIF, rejects non-images, ≤10 MB), forwards to Clerk Backend API `POST /v1/users/:id/profile_image`, then `reconcileOwner` so `owner_image` updates on their listings. Used on all platforms (clerk-expo@2's `setProfileImage` can't send bytes on Android). Per-user limit 10 / 10 min; formats jpeg/png/webp/heif only; 25 MP pixel cap; 10 s Clerk timeout. |
 | POST/DELETE | `/users/:id/block` | Block / unblock (messaging then rejected 403 either way) |
 | GET | `/users/:id/block` | `{ blockedByMe, blockedMe }` |
 | POST | `/users/:id/report` | File a report (moderation queue) |
@@ -301,9 +302,12 @@ Defined in `mobile/src/hooks/useApi.js#uploadImages` + `routes/properties.js` + 
 1. Client asks API for **presigned URLs**: `POST /properties/presign { count }` (each `base` is
    bound to the requesting user in `pending_uploads`).
 2. Client **PUTs each file straight to MinIO** using the signed URL (API never proxies bytes).
-3. Client calls `POST /properties/process { items:[{base, origKey}] }` → API verifies the caller
-   presigned each `base` (else skipped) then **enqueues a BullMQ job**.
-4. **Worker** (`worker.js`) consumes the job, uses **sharp** to resize + build a thumbnail, writes them back to storage.
+3. Client calls `POST /properties/process { items:[{base}] }` → API validates `base`
+   (`^properties/[A-Za-z0-9-]+$`), verifies the caller presigned it (else skipped), **derives**
+   `origKey = <base>_orig` server-side (a client `origKey` is ignored — the worker reads *and deletes*
+   it), then **enqueues a BullMQ job**. (Profile photos use `POST /users/me/photo { base }` instead.)
+4. **Worker** (`worker.js`) consumes the job, uses **sharp** (`limitInputPixels: 25e6`) to resize + build a thumbnail, writes them back to storage.
+   **Bucket policy:** only `*.jpg` (processed images) is public-read; raw `<base>_orig` uploads are not readable by URL.
 5. Final URLs (`{ url, thumb }`) are stored on the property (`images[]`, `thumbnails[]`) and served via nginx `/media`.
 6. Client keeps an **optimistic local mapping** (`utils/imageCache.js`) so the just-picked local image shows instantly before the processed one lands.
 

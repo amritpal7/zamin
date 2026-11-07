@@ -21,7 +21,7 @@ import {
   GeistMono_600SemiBold,
 } from "@expo-google-fonts/geist-mono";
 import { C } from "../src/theme";
-import { ThemeProvider } from "../src/context/ThemeContext";
+import { ThemeProvider, useTheme } from "../src/context/ThemeContext";
 import { SocketProvider } from "../src/context/SocketContext";
 import PushManager from "../src/components/PushManager";
 import * as Sentry from "@sentry/react-native";
@@ -73,6 +73,12 @@ function AuthGuard() {
   return null;
 }
 
+// Status-bar icons must contrast with the active theme (light bg → dark icons).
+function ThemedStatusBar() {
+  const { scheme } = useTheme();
+  return <StatusBar style={scheme === "dark" ? "light" : "dark"} />;
+}
+
 function RootLayout() {
   const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
@@ -105,7 +111,7 @@ function RootLayout() {
       <ThemeProvider>
         <SafeAreaProvider>
           <SocketProvider>
-          <StatusBar style="light" />
+          <ThemedStatusBar />
           <AuthGuard />
           <PushManager />
           <Stack screenOptions={{

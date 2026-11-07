@@ -79,7 +79,8 @@ async function fetchNearby(lat, lng) {
 function Chip({ label, color, bg }) {
   return (
     <View style={{ backgroundColor: bg || (color + "18"), borderRadius: 100, paddingHorizontal: 14, paddingVertical: 6 }}>
-      <Text style={{ color: color || C.amber, fontSize: 12, fontWeight: "700", fontFamily: FONT }}>{label}</Text>
+      {/* Raw amber on its own pale tint is unreadable in light theme → use the text-safe amber. */}
+      <Text style={{ color: !color || color === C.amber ? C.amberText : color, fontSize: 12, fontWeight: "700", fontFamily: FONT }}>{label}</Text>
     </View>
   );
 }
@@ -578,7 +579,7 @@ export default function PropertyDetail() {
               shadowRadius: 10,
               elevation: 5,
             }}>
-              <Text style={{ color: "#fff", fontSize: 16, fontWeight: "900", fontFamily: FONT }}>{p.price}</Text>
+              <Text style={{ color: C.ink, fontSize: 16, fontWeight: "900", fontFamily: FONT }}>{p.price}</Text>
             </View>
             {p.type ? (
               <Chip label={p.type} color={C.muted} bg={C.dim} />
@@ -885,11 +886,13 @@ export default function PropertyDetail() {
       {reviewOpen && <ReviewModal initial={reviews?.myReview} onClose={() => setReviewOpen(false)} onSubmit={submitReview} />}
       {locOpen && <LocationDrawer property={p} api={api} onClose={() => setLocOpen(false)} />}
 
-      {/* ── Sticky dark action panel (Screen 3) ── */}
+      {/* ── Sticky action panel — theme surface (was hard-coded navy, wrong in light theme) ── */}
       <View style={{
         position: "absolute",
         bottom: 0, left: 0, right: 0,
-        backgroundColor: "#10172A",
+        backgroundColor: C.card,
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderColor: C.line,
         borderTopLeftRadius: 28,
         borderTopRightRadius: 28,
         paddingTop: 16,
@@ -910,14 +913,14 @@ export default function PropertyDetail() {
               <Icon name="edit" size={17} color={C.ink} strokeWidth={1.8} />
               <Text style={{ color: C.ink, fontSize: 15, fontFamily: FONT_MED }}>Edit Listing</Text>
             </Pressable>
-            <Pressable onPress={share} style={styles.iconAction}>
-              <Icon name="send" size={18} color="#fff" strokeWidth={1.7} />
+            <Pressable onPress={share} style={[styles.iconAction, { backgroundColor: C.chipBg, borderColor: C.glassBorder }]}>
+              <Icon name="send" size={18} color={C.fg} strokeWidth={1.7} />
             </Pressable>
           </View>
         ) : p.owner_active === false ? (
           <View style={{ alignItems: "center", paddingVertical: 6, gap: 4 }}>
-            <Text style={{ color: "#fff", fontSize: 14, fontFamily: FONT_MED }}>Owner no longer available</Text>
-            <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 12, fontFamily: FONT, textAlign: "center" }}>
+            <Text style={{ color: C.fg, fontSize: 14, fontFamily: FONT_MED }}>Owner no longer available</Text>
+            <Text style={{ color: C.fgDim, fontSize: 12, fontFamily: FONT, textAlign: "center" }}>
               This account has been removed. You can't contact this owner.
             </Text>
           </View>
@@ -932,16 +935,16 @@ export default function PropertyDetail() {
             </Pressable>
             {hasPhone ? (
               <>
-                <Pressable onPress={call} style={styles.iconAction}>
-                  <Icon name="phone" size={19} color="#fff" strokeWidth={1.7} />
+                <Pressable onPress={call} style={[styles.iconAction, { backgroundColor: C.chipBg, borderColor: C.glassBorder }]}>
+                  <Icon name="phone" size={19} color={C.fg} strokeWidth={1.7} />
                 </Pressable>
                 <Pressable onPress={whatsapp} style={[styles.iconAction, { backgroundColor: "#25D366", borderColor: "transparent" }]}>
                   <Icon name="whatsapp" size={23} color="#fff" />
                 </Pressable>
               </>
             ) : (
-              <Pressable onPress={share} style={styles.iconAction}>
-                <Icon name="send" size={18} color="#fff" strokeWidth={1.7} />
+              <Pressable onPress={share} style={[styles.iconAction, { backgroundColor: C.chipBg, borderColor: C.glassBorder }]}>
+                <Icon name="send" size={18} color={C.fg} strokeWidth={1.7} />
               </Pressable>
             )}
           </View>

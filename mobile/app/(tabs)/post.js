@@ -107,15 +107,21 @@ const VISIBILITY_OPTIONS = [
   { key: "hidden",      label: "Hidden",      icon: "🚫", hint: "No map pin — locality text only" },
 ];
 
-function formatPrice(amount, unit) { return amount ? `${amount} ${unit}` : ""; }
+// Matches the stored convention used across the app/seed: "₹25K/mo", "₹85 L", "₹1.8 Cr".
+function formatPrice(amount, unit, status) {
+  if (!amount) return "";
+  const body = unit === "K" ? `${amount}K` : `${amount} ${unit}`;
+  return `₹${body}${/rent/i.test(status || "") ? "/mo" : ""}`;
+}
 function formatArea(amount, unit)  { return amount ? `${amount} ${unit}` : ""; }
 
 function parsePrice(str) {
   if (!str) return { amount: "", unit: "L" };
   const s = str.replace(/₹/g, "").replace(/\/.*$/, "").trim();
-  if (/cr/i.test(s))             return { amount: s.replace(/\s*cr.*/i, "").trim(), unit: "Cr" };
-  if (/\bL\b/i.test(s) || /lakh/i.test(s)) return { amount: s.replace(/\s*L.*/i, "").trim(), unit: "L" };
-  if (/\bK\b/i.test(s))         return { amount: s.replace(/\s*K.*/i, "").trim(), unit: "K" };
+  // Unit letters may follow the digits directly ("25K", "85L") or after a space.
+  if (/\d\s*cr/i.test(s))             return { amount: s.replace(/\s*cr.*/i, "").trim(), unit: "Cr" };
+  if (/\d\s*(l\b|lakh)/i.test(s))     return { amount: s.replace(/\s*l.*/i, "").trim(), unit: "L" };
+  if (/\d\s*k\b/i.test(s))            return { amount: s.replace(/\s*k.*/i, "").trim(), unit: "K" };
   return { amount: s.replace(/[^0-9.]/g, ""), unit: "L" };
 }
 function parseArea(str) {
@@ -618,6 +624,18 @@ export default function Post() {
   const isEditing      = !!editId;
 
   const [step,         setStep]         = useState(1);
+  // Per-step required fields (mirrors backend validateProperty: title, price, location),
+  // so users can't reach "Ready to publish" with empty fields and only see a server 400.
+  const nextStep = (to) => {
+    const missing = [];
+    if (step === 1) {
+      if (!form.title.trim()) missing.push("Title");
+      if (!form.priceAmount)  missing.push("Price");
+    }
+    if (step === 3 && !form.location.trim()) missing.push("Address / locality");
+    if (missing.length) { Alert.alert("Please fill in", missing.join(", ")); return; }
+    setStep(to);
+  };
   const [form,         setForm]         = useState(EMPTY_FORM);
   const [loading,      setLoading]      = useState(false);
   const [fetchingEdit, setFetchingEdit] = useState(isEditing);
@@ -724,7 +742,7 @@ export default function Post() {
       const payload = {
         title: form.title, description: form.description,
         type: form.type, status: form.status,
-        price: formatPrice(form.priceAmount, form.priceUnit),
+        price: formatPrice(form.priceAmount, form.priceUnit, form.status),
         area:  formatArea(form.areaAmount, form.areaUnit),
         beds:  form.beds  > 0 ? form.beds  : null,
         baths: form.baths > 0 ? form.baths : null,
@@ -809,11 +827,12 @@ export default function Post() {
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-      <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: insets.top + 16, paddingBottom: 130 }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: insets.top + 16, paddingBottom: 130 + insets.bottom }} keyboardShouldPersistTaps="handled">
 
         {/* Title */}
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
-          <Text style={{ fontSize: 32, color: C.fg, fontFamily: FONT_HEAD, letterSpacing: -0.6, lineHeight: 36 }}>
+          <Text numberOfLines={1} adjustsFontSizeToFit
+            style={{ flex: 1, marginRight: 8, fontSize: isEditing ? 26 : 32, color: C.fg, fontFamily: FONT_HEAD, letterSpacing: -0.6, lineHeight: 36 }}>
             {isEditing ? "Edit Listing" : "Post a Property"}
           </Text>
           {isEditing && (
@@ -954,7 +973,7 @@ export default function Post() {
               </View>
             )}
 
-            <NeoButton full title="Next: Amenities →" onPress={() => setStep(2)} />
+            <NeoButton full title="Next: Amenities →" onPress={() => nextStep(2)} />
           </View>
         )}
 
@@ -989,7 +1008,7 @@ export default function Post() {
             )}
             <View style={{ flexDirection: "row", gap: 10 }}>
               <NeoButton title="← Back" fill={C.cardAlt} fg={C.text} onPress={() => setStep(1)} />
-              <NeoButton full title="Next: Location →" onPress={() => setStep(3)} style={{ flex: 1 }} />
+              <NeoButton full title="Next: Location →" onPress={() => nextStep(3)} style={{ flex: 1 }} />
             </View>
           </View>
         )}
@@ -1055,7 +1074,7 @@ export default function Post() {
 
             <View style={{ flexDirection: "row", gap: 10 }}>
               <NeoButton title="← Back" fill={C.cardAlt} fg={C.text} onPress={() => setStep(2)} />
-              <NeoButton full title="Next: Review →" onPress={() => setStep(4)} style={{ flex: 1 }} />
+              <NeoButton full title="Next: Review →" onPress={() => nextStep(4)} style={{ flex: 1 }} />
             </View>
           </View>
         )}
@@ -1074,7 +1093,7 @@ export default function Post() {
               {[
                 ["🏷️", form.title || "—"],
                 ["🏠", `${form.type} · ${form.status}`],
-                ["💰", form.priceAmount ? `₹${form.priceAmount} ${form.priceUnit}` : "—"],
+                ["💰", formatPrice(form.priceAmount, form.priceUnit, form.status) || "—"],
                 ["📐", form.areaAmount  ? `${form.areaAmount} ${form.areaUnit}` : "—"],
                 ["📍", form.location || "—"],
                 form.beds  > 0 ? ["🛏️", `${form.beds} Bed${form.beds > 1 ? "s" : ""}`] : null,

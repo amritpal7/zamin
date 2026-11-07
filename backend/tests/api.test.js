@@ -936,3 +936,34 @@ describe("messaging: two-way delivery", () => {
     expect(res.body.meta.url).toBe("http://x/img.jpg");
   });
 });
+
+describe("profile photo: POST /users/me/photo guards", () => {
+  test("401 when signed out", async () => {
+    const res = await request(app).post("/users/me/photo").send({ base: "properties/x" });
+    expect(res.status).toBe(401);
+  });
+  test("400 on a malformed / path-traversal base", async () => {
+    for (const base of ["", "../etc/passwd", "avatars/x", "properties/a/../../b"]) {
+      const res = await request(app).post("/users/me/photo").set("x-test-user", USER_A).send({ base });
+      expect(res.status).toBe(400);
+    }
+  });
+  test("403 when the upload was presigned by someone else (binding not consumed)", async () => {
+    const base = `properties/jest-avatar-${Date.now()}`;
+    await pool.query("INSERT INTO pending_uploads (base, clerk_user_id) VALUES ($1, $2)", [base, USER_B]);
+    const res = await request(app).post("/users/me/photo").set("x-test-user", USER_A).send({ base });
+    expect(res.status).toBe(403);
+    const { rowCount } = await pool.query("SELECT 1 FROM pending_uploads WHERE base = $1 AND clerk_user_id = $2", [base, USER_B]);
+    expect(rowCount).toBe(1); // B's binding is untouched
+    await pool.query("DELETE FROM pending_uploads WHERE base = $1", [base]);
+  });
+});
+
+describe("upload pipeline: /properties/process ignores client origKey (security)", () => {
+  test("malformed base is skipped", async () => {
+    const res = await request(app).post("/properties/process").set("x-test-user", USER_A)
+      .send({ items: [{ base: "../etc", origKey: "properties/victim.jpg" }] });
+    expect(res.status).toBe(200);
+    expect(res.body.processed).toBe(0);
+  });
+});

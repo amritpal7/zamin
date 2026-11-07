@@ -17,7 +17,7 @@ export const Tag = ({ children, color, solid }) => {
       borderWidth: 1,
       borderColor: solid ? "transparent" : C.glassBorder,
     }}>
-      <Text style={{ color: solid ? C.ink : c, fontSize: 11, fontWeight: "600", fontFamily: FONT }}>
+      <Text style={{ color: solid ? C.ink : (c === C.amber ? C.amberText : c), fontSize: 11, fontWeight: "600", fontFamily: FONT }}>
         {children}
       </Text>
     </View>
@@ -54,7 +54,9 @@ export const Avatar = ({ initials, size = 38, color, imageUrl }) => {
   );
 };
 
-export const NeoInput = ({ label, value, onChangeText, placeholder, secureTextEntry, keyboardType, multiline, autoCapitalize, style }) => {
+// `bare`: no box of its own — for inputs embedded in a composite row (e.g. the "@" username
+// row), which already draws the box; otherwise it renders as a pill inside a pill.
+export const NeoInput = ({ label, value, onChangeText, placeholder, secureTextEntry, keyboardType, multiline, autoCapitalize, style, bare }) => {
   useTheme();
   return (
     <View style={[{ marginBottom: 14 }, style]}>
@@ -66,7 +68,7 @@ export const NeoInput = ({ label, value, onChangeText, placeholder, secureTextEn
           {label}
         </Text>
       ) : null}
-      <View style={{
+      <View style={bare ? null : {
         backgroundColor: C.glassBg,
         borderRadius: 14,
         borderWidth: 1,

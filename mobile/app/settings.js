@@ -49,7 +49,7 @@ function SectionLabel({ children, top }) {
   return (
     <Text style={{
       color: C.fgDim, fontSize: 11, fontFamily: FONT, letterSpacing: 1,
-      textTransform: "uppercase", paddingHorizontal: 14, paddingBottom: 8,
+      textTransform: "uppercase", paddingHorizontal: 22, paddingBottom: 8,
       paddingTop: top || 0,
     }}>
       {children}
@@ -208,24 +208,13 @@ export default function Settings() {
       });
       if (res.canceled) return;
       setUploadingPhoto(true);
-      const asset = res.assets[0];
-      // NOTE (2026-11-07): native profile-photo upload is NOT working on @clerk/clerk-expo@2.
-      // Empirically on Android every no-dep path fails: fetch(content://).blob() → empty 1×1;
-      // fetch("data:…") → "unknown protocol: data"; new Blob([Uint8Array]) → "ArrayBuffer not
-      // supported". `{uri,name,type}` (below) is the canonical RN file shape and doesn't crash, but
-      // Clerk's setProfileImage didn't persist it either. Proper fix needs the @clerk/expo@4
-      // migration (ROADMAP.md) or expo-file-system uploadAsync straight to Clerk's endpoint.
-      // Web keeps its readable uri→blob path (verified 2026-08-05).
-      const file = Platform.OS === "web"
-        ? await (await fetch(asset.uri)).blob()
-        : { uri: asset.uri, name: asset.fileName || "avatar.jpg", type: asset.mimeType || "image/jpeg" };
-      await user.setProfileImage({ file });
+      // Upload via our API (presign → storage → POST /users/me/photo), which sets the Clerk
+      // photo server-side and propagates it to this user's listings. Works on web + native;
+      // clerk-expo@2's own setProfileImage can't send file bytes on Android.
+      await api.setProfilePhoto(res.assets[0].uri);
       await user.reload();
-      // Propagate the new photo to the denormalized owner_image on THIS user's listings,
-      // so it shows for other viewers immediately (not only after the 6h reconcile sweep).
-      api.reconcileMe().catch(() => {});
     } catch (e) {
-      Alert.alert("Error", e.errors?.[0]?.message || e.message || "Could not update photo.");
+      Alert.alert("Error", e.message || "Could not update photo.");
     } finally {
       setUploadingPhoto(false);
     }
@@ -550,7 +539,7 @@ export default function Settings() {
               <GlassCard>
                 {pwStage === "idle" ? (
                   <Row
-                    icon="settings"
+                    icon="lock"
                     label="Change password"
                     hint="Update your account password"
                     onPress={() => { setCurrentPw(""); setNewPw(""); setConfirmPw(""); setPwError(""); setPwStage("form"); }}
@@ -611,20 +600,6 @@ export default function Settings() {
               </GlassCard>
             </View>
 
-            <View style={{ paddingHorizontal: 18, marginBottom: 24 }}>
-              <GlassCard style={{ borderColor: C.red + "40" }}>
-                <Row
-                  icon="arrow"
-                  label="Sign out"
-                  danger
-                  last
-                  onPress={() => Alert.alert("Sign Out", "Are you sure you want to sign out?", [
-                    { text: "Cancel", style: "cancel" },
-                    { text: "Sign Out", style: "destructive", onPress: () => signOut().then(() => router.replace("/sign-in")) },
-                  ])}
-                />
-              </GlassCard>
-            </View>
           </>
         )}
 
@@ -662,13 +637,30 @@ export default function Settings() {
 
         {/* ─── ABOUT ─── */}
         <SectionLabel>About</SectionLabel>
-        <View style={{ paddingHorizontal: 18 }}>
+        <View style={{ paddingHorizontal: 18, marginBottom: 24 }}>
           <GlassCard>
-            <Row icon="bookmark" label="Terms of service" />
-            <Row icon="settings" label="Privacy policy" />
-            <Row icon="star" label="Rate Zamin" last />
+            {/* Terms / Privacy / Rate rows removed until real docs + a store listing exist (they were dead taps). */}
+            <Row icon="globe" label="Help & FAQ" onPress={() => router.push("/help")} last />
           </GlassCard>
         </View>
+
+        {/* ─── SIGN OUT (last, so it's not mistaken for a settings row) ─── */}
+        {!!user && (
+          <View style={{ paddingHorizontal: 18, marginBottom: 24 }}>
+            <GlassCard style={{ borderColor: C.red + "40" }}>
+              <Row
+                icon="arrow"
+                label="Sign out"
+                danger
+                last
+                onPress={() => Alert.alert("Sign Out", "Are you sure you want to sign out?", [
+                  { text: "Cancel", style: "cancel" },
+                  { text: "Sign Out", style: "destructive", onPress: () => signOut().then(() => router.replace("/sign-in")) },
+                ])}
+              />
+            </GlassCard>
+          </View>
+        )}
 
         <Text style={{ color: C.fgFaint, fontSize: 11, textAlign: "center", fontFamily: FONT, marginTop: 32 }}>
           Zamin v1.0.0 · made in India

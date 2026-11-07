@@ -33,10 +33,17 @@ Three pillars we judge every change against:
       chat, and inbox. **Now automated**: the worker runs a scheduled reconcile every
       `RECONCILE_INTERVAL_MS` (default 6h) + on boot; `POST /properties/reconcile-owners` still
       available for on-demand. Optional future: Clerk `user.deleted` webhook for instant flags.
-- [~] **Profile pictures** — users can set a Clerk profile photo from Settings; shown in
-      Profile + Settings. ✅ verified on **web** (2026-08-05). ⏳ **TODO: verify the upload on
-      the mobile/native app** — Clerk `setProfileImage` may reject the RN `Blob`; if so, pass
-      the picked asset as `{ uri, name, type }` / FormData instead. **← remind the user.**
+- [x] **Profile pictures** — set from Settings; shown in Profile, Settings, listings, chat.
+      ✅ web (2026-08-05) · ✅ **native Android (2026-11-07)** via server-side `POST /users/me/photo`
+      (presign upload → API → Clerk Backend API), replacing clerk-expo@2's broken native upload.
+- [ ] **Android Google Maps API key** — `app.json` still has `YOUR_ANDROID_GOOGLE_MAPS_KEY`; map tiles
+      blank + pin picker unusable on Android until a real key is added and the dev build is rebuilt.
+- [ ] **Sweep stale uploads** — worker cron deleting `pending_uploads` rows older than ~1 h plus their
+      `<base>_orig` objects (abandoned uploads currently linger; no longer public since 2026-11-07).
+- [ ] **Terms of service / Privacy policy / Rate app** — rows removed from Settings (were dead); add
+      back with real documents + store listing before launch.
+- [x] **Listing photo upload verified on native Android** (2026-11-07) — presign → MinIO PUT →
+      BullMQ resize/thumb → listing renders. Recheck the presign `x-amz-checksum-crc32` param on real S3/R2.
 - [ ] **Confirm authorization on `saved`/`messages` routes** — ensure every handler enforces
       the Clerk user and ownership (audit `getAuth` usage).
 

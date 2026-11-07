@@ -55,7 +55,9 @@ async function ensureBucket() {
       Effect: "Allow",
       Principal: "*",
       Action: ["s3:GetObject"],
-      Resource: [`arn:aws:s3:::${BUCKET}/*`],
+      // Only processed images (*.jpg) are public. Raw uploads (<base>_orig, no extension) may
+      // still carry EXIF/GPS and must not be readable by URL while they await processing.
+      Resource: [`arn:aws:s3:::${BUCKET}/*.jpg`],
     }],
   };
   await s3.send(new PutBucketPolicyCommand({ Bucket: BUCKET, Policy: JSON.stringify(policy) }));
