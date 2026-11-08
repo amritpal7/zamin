@@ -79,5 +79,5 @@ We'll update this page and the effective date, and notify you in the app for sig
 
 ---
 **Note for the owner:** in-app deletion exists (Settings → Delete account). Google Play also requires a
-**public web link** where users can request deletion without the app — host a page (or a form/email
-address) and enter its URL in Play Console → Data safety.
+**public web link** — the API serves one at `<API base>/account-deletion` (set `SUPPORT_EMAIL`); enter it
+in Play Console → Data safety.

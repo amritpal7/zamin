@@ -404,11 +404,16 @@ describe("listing reports + auto-hide moderation", () => {
 });
 
 describe("on-site photo verification", () => {
+  // Listing photos must be the caller's own uploads → register test media as owned by USER_A.
+  const P1 = "/media/properties/jest-onsite-p1.jpg", G1 = "/media/properties/jest-onsite-g1.jpg";
+  beforeAll(async () => {
+    await pool.query("INSERT INTO media_objects (base, clerk_user_id) VALUES ('properties/jest-onsite-p1',$1),('properties/jest-onsite-g1',$1) ON CONFLICT (base) DO NOTHING", [USER_A]);
+  });
   test("camera photo at the pin → on_site_verified, auto-pins the listing", async () => {
     const created = await request(app).post("/properties").set("x-test-user", USER_A).send({
       ...sampleListing, title: "On-site listing", latitude: null, longitude: null,
-      images: ["p1.jpg"],
-      photo_geo: [{ url: "p1.jpg", source: "camera", lat: 12.9716, lng: 77.5946, at: "2026-09-04T10:00:00Z" }],
+      images: [P1],
+      photo_geo: [{ url: P1, source: "camera", lat: 12.9716, lng: 77.5946, at: "2026-09-04T10:00:00Z" }],
     });
     expect(created.status).toBe(201);
     expect(created.body.on_site_verified).toBe(true);
@@ -418,14 +423,14 @@ describe("on-site photo verification", () => {
     // A different viewer sees the badge but NOT the raw capture coordinates.
     const other = await request(app).get(`/properties/${created.body.id}`).set("x-test-user", USER_B);
     expect(other.body.on_site_verified).toBe(true);
-    expect(other.body.photo_geo[0]).toEqual({ url: "p1.jpg", on_site: true });
+    expect(other.body.photo_geo[0]).toEqual({ url: P1, on_site: true });
     expect(other.body.photo_geo[0].lat).toBeUndefined();
   });
 
   test("gallery-only photos → not verified; a client cannot fake on_site", async () => {
     const created = await request(app).post("/properties").set("x-test-user", USER_A).send({
-      ...sampleListing, title: "Gallery listing", images: ["g1.jpg"],
-      photo_geo: [{ url: "g1.jpg", source: "gallery", lat: 12.9716, lng: 77.5946, on_site: true }],
+      ...sampleListing, title: "Gallery listing", images: [G1],
+      photo_geo: [{ url: G1, source: "gallery", lat: 12.9716, lng: 77.5946, on_site: true }],
     });
     expect(created.body.on_site_verified).toBe(false);
   });
@@ -1071,10 +1076,13 @@ describe("account deletion: purge scope (security)", () => {
 
   test("returns ONLY media the user owns — forged listing URLs can't target others' photos", async () => {
     await pool.query("INSERT INTO media_objects (base, clerk_user_id) VALUES ($1,$2),($3,$4)", [vBase, VICTIM, aBase, ATTACKER]);
-    const forged = await request(app).post("/properties").set("x-test-user", ATTACKER).send({
-      ...sampleListing, title: "forged", images: [`https://x/${vBase}.jpg`], thumbnails: [`https://x/${vBase}_thumb.jpg`],
-    });
-    expect(forged.status).toBe(201);
+    // The API now rejects forged photo URLs at creation (see listing-photo tests); simulate a
+    // pre-existing row holding them, which is what deletion must still be safe against.
+    await pool.query(
+      `INSERT INTO properties (clerk_user_id, owner_name, title, type, status, price, location, images, thumbnails)
+       VALUES ($1,'Atk','forged','House','For Sale','₹1 Cr','X, Pune',$2,$3)`,
+      [ATTACKER, [`https://x/${vBase}.jpg`], [`https://x/${vBase}_thumb.jpg`]]
+    );
     await pool.query("INSERT INTO notifications (clerk_user_id, type, title, body, data) VALUES ($1,'new_message','x','y',$2::jsonb)",
       [VICTIM, JSON.stringify({ peer: ATTACKER })]).catch(() => {});
     const client = await pool.connect();
@@ -1093,5 +1101,57 @@ describe("account deletion: purge scope (security)", () => {
     const r = await finishPendingDeletions(pool);          // no Clerk secret in tests → getUser says "exists"
     expect(r.cleared).toBeGreaterThanOrEqual(1);
     expect((await pool.query("SELECT 1 FROM account_deletions WHERE clerk_user_id=$1", [VICTIM])).rowCount).toBe(0);
+  });
+});
+
+describe("listing photos must be the caller's own uploads (security)", () => {
+  const OWNER = "test_user_jest_photos", OTHER = "test_user_jest_photos_other";
+  const mine = `properties/jest-mine-${Date.now()}`, theirs = `properties/jest-theirs-${Date.now()}`;
+  let id;
+  beforeAll(async () => {
+    await pool.query("INSERT INTO media_objects (base, clerk_user_id) VALUES ($1,$2),($3,$4)", [mine, OWNER, theirs, OTHER]);
+  });
+  test("external image URL → 400", async () => {
+    const r = await request(app).post("/properties").set("x-test-user", OWNER).send({ ...sampleListing, images: ["https://tracker.example/p.jpg"] });
+    expect(r.status).toBe(400);
+  });
+  test("someone else's uploaded photo → 400", async () => {
+    const r = await request(app).post("/properties").set("x-test-user", OWNER).send({ ...sampleListing, images: [`/media/${theirs}.jpg`] });
+    expect(r.status).toBe(400);
+  });
+  test("own uploaded photo → 201", async () => {
+    const r = await request(app).post("/properties").set("x-test-user", OWNER)
+      .send({ ...sampleListing, title: "Own photos", images: [`/media/${mine}.jpg`], thumbnails: [`/media/${mine}_thumb.jpg`] });
+    expect(r.status).toBe(201);
+    id = r.body.id;
+  });
+  test("editing keeps already-stored URLs even without ownership records (legacy photos)", async () => {
+    await pool.query("UPDATE properties SET images = array_append(images, 'https://images.unsplash.com/legacy.jpg') WHERE id = $1", [id]);
+    const cur = (await pool.query("SELECT images, thumbnails FROM properties WHERE id = $1", [id])).rows[0];
+    const r = await request(app).put(`/properties/${id}`).set("x-test-user", OWNER)
+      .send({ ...sampleListing, title: "Own photos edited", images: cur.images, thumbnails: cur.thumbnails });
+    expect(r.status).toBe(200);
+  });
+  afterAll(async () => {
+    await pool.query("DELETE FROM properties WHERE clerk_user_id = $1", [OWNER]);
+    await pool.query("DELETE FROM media_objects WHERE base = ANY($1::text[])", [[mine, theirs]]);
+  });
+});
+
+describe("revocation: deleted accounts are rejected immediately", () => {
+  const { markDeleted } = require("../src/revocation");
+  test("a marked user id gets 401 on authed routes", async () => {
+    await markDeleted("test_user_jest_revoked");
+    const r = await request(app).get("/saved").set("x-test-user", "test_user_jest_revoked");
+    expect(r.status).toBe(401);
+  });
+});
+
+describe("public account-deletion page", () => {
+  test("is public HTML with the in-app steps", async () => {
+    const r = await request(app).get("/account-deletion");
+    expect(r.status).toBe(200);
+    expect(r.headers["content-type"]).toMatch(/html/);
+    expect(r.text).toMatch(/Delete account/);
   });
 });

@@ -44,6 +44,7 @@ app.use(clerkMiddleware());
 
 // ── Routes ──────────────────────────────────────────────────
 app.get("/health", (_, res) => res.json({ status: "ok", service: "zamin-api" }));
+app.use(require("./publicPages")); // public HTML: /account-deletion (Play Store requirement)
 
 // Uploaded property images (reached via nginx at /api/uploads/...)
 app.use("/uploads", express.static(UPLOAD_DIR));

@@ -8,6 +8,7 @@ const { GetObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3");
 const { s3, BUCKET } = require("../storage");
 const { setProfileImage, reconcileOwner, deleteClerkUser, getUser } = require("../clerkUsers");
 const { purgeUserData, deleteOwnedMedia } = require("../accountDeletion");
+const { markDeleted } = require("../revocation");
 const { forgetSenderIdentity } = require("../messaging");
 
 router.use(requireAuth);
@@ -120,6 +121,7 @@ router.delete("/me", deleteIpLimiter, deleteLimiter, async (req, res) => {
   } finally {
     client.release();
   }
+  await markDeleted(userId);           // reject the still-valid JWT immediately (REST + sockets)
   await pool.query("DELETE FROM account_deletions WHERE clerk_user_id = $1", [userId]).catch(() => {});
   forgetSenderIdentity(userId);
   deleteOwnedMedia(bases);

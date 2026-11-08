@@ -12,6 +12,17 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-11-08 (Security backlog cleared: listing-photo validation, session revocation, public deletion page)
+- **Listing photos validated on save** (`checkListingImages` in `routes/properties.js`, `mediaBaseOf` in
+  `messaging.js`): new `images`/`thumbnails` must be our processed media on a configured host and owned by
+  the caller (`media_objects`). URLs already on the edited row stay allowed (legacy uploads, demo photos,
+  on-site badge keys unchanged). Live: app-format own photo 201; someone else's photo 400; edit legacy 200.
+- **Session revocation on delete** (`src/revocation.js`): deleted ids marked in Redis (5 min, + in-memory);
+  `requireAuth` and socket auth reject them. Live: deleted user's still-valid JWT → 401 on GET and POST.
+- **Public `GET /account-deletion` page** (`src/publicPages.js`) for Play's data-deletion URL; contact from
+  `SUPPORT_EMAIL` (new in `.env.example`).
+- Tests: +7 (photo validation ×4, revocation, public page); on-site tests now use owned media. Backend **125/125**.
+
 ### 2026-11-08 (Security: account-deletion review fixes — media ownership, Clerk-timeout safety, Host header)
 zamin-security review of Delete account found **HIGH-1 (blocking)**: deletion derived storage keys from the
 user's listing `images` URLs, which clients can forge → a throwaway account could delete anyone's photos.

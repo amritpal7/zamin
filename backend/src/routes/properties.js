@@ -11,6 +11,7 @@ const { reconcileOwner, reconcileOwners, getUser, setLocationDefault } = require
 const { redactLocation } = require("../locationPrivacy");
 const { computePhotoTrust } = require("../photoTrust");
 const { computeInsights, MIN_SAMPLE } = require("../insights");
+const { mediaBaseOf } = require("../messaging");
 const { notifyListingMatch } = require("../notify");
 
 const MAX_IMAGES = 8;
@@ -23,6 +24,26 @@ function enqueueThumb(id, base, origKey) {
     { id, origKey, base },
     { attempts: 3, backoff: { type: "exponential", delay: 2000 }, removeOnComplete: true, removeOnFail: 50 }
   );
+}
+
+// Listing photos must be OUR processed media that the caller uploaded (media_objects), so a listing
+// can't hot-link external URLs (viewer tracking) or present someone else's photos. URLs already on
+// the row being edited are allowed unchanged (older uploads predate ownership records).
+async function checkListingImages(userId, images, thumbnails, existing = []) {
+  const keep = new Set(existing);
+  const fresh = [...(images || []), ...(thumbnails || [])].filter((u) => !keep.has(u));
+  if (!fresh.length) return null;
+  const bases = [];
+  for (const u of fresh) {
+    const b = mediaBaseOf(u);
+    if (!b) return "Photos must be uploaded through the app.";
+    bases.push(b);
+  }
+  const { rows } = await pool.query(
+    "SELECT base FROM media_objects WHERE clerk_user_id = $1 AND base = ANY($2::text[])", [userId, [...new Set(bases)]]
+  );
+  const owned = new Set(rows.map((r) => r.base));
+  return bases.every((b) => owned.has(b)) ? null : "Photos must be uploaded through the app.";
 }
 
 // POST /properties/presign — hand the client short-lived signed URLs so it can
@@ -356,8 +377,10 @@ router.put("/:id", requireAuth, async (req, res) => {
     // Recompute on-site trust from the existing per-photo geo (for retained photos) merged
     // with any newly-captured geo, scoped to the photos still on the listing. Ownership is
     // enforced by the UPDATE's WHERE, but we must confirm the row exists + read its state first.
-    const cur = await pool.query("SELECT photo_geo, latitude, longitude FROM properties WHERE id=$1 AND clerk_user_id=$2", [req.params.id, userId]);
+    const cur = await pool.query("SELECT photo_geo, latitude, longitude, images, thumbnails FROM properties WHERE id=$1 AND clerk_user_id=$2", [req.params.id, userId]);
     if (!cur.rows[0]) return res.status(404).json({ error: "Not found or not owner" });
+    const imgErr = await checkListingImages(userId, images, thumbnails, [...(cur.rows[0].images || []), ...(cur.rows[0].thumbnails || [])]);
+    if (imgErr) return res.status(400).json({ error: imgErr });
     // Owner can move the pin from the editor (manual pin wins); else keep the stored one.
     const pinLat = Number.isFinite(Number(latitude))  ? Number(latitude)  : cur.rows[0].latitude;
     const pinLng = Number.isFinite(Number(longitude)) ? Number(longitude) : cur.rows[0].longitude;
@@ -454,6 +477,8 @@ router.post("/", requireAuth, async (req, res) => {
     if (errors.length) return res.status(400).json({ error: errors.join("; "), errors });
     const { userId } = getAuth(req);
     const { title, description, type, status, price, area, beds, baths, location, latitude, longitude, tags, img, color, owner_name, owner_phone, owner_avatar, owner_image, images, thumbnails, location_visibility, photo_geo, parcel } = req.body;
+    const imgErr = await checkListingImages(userId, images, thumbnails);
+    if (imgErr) return res.status(400).json({ error: imgErr });
 
     // On-site photo verification (server-authoritative): compute per-photo on_site from the
     // capture GPS, auto-pin the listing from the first on-site capture when no pin was sent,

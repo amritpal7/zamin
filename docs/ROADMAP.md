@@ -40,11 +40,12 @@ Three pillars we judge every change against:
       from `.env`. Add the EAS + Play App Signing SHA-1s to the key before store builds.
 - [x] **Sweep stale uploads** (2026-11-07) — hourly worker job (`src/uploadSweep.js`) deletes
       `pending_uploads` older than 1 h (`STALE_UPLOAD_MS`) + their `<base>_orig` objects.
-- [ ] **Validate listing `images`/`thumbnails` on create/update** (security backlog 2026-11-08) — currently free
-      text (≤8). Accept only our media paths; normalize host-independent. Careful: `photo_geo` is keyed by
-      image URL (on-site badge) — normalize both together. Backfill `media_objects` for pre-existing uploads.
-- [ ] **Revoke sessions on account deletion** — Clerk JWTs verify offline (~60 s validity); consider a short
-      Redis "deleted ids" set checked by `requireAuth` + socket auth.
+- [x] **Validate listing photos on create/update** (2026-11-08) — new URLs must be our processed media on a
+      configured host AND owned by the caller (`media_objects`); URLs already on the row stay editable.
+- [x] **Revoke sessions on account deletion** (2026-11-08) — Redis revocation mark checked by `requireAuth` +
+      socket auth; verified the deleted user's token gets 401.
+- [x] **Public account-deletion page** (2026-11-08) — `GET /account-deletion` served by the API; set
+      `SUPPORT_EMAIL`, then use the URL in Play Console once prod is hosted.
 - [~] **Terms of service / Privacy policy / Rate app** — drafts in `docs/legal/` (2026-11-08); owner to fill
       placeholders + legal review, then host them and re-add Settings rows. Rate row after store listing.
 - [ ] **Production API down** (found 2026-11-08) — Railway domain returns "Application not found"; restore

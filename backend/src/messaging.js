@@ -60,6 +60,15 @@ function safeMediaUrl(raw, req) {
   }
   return allowedHosts.has(u.hostname) && MEDIA_PATH.test(u.pathname) ? raw : null;
 }
+// Our processed-media base ("properties/<id>") for a URL we'd serve, or null.
+function mediaBaseOf(raw) {
+  const ok = safeMediaUrl(raw);
+  if (!ok) return null;
+  const path = ok.startsWith("/") ? ok : new URL(ok).pathname;
+  const m = path.match(/\/(properties\/[A-Za-z0-9-]+?)(?:_thumb)?\.jpg$/);
+  return m ? m[1] : null;
+}
+
 function safeImageMeta(image, req) {
   const url = safeMediaUrl(image?.url, req);
   if (!url) return null;
@@ -67,4 +76,4 @@ function safeImageMeta(image, req) {
   return thumb ? { url, thumb } : null;
 }
 
-module.exports = { canMessage, senderIdentity, forgetSenderIdentity, safeImageMeta, MEDIA_PATH };
+module.exports = { canMessage, senderIdentity, forgetSenderIdentity, safeImageMeta, mediaBaseOf, MEDIA_PATH };

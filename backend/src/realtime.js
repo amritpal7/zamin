@@ -1,5 +1,6 @@
 const { Server } = require("socket.io");
 const { verifyToken } = require("@clerk/backend");
+const { isDeleted } = require("./revocation");
 const { createAdapter } = require("@socket.io/redis-adapter");
 const IORedis = require("ioredis");
 
@@ -44,6 +45,7 @@ function attachRealtime(server, app) {
       const token = socket.handshake.auth?.token;
       if (!token) return next(new Error("unauthorized"));
       const payload = await verifyToken(token, { secretKey: process.env.CLERK_SECRET_KEY });
+      if (await isDeleted(payload.sub)) return next(new Error("unauthorized")); // deleted account
       socket.userId = payload.sub;
       next();
     } catch (e) {
