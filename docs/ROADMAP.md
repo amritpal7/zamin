@@ -36,12 +36,14 @@ Three pillars we judge every change against:
 - [x] **Profile pictures** — set from Settings; shown in Profile, Settings, listings, chat.
       ✅ web (2026-08-05) · ✅ **native Android (2026-11-07)** via server-side `POST /users/me/photo`
       (presign upload → API → Clerk Backend API), replacing clerk-expo@2's broken native upload.
-- [ ] **Android Google Maps API key** — `app.json` still has `YOUR_ANDROID_GOOGLE_MAPS_KEY`; map tiles
-      blank + pin picker unusable on Android until a real key is added and the dev build is rebuilt.
+- [x] **Android Google Maps API key** (2026-11-08) — `mobile/app.config.js` injects `GOOGLE_MAPS_ANDROID_KEY`
+      from `.env`. Add the EAS + Play App Signing SHA-1s to the key before store builds.
 - [x] **Sweep stale uploads** (2026-11-07) — hourly worker job (`src/uploadSweep.js`) deletes
       `pending_uploads` older than 1 h (`STALE_UPLOAD_MS`) + their `<base>_orig` objects.
-- [ ] **Terms of service / Privacy policy / Rate app** — rows removed from Settings (were dead); add
-      back with real documents + store listing before launch.
+- [~] **Terms of service / Privacy policy / Rate app** — drafts in `docs/legal/` (2026-11-08); owner to fill
+      placeholders + legal review, then host them and re-add Settings rows. Rate row after store listing.
+- [ ] **Production API down** (found 2026-11-08) — Railway domain returns "Application not found"; restore
+      the service/domain before any deploy.
 - [x] **Listing photo upload verified on native Android** (2026-11-07) — presign → MinIO PUT →
       BullMQ resize/thumb → listing renders. Recheck the presign `x-amz-checksum-crc32` param on real S3/R2.
 - [x] **Confirm authorization on `saved`/`messages` routes** (2026-11-07) — audited saved, messages,

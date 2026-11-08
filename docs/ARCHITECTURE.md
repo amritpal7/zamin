@@ -381,6 +381,7 @@ Shared code in `mobile/src`:
 
 Derived/compose-set: `DATABASE_URL`, `S3_ENDPOINT`, `S3_BUCKET`, `S3_PUBLIC_BASE=/media`,
 `REDIS_HOST/PORT`, `EXPO_PUBLIC_API_URL`, `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`.
+`GOOGLE_MAPS_ANDROID_KEY` (mobile) — injected into the Android manifest by `mobile/app.config.js` (env → `mobile/.env` → root `.env`); native, so changing it needs `npx expo prebuild -p android` + a dev-build rebuild. Restricted in Google Cloud to `com.zamin.app` + SHA-1s.
 
 Security/ops (optional): `CORS_ORIGIN` (comma-separated allow-list; default `*` for dev),
 `RATE_LIMIT_MAX` (per-IP/min, default 600), `NODE_ENV=production` (prod-safe error responses).

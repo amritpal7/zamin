@@ -12,6 +12,24 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-11-08 (Android Google Maps key wired ✅ + legal drafts + prod API found down)
+**Added — `mobile/app.config.js`.** Injects `GOOGLE_MAPS_ANDROID_KEY` into `android.config.googleMaps.apiKey`
+(env → `mobile/.env` → root `.env`; placeholder + build-time warning if unset, since react-native-maps
+crashes on Android with no key). Key lives only in git-ignored `.env`; documented in `.env.example` and
+ARCHITECTURE. Applied via `npx expo prebuild -p android` + dev-build rebuild. **Verified on emulator:**
+Map tab renders Google tiles, clusters and all 100 local listings (was a blank beige square).
+- Build gotchas: Gradle needs **JDK 17** (`JAVA_HOME=/opt/homebrew/opt/openjdk@17/...`; Android Studio's
+  bundled JDK is 25 and Gradle's auto-download timed out); `expo run:android --device` takes the **AVD
+  name** (`Pixel_7_Pro`), not the adb serial.
+- Ops: after `mobile/.env` was edited, the running Metro re-read it and inlined its prod
+  `EXPO_PUBLIC_API_URL` over the container's `10.0.2.2` → app hit prod. Fixed by recreating Metro
+  (`HOST_IP=10.0.2.2 docker compose up -d mobile`). See BUGLOG.
+**Docs — legal drafts:** `docs/legal/PRIVACY.md` + `docs/legal/TERMS.md`, written from the app's real data
+practices, with `[PLACEHOLDERS]` for owner details; need owner fill-in + legal review before publishing.
+Flags that Play Store requires in-app account deletion (not built yet).
+**Found — production API is gone:** `https://api-production-43dd.up.railway.app` returns Railway
+"Application not found" (`x-railway-fallback: true`) on every path. Needs the owner's Railway account.
+
 ### 2026-11-07 (Security: messaging authorization audit + stale-upload sweeper)
 **Audit (ROADMAP item):** saved, messages, saved-searches, visits, notifications, push — every read/update
 is scoped to `getAuth(req).userId`. Gaps found + fixed in **sending**:
