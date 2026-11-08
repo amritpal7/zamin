@@ -70,6 +70,17 @@ async function setProfileImage(id, jpeg) {
   return u.image_url || null;
 }
 
+// Permanently delete a Clerk user (Backend API). Throws on failure; 404 = already gone (ok).
+async function deleteClerkUser(id) {
+  if (!id || !SECRET) throw new Error("Clerk not configured");
+  const res = await fetch(`https://api.clerk.com/v1/users/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${SECRET}` },
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!res.ok && res.status !== 404) throw new Error(`Clerk delete user ${res.status}`);
+}
+
 // Backfill denormalized sender identity on messages that predate the feature
 // (sender_name IS NULL). New messages already carry it; this heals old ones from Clerk.
 async function backfillMessageSenders(pool) {
@@ -150,4 +161,4 @@ async function reconcileOwners(pool) {
   return { checked: rows.length, active, inactive, skipped };
 }
 
-module.exports = { getUser, userExists, setLocationDefault, setProfileImage, reconcileOwner, reconcileOwners, backfillMessageSenders };
+module.exports = { getUser, userExists, setLocationDefault, setProfileImage, deleteClerkUser, reconcileOwner, reconcileOwners, backfillMessageSenders };

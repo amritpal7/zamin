@@ -40,6 +40,11 @@ Three pillars we judge every change against:
       from `.env`. Add the EAS + Play App Signing SHA-1s to the key before store builds.
 - [x] **Sweep stale uploads** (2026-11-07) — hourly worker job (`src/uploadSweep.js`) deletes
       `pending_uploads` older than 1 h (`STALE_UPLOAD_MS`) + their `<base>_orig` objects.
+- [ ] **Validate listing `images`/`thumbnails` on create/update** (security backlog 2026-11-08) — currently free
+      text (≤8). Accept only our media paths; normalize host-independent. Careful: `photo_geo` is keyed by
+      image URL (on-site badge) — normalize both together. Backfill `media_objects` for pre-existing uploads.
+- [ ] **Revoke sessions on account deletion** — Clerk JWTs verify offline (~60 s validity); consider a short
+      Redis "deleted ids" set checked by `requireAuth` + socket auth.
 - [~] **Terms of service / Privacy policy / Rate app** — drafts in `docs/legal/` (2026-11-08); owner to fill
       placeholders + legal review, then host them and re-add Settings rows. Rate row after store listing.
 - [ ] **Production API down** (found 2026-11-08) — Railway domain returns "Application not found"; restore
@@ -58,8 +63,9 @@ Now/Near/Medium as we pick them up.
 **Features**
 - [ ] **Quick actions** — fast contextual actions on a listing (e.g. long-press / swipe on a card,
       or a share-sheet: Save, Share, Contact/WhatsApp, Hide, Report) so common tasks skip the detail screen.
-- [ ] **Delete account** — Settings UI + confirm flow. Clerk `delete_self` is already enabled;
-      also soft-remove/anonymize the user's listings + data (owner rows are denormalized — see rule #1).
+- [x] **Delete account** (2026-11-08) — Settings → Delete account → confirm modal → `DELETE /users/me`
+      (transactional data wipe + Clerk user delete + photo cleanup). Verified on emulator with a throwaway
+      account. Still to do for Play: a public web page/link for deletion requests.
 - [~] **OAuth: Google / Facebook / Apple sign-in.** *Wired* via `SocialAuth.js` (`useSSO().startSSOFlow`,
       web/browser flow) in `sign-in.js` + `sign-up.js`; all three enabled in the dev Clerk instance.
       Works only in a **dev/EAS build** (browser→`zamin://` redirect; not Expo Go/web). Google uses Clerk's

@@ -112,6 +112,9 @@ export function useApi() {
       return request("/users/me/photo", { method: "POST", body: JSON.stringify({ base: f.base }) });
     },
 
+    // Permanently delete the signed-in account + all its data (server deletes the Clerk user too).
+    deleteAccount: () => request("/users/me", { method: "DELETE", body: JSON.stringify({ confirm: "DELETE" }) }),
+
     // Messages
     getConversations: () => request("/messages"),
     getMessages: (propertyId, peer) => request(`/messages/${propertyId}${peer ? `?peer=${encodeURIComponent(peer)}` : ""}`),

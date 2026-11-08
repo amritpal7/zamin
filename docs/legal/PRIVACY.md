@@ -58,7 +58,10 @@ These providers may process data outside India under their own safeguards.
 You can view and edit your profile and listings in the app, change location visibility, turn off
 notifications, block users, and delete listings. You may request access to, correction of, or
 deletion of your personal data, or withdraw consent, by writing to [CONTACT EMAIL]. We respond within
-[N] days. [ACCOUNT DELETION: describe the in-app path once built — see note below.]
+[N] days. You can delete your account at any time in the app: **Settings → Delete account**. This
+permanently deletes your account, listings and their photos, messages, saved listings and searches,
+visit requests, notifications, reviews and the reports you filed. Reports other users made about
+your account may be kept for [RETENTION PERIOD] for safety and abuse prevention.
 
 ## 7. Security
 Passwords are handled by our auth provider; connections use HTTPS in production; photos are
@@ -75,6 +78,6 @@ We'll update this page and the effective date, and notify you in the app for sig
 [BUSINESS / OWNER NAME] · [ADDRESS] · [CONTACT EMAIL]
 
 ---
-**Note for the owner:** the Google Play Store requires apps with accounts to offer **in-app account
-deletion** and a web link for deletion requests. Zamin does not have this yet (ROADMAP: "Delete
-account"). Build it before store submission, then fill section 6.
+**Note for the owner:** in-app deletion exists (Settings → Delete account). Google Play also requires a
+**public web link** where users can request deletion without the app — host a page (or a form/email
+address) and enter its URL in Play Console → Data safety.

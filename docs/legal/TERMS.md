@@ -57,8 +57,8 @@ To the extent permitted by law, our total liability for any claim relating to Za
 [AMOUNT, e.g. ₹1,000], and we're not liable for indirect or consequential losses.
 
 ## 11. Termination
-You can stop using Zamin and delete your listings at any time [and delete your account in Settings —
-once built]. Sections 2, 6, 9, 10 and 12 survive termination.
+You can stop using Zamin, delete your listings, or delete your account (Settings → Delete account) at
+any time. Sections 2, 6, 9, 10 and 12 survive termination.
 
 ## 12. Governing law and disputes
 These Terms are governed by the laws of India. Courts at [CITY, STATE] have exclusive jurisdiction.

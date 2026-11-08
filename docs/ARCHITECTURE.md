@@ -269,11 +269,12 @@ Base path through nginx: `/api`. Direct: `http://localhost:4000`.
 |--------|------|---------|
 | GET | `/messages` | List conversations, grouped by (property, **peer**); returns `peer_id` per row |
 | GET | `/messages/:propertyId?peer=<id>` | The two-person thread (me ↔ peer); without `peer`, all my messages on the property |
-| POST | `/messages/:propertyId` | Send message (`{ text, receiver_id }` or `{ image:{url,thumb}, receiver_id }`) — receiver is the **peer**, not always the owner. **Guards (`src/messaging.js`):** receiver must be the listing owner, or (owner replying) someone who already messaged them about it — else 403 (same for `/proposal`); `sender_name/avatar/image` are taken from Clerk, not the body; image URLs must be our own `(/api)/media/properties/<id>(_thumb).jpg` on the API/storage host. |
+| POST | `/messages/:propertyId` | Send message (`{ text, receiver_id }` or `{ image:{url,thumb}, receiver_id }`) — receiver is the **peer**, not always the owner. **Guards (`src/messaging.js`):** receiver must be the listing owner, or (owner replying) someone who already messaged them about it — else 403 (same for `/proposal`); `sender_name/avatar/image` are taken from Clerk, not the body; image URLs must be our own `(/api)/media/properties/<id>(_thumb).jpg` or `/<bucket>/properties/…`, relative or on a **configured** host (`S3_PUBLIC_ENDPOINT`, `S3_PUBLIC_BASE`, `API_PUBLIC_URL`) — never the request's Host header. |
 
 ### Users / trust & safety (`routes/users.js`, all 🔒)
 | Method | Path | Purpose |
 |--------|------|---------|
+| DELETE | `/users/me` | **Delete account** (Settings → Delete account). Body `{ confirm: "DELETE" }`; limits 5/h per user + 10/h per IP. Writes an `account_deletions` marker, then one transaction (`lock_timeout 3s`, `statement_timeout 15s`) runs `purgeUserData` (`src/accountDeletion.js`: media_objects, properties→cascade, messages, saves, searches, notifications incl. others' rows naming the user, push tokens, uploads, visits, blocks, reviews, reports *filed by* the user) and deletes the **Clerk user inside it** (if Clerk errors but the user is actually gone → commit). Storage cleanup deletes only objects in `media_objects` owned by the user (never keys from listing URLs). Live sockets disconnected. The hourly sweep finishes any marker whose Clerk user is gone. |
 | POST | `/users/me/photo` | Set the caller's **profile photo**. Body `{ base }` from a prior `/properties/presign` + direct PUT. Consumes the caller's `pending_uploads` binding (403 otherwise), sharp re-encodes to 512² JPEG (strips EXIF, rejects non-images, ≤10 MB), forwards to Clerk Backend API `POST /v1/users/:id/profile_image`, then `reconcileOwner` so `owner_image` updates on their listings. Used on all platforms (clerk-expo@2's `setProfileImage` can't send bytes on Android). Per-user limit 10 / 10 min; formats jpeg/png/webp/heif only; 25 MP pixel cap; 10 s Clerk timeout. |
 | POST/DELETE | `/users/:id/block` | Block / unblock (messaging then rejected 403 either way) |
 | GET | `/users/:id/block` | `{ blockedByMe, blockedMe }` |
@@ -308,6 +309,7 @@ Defined in `mobile/src/hooks/useApi.js#uploadImages` + `routes/properties.js` + 
    it), then **enqueues a BullMQ job**. (Profile photos use `POST /users/me/photo { base }` instead.)
 4. **Worker** (`worker.js`) consumes the job, uses **sharp** (`limitInputPixels: 25e6`) to resize + build a thumbnail, writes them back to storage.
    **Bucket policy:** only `*.jpg` (processed images) is public-read; raw `<base>_orig` uploads are not readable by URL.
+   **Ownership:** `/process` (and legacy `/upload`) record `media_objects(base, clerk_user_id)`; account deletion uses it.
 5. Final URLs (`{ url, thumb }`) are stored on the property (`images[]`, `thumbnails[]`) and served via nginx `/media`.
 6. Client keeps an **optimistic local mapping** (`utils/imageCache.js`) so the just-picked local image shows instantly before the processed one lands.
 

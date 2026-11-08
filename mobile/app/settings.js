@@ -14,6 +14,7 @@ import { C, FONT, FONT_MED, FONT_HEAD, FONT_HEAD_ITALIC } from "../src/theme";
 import { Icon } from "../src/components/Icon";
 import { useTheme } from "../src/context/ThemeContext";
 import { useApi } from "../src/hooks/useApi";
+import ConfirmModal from "../src/components/ConfirmModal";
 
 const THEME_MODES = [
   { key: "dark",   label: "Dark",   icon: "moon" },
@@ -170,6 +171,8 @@ export default function Settings() {
 
   const [editing,   setEditing]   = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
   const [saving,    setSaving]    = useState(false);
   const [firstName, setFirstName] = useState("");
   const [lastName,  setLastName]  = useState("");
@@ -217,6 +220,21 @@ export default function Settings() {
       Alert.alert("Error", e.message || "Could not update photo.");
     } finally {
       setUploadingPhoto(false);
+    }
+  };
+
+  // Permanent account deletion (Play Store requirement). Server deletes listings, messages, saves,
+  // visits, notifications… and the Clerk user in one transaction; then we drop the local session.
+  const deleteAccount = async () => {
+    setDeletingAccount(true);
+    try {
+      await api.deleteAccount();
+      setDeleteOpen(false);
+      await signOut().catch(() => {});   // the session is already invalid server-side
+      router.replace("/sign-in");
+    } catch (e) {
+      setDeletingAccount(false);
+      Alert.alert("Couldn't delete account", e.message || "Please try again.");
     }
   };
 
@@ -652,11 +670,18 @@ export default function Settings() {
                 icon="arrow"
                 label="Sign out"
                 danger
-                last
                 onPress={() => Alert.alert("Sign Out", "Are you sure you want to sign out?", [
                   { text: "Cancel", style: "cancel" },
                   { text: "Sign Out", style: "destructive", onPress: () => signOut().then(() => router.replace("/sign-in")) },
                 ])}
+              />
+              <Row
+                icon="close"
+                label="Delete account"
+                hint="Permanently remove your account and data"
+                danger
+                last
+                onPress={() => setDeleteOpen(true)}
               />
             </GlassCard>
           </View>
@@ -666,6 +691,18 @@ export default function Settings() {
           Zamin v1.0.0 · made in India
         </Text>
       </ScrollView>
+
+      {deleteOpen && (
+        <ConfirmModal
+          visible
+          title="Delete your account?"
+          message={"This permanently deletes your account, your listings and their photos, your messages, saved listings, searches and visit requests.\n\nThis cannot be undone."}
+          confirmLabel={deletingAccount ? "Deleting…" : "Delete forever"}
+          confirmColor={C.red}
+          onConfirm={() => { if (!deletingAccount) deleteAccount(); }}
+          onCancel={() => !deletingAccount && setDeleteOpen(false)}
+        />
+      )}
     </View>
   );
 }

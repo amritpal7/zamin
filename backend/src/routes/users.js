@@ -6,7 +6,8 @@ const rateLimit = require("express-rate-limit");
 const sharp = require("sharp");
 const { GetObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3");
 const { s3, BUCKET } = require("../storage");
-const { setProfileImage, reconcileOwner } = require("../clerkUsers");
+const { setProfileImage, reconcileOwner, deleteClerkUser, getUser } = require("../clerkUsers");
+const { purgeUserData, deleteOwnedMedia } = require("../accountDeletion");
 const { forgetSenderIdentity } = require("../messaging");
 
 router.use(requireAuth);
@@ -71,6 +72,60 @@ router.post("/me/photo", photoLimiter, async (req, res) => {
     console.error("[me/photo]", err.message);
     res.status(502).json({ error: "Could not update photo. Please try again." });
   }
+});
+
+// DELETE /users/me — permanently delete the caller's account and personal data (Play Store
+// requirement). A durable account_deletions marker is written first; one transaction then purges
+// every user-keyed row and deletes the Clerk user INSIDE it. If the Clerk call fails we re-check:
+// if Clerk actually deleted the user (timeout after success) we COMMIT; otherwise roll back. If the
+// COMMIT itself fails after Clerk succeeded, the maintenance sweep finishes the purge from the marker.
+// Storage cleanup touches ONLY objects recorded as owned by this user (media_objects).
+const deleteLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, max: 5, standardHeaders: true, legacyHeaders: false,
+  keyGenerator: (req) => getAuth(req).userId || req.ip,
+  message: { error: "Too many attempts. Please try again later." },
+});
+const deleteIpLimiter = rateLimit({ // throwaway accounts are free — also cap per IP
+  windowMs: 60 * 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false,
+  message: { error: "Too many attempts. Please try again later." },
+});
+router.delete("/me", deleteIpLimiter, deleteLimiter, async (req, res) => {
+  const { userId } = getAuth(req);
+  if (req.body?.confirm !== "DELETE") return res.status(400).json({ error: "Confirmation required." });
+  await pool.query(
+    `INSERT INTO account_deletions (clerk_user_id) VALUES ($1)
+     ON CONFLICT (clerk_user_id) DO UPDATE SET requested_at = NOW()`, [userId]
+  );
+  const client = await pool.connect();
+  let bases = [];
+  try {
+    await client.query("BEGIN");
+    await client.query("SET LOCAL lock_timeout = '3s'");
+    await client.query("SET LOCAL statement_timeout = '15s'");
+    bases = await purgeUserData(client, userId);
+    try {
+      await deleteClerkUser(userId);
+    } catch (clerkErr) {
+      const u = await getUser(userId);            // did Clerk delete it anyway (e.g. timed out after)?
+      if (!(u.reliable && !u.exists)) throw clerkErr;
+    }
+    await client.query("COMMIT");
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    // Genuine failure (Clerk user still exists) → clear the marker so the sweep doesn't act.
+    const u = await getUser(userId).catch(() => ({ reliable: false }));
+    if (u.reliable && u.exists) await pool.query("DELETE FROM account_deletions WHERE clerk_user_id = $1", [userId]).catch(() => {});
+    console.error("[delete me]", err.message);
+    return res.status(502).json({ error: "Could not delete your account. Please try again." });
+  } finally {
+    client.release();
+  }
+  await pool.query("DELETE FROM account_deletions WHERE clerk_user_id = $1", [userId]).catch(() => {});
+  forgetSenderIdentity(userId);
+  deleteOwnedMedia(bases);
+  // Drop any live realtime connection for this (now deleted) user.
+  try { req.app.get("io")?.in(String(userId)).disconnectSockets(true); } catch { /* best effort */ }
+  res.json({ deleted: true });
 });
 
 // POST /users/:userId/block — block a user (I no longer exchange messages with them).

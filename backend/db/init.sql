@@ -59,12 +59,20 @@ CREATE INDEX IF NOT EXISTS idx_messages_property ON messages(property_id);
 CREATE INDEX IF NOT EXISTS idx_saved_user        ON saved_properties(clerk_user_id);
 
 -- ─── Seed data ───────────────────────────────────────────────
-INSERT INTO properties (clerk_user_id, owner_name, owner_phone, owner_avatar, title, description, type, status, price, area, beds, baths, location, latitude, longitude, tags, img, color, verified)
-VALUES
-  ('seed_user_1', 'Rahul Sharma', '+91 98765 43210', 'RS', 'Modern Villa with Pool', 'Stunning contemporary villa in the heart of Bandra West. Infinity pool, landscaped garden, modular kitchen, and smart home automation.', 'House', 'For Sale', '₹2.4 Cr', '3,200 sq ft', 4, 3, 'Bandra West, Mumbai', 19.0596, 72.8295, ARRAY['Pool','Garden','Parking'], '🏡', '#f0a500', true),
-  ('seed_user_2', 'Meera Patil', '+91 87654 32109', 'MP', 'Agricultural Land — 5 Acres', 'Prime agricultural land with year-round water source, black cotton soil, direct highway access. Ideal for farming or investment.', 'Land', 'For Sale', '₹85 L', '5 Acres', NULL, NULL, 'Pune-Nashik Hwy, Pune', 18.5204, 73.8567, ARRAY['Fertile Soil','Water Source','Road Access'], '🌾', '#00d084', true),
-  ('seed_user_3', 'Aditya Mehta', '+91 76543 21098', 'AM', 'Luxury Apartment — Sea View', 'Premium sea-facing apartment on the 22nd floor. Breathtaking views of Marine Drive, world-class amenities.', 'Apartment', 'For Sale', '₹1.8 Cr', '1,450 sq ft', 3, 2, 'Marine Lines, Mumbai', 18.9438, 72.8231, ARRAY['Sea View','Gym','Security'], '🏢', '#4da6ff', false),
-  ('seed_user_4', 'Priya Nair', '+91 65432 10987', 'PN', 'Commercial Plot — Prime Location', 'Prime corner plot in Koramangala commercial hub. Approved for G+4 floors. Excellent ROI potential.', 'Land', 'For Sale', '₹3.2 Cr', '2,800 sq ft', NULL, NULL, 'Koramangala, Bengaluru', 12.9352, 77.6245, ARRAY['Corner Plot','Commercial','Metro Near'], '📍', '#ff6b35', true),
-  ('seed_user_5', 'Suresh Kulkarni', '+91 54321 09876', 'SK', 'Heritage Farmhouse', 'Charming heritage farmhouse surrounded by mango orchards. Perfect weekend getaway. Includes barn, well, and 1-acre land.', 'House', 'For Sale', '₹95 L', '4,500 sq ft', 5, 4, 'Alibaug, Maharashtra', 18.6414, 72.8722, ARRAY['Mango Orchard','Well','Barn'], '🏚️', '#9b59b6', true),
-  ('seed_user_6', 'Kavya Reddy', '+91 43210 98765', 'KR', 'Studio — Tech Park Zone', 'Fully furnished studio minutes from ITPL. Ideal for IT professionals. All utilities and high-speed internet included.', 'Apartment', 'For Rent', '₹22K/mo', '520 sq ft', 1, 1, 'Whitefield, Bengaluru', 12.9698, 77.7500, ARRAY['Furnished','Wi-Fi','Laundry'], '🛋️', '#f0a500', false)
-ON CONFLICT DO NOTHING;
+-- init.sql runs on EVERY api boot (runMigrations.js, for managed Postgres). `ON CONFLICT DO NOTHING`
+-- never fired (no unique key), so each boot re-inserted these 6 rows — 216 duplicates locally by
+-- 2026-11-08. Guard: seed only when no seed rows exist yet.
+DO $seed$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM properties WHERE clerk_user_id LIKE 'seed\_user\_%') THEN
+  INSERT INTO properties (clerk_user_id, owner_name, owner_phone, owner_avatar, title, description, type, status, price, area, beds, baths, location, latitude, longitude, tags, img, color, verified)
+  VALUES
+    ('seed_user_1', 'Rahul Sharma', '+91 98765 43210', 'RS', 'Modern Villa with Pool', 'Stunning contemporary villa in the heart of Bandra West. Infinity pool, landscaped garden, modular kitchen, and smart home automation.', 'House', 'For Sale', '₹2.4 Cr', '3,200 sq ft', 4, 3, 'Bandra West, Mumbai', 19.0596, 72.8295, ARRAY['Pool','Garden','Parking'], '🏡', '#f0a500', true),
+    ('seed_user_2', 'Meera Patil', '+91 87654 32109', 'MP', 'Agricultural Land — 5 Acres', 'Prime agricultural land with year-round water source, black cotton soil, direct highway access. Ideal for farming or investment.', 'Land', 'For Sale', '₹85 L', '5 Acres', NULL, NULL, 'Pune-Nashik Hwy, Pune', 18.5204, 73.8567, ARRAY['Fertile Soil','Water Source','Road Access'], '🌾', '#00d084', true),
+    ('seed_user_3', 'Aditya Mehta', '+91 76543 21098', 'AM', 'Luxury Apartment — Sea View', 'Premium sea-facing apartment on the 22nd floor. Breathtaking views of Marine Drive, world-class amenities.', 'Apartment', 'For Sale', '₹1.8 Cr', '1,450 sq ft', 3, 2, 'Marine Lines, Mumbai', 18.9438, 72.8231, ARRAY['Sea View','Gym','Security'], '🏢', '#4da6ff', false),
+    ('seed_user_4', 'Priya Nair', '+91 65432 10987', 'PN', 'Commercial Plot — Prime Location', 'Prime corner plot in Koramangala commercial hub. Approved for G+4 floors. Excellent ROI potential.', 'Land', 'For Sale', '₹3.2 Cr', '2,800 sq ft', NULL, NULL, 'Koramangala, Bengaluru', 12.9352, 77.6245, ARRAY['Corner Plot','Commercial','Metro Near'], '📍', '#ff6b35', true),
+    ('seed_user_5', 'Suresh Kulkarni', '+91 54321 09876', 'SK', 'Heritage Farmhouse', 'Charming heritage farmhouse surrounded by mango orchards. Perfect weekend getaway. Includes barn, well, and 1-acre land.', 'House', 'For Sale', '₹95 L', '4,500 sq ft', 5, 4, 'Alibaug, Maharashtra', 18.6414, 72.8722, ARRAY['Mango Orchard','Well','Barn'], '🏚️', '#9b59b6', true),
+    ('seed_user_6', 'Kavya Reddy', '+91 43210 98765', 'KR', 'Studio — Tech Park Zone', 'Fully furnished studio minutes from ITPL. Ideal for IT professionals. All utilities and high-speed internet included.', 'Apartment', 'For Rent', '₹22K/mo', '520 sq ft', 1, 1, 'Whitefield, Bengaluru', 12.9698, 77.7500, ARRAY['Furnished','Wi-Fi','Laundry'], '🛋️', '#f0a500', false);
+  END IF;
+END
+$seed$;

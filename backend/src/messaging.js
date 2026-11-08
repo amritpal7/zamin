@@ -40,17 +40,24 @@ async function senderIdentity(userId, body = {}) {
 }
 function forgetSenderIdentity(userId) { idCache.delete(userId); }
 
-// Accept only our processed images: (/api)/media/properties/<id>(_thumb).jpg, relative or on the
-// API's own host / the storage public host. Returns sanitized { url, thumb } or null.
-const MEDIA_PATH = /^(\/api)?\/media\/properties\/[A-Za-z0-9-]+(_thumb)?\.jpg$/;
+// Accept only our processed images, relative or on the API host / storage public host(s).
+// Returns sanitized { url, thumb } or null.
+// Dev: (/api)/media/properties/… via nginx. Prod: absolute MinIO/S3 URLs …/<bucket>/properties/….
+const BUCKET_NAME = (process.env.S3_BUCKET || "zamin").replace(/[^A-Za-z0-9._-]/g, "").replace(/\./g, "\\.");
+const MEDIA_PATH = new RegExp(`^(?:(?:/api)?/media|/${BUCKET_NAME})/properties/[A-Za-z0-9-]+(?:_thumb)?\\.jpg$`);
 function safeMediaUrl(raw, req) {
   if (typeof raw !== "string" || raw.length > 500) return null;
   if (raw.startsWith("/")) return MEDIA_PATH.test(raw) ? raw : null;
   let u;
   try { u = new URL(raw); } catch { return null; }
   if (!/^https?:$/.test(u.protocol) || u.search || u.hash) return null;
-  const allowedHosts = new Set([req.hostname]);
-  try { if (process.env.S3_PUBLIC_ENDPOINT) allowedHosts.add(new URL(process.env.S3_PUBLIC_ENDPOINT).hostname); } catch {}
+  // Hosts come from CONFIG only — never from the request (Host / X-Forwarded-Host are client-controlled).
+  // In dev S3_PUBLIC_ENDPOINT is http://$HOST_IP, i.e. the same host the app uses for /api.
+  const allowedHosts = new Set();
+  if (process.env.API_PUBLIC_URL) { try { allowedHosts.add(new URL(process.env.API_PUBLIC_URL).hostname); } catch {} }
+  for (const v of [process.env.S3_PUBLIC_ENDPOINT, process.env.S3_PUBLIC_BASE]) {
+    try { if (v && /^https?:/.test(v)) allowedHosts.add(new URL(v).hostname); } catch {}
+  }
   return allowedHosts.has(u.hostname) && MEDIA_PATH.test(u.pathname) ? raw : null;
 }
 function safeImageMeta(image, req) {

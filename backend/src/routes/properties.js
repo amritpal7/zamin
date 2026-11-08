@@ -75,6 +75,11 @@ router.post("/process", requireAuth, async (req, res) => {
         [it.base, userId]
       );
       if (!rowCount) continue;
+      // Record ownership of the processed object (account deletion removes only owned media).
+      await pool.query(
+        "INSERT INTO media_objects (base, clerk_user_id) VALUES ($1, $2) ON CONFLICT (base) DO NOTHING",
+        [it.base, userId]
+      );
       const id = it.base.split("/").pop();
       await enqueueThumb(id, it.base, origKey);
       processed++;
@@ -103,6 +108,10 @@ router.post("/upload", requireAuth, (req, res) => {
         const base = `properties/${id}`;
         const origKey = `${base}_orig`;
         await putObject(origKey, f.buffer, f.mimetype || "image/jpeg");
+        await pool.query(
+          "INSERT INTO media_objects (base, clerk_user_id) VALUES ($1, $2) ON CONFLICT (base) DO NOTHING",
+          [base, getAuth(req).userId]
+        );
         await enqueueThumb(id, base, origKey);
         files.push({ url: `${PUBLIC_BASE}/${base}.jpg`, thumb: `${PUBLIC_BASE}/${base}_thumb.jpg` });
       }

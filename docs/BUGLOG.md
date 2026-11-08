@@ -33,6 +33,8 @@ of bug while building new features. Newest first. Update this whenever we fix a 
 | **Trusting a client-supplied storage key** | 1 | Any object key the server (or worker) will read, overwrite or **delete** must be derived server-side from an ownership-checked id — never taken from the request body. `/properties/process` took `origKey` from the client and the worker deleted it (cross-user photo deletion). Validate ids with a strict regex too. |
 | **Client-supplied identity / recipient / URLs in messaging** | 1 | Server must decide *who* a message is from (Clerk), *who* it may go to (listing owner ↔ enquirer), and *what* it may link to (own media only). Never persist `sender_*` display fields or arbitrary URLs from the request body. |
 | **Editing `mobile/.env` while Metro runs overrides the container env** | 1 | Metro hot-reloads `mobile/.env`, and its `EXPO_PUBLIC_*` values (prod API URL) then win over the docker env (`10.0.2.2`) → emulator silently talks to prod. After any `mobile/.env` edit, recreate Metro: `HOST_IP=10.0.2.2 docker compose up -d mobile`, and confirm `grep -c 10.0.2.2/api` in the bundle. |
+| **`ON CONFLICT DO NOTHING` without a unique key is NOT idempotent** | 1 | It only skips rows that violate a unique/exclusion constraint. `init.sql` (run on every boot) re-inserted seed rows each time. Guard seeds with `IF NOT EXISTS (…)` in a `DO` block, or add a real unique key. Anything run on every boot must be tested by booting twice and counting rows. |
+| **Storing absolute URLs with a deploy-specific host** | 1 | Dev uploads saved `http://<LAN-IP>/api/media/…`; when the IP changed, photos broke. Store host-independent paths or resolve on display (`resolveMediaUrl`). Keep host-specific logic in one place. |
 
 ## Log
 

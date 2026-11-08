@@ -7,11 +7,14 @@ const fs = require("fs");
 async function runMigrations() {
   // Base schema. The docker-compose Postgres runs db/init.sql via its
   // docker-entrypoint-initdb.d mount, but a managed/cloud Postgres (Railway, RDS, …)
-  // does not — so apply it here first. init.sql is fully idempotent (CREATE … IF NOT
-  // EXISTS), so this is a safe no-op on an already-provisioned DB and makes a fresh
-  // managed DB self-provisioning. The versioned migrations below then add columns.
+  // does not — so apply it here first. init.sql MUST stay idempotent: it runs on every
+  // boot. DDL uses IF NOT EXISTS; the seed INSERT is guarded by a NOT EXISTS check (a bare
+  // INSERT … ON CONFLICT DO NOTHING duplicated the seed on each boot — BUGLOG 2026-11-08).
   const pool = require("./db");
-  const initSql = fs.readFileSync(path.join(__dirname, "..", "db", "init.sql"), "utf8");
+  let initSql = fs.readFileSync(path.join(__dirname, "..", "db", "init.sql"), "utf8");
+  // Demo seed rows (fake owners + phone numbers) only when explicitly requested — never by
+  // default in prod. (A fresh docker-compose Postgres still seeds via docker-entrypoint-initdb.d.)
+  if (process.env.SEED_DEMO !== "true") initSql = initSql.replace(/DO \$seed\$[\s\S]*?\$seed\$;/, "");
   await pool.query(initSql);
 
   const mod = require("node-pg-migrate");

@@ -940,6 +940,18 @@ describe("messaging: two-way delivery", () => {
     expect(res.body.meta.url).toBe("/media/properties/abc-1.jpg");
   });
 
+  test("image message: prod-style storage URL (/<bucket>/properties/…) is accepted", async () => {
+    const res = await request(app).post(`/messages/${pid}`).set("x-test-user", USER_B)
+      .send({ receiver_id: USER_A, image: { url: "/zamin/properties/abc-2.jpg", thumb: "/zamin/properties/abc-2_thumb.jpg" } });
+    expect(res.status).toBe(201);
+  });
+
+  test("image message: a spoofed Host header does not widen the allowed hosts", async () => {
+    const res = await request(app).post(`/messages/${pid}`).set("x-test-user", USER_B).set("Host", "evil.example")
+      .send({ receiver_id: USER_A, image: { url: "http://evil.example/media/properties/a-1.jpg" } });
+    expect(res.status).toBe(400);
+  });
+
   test("image message: external / non-media URLs are rejected (no tracking pixels)", async () => {
     for (const url of ["http://evil.example/img.jpg", "http://evil.example/media/properties/a.jpg", "javascript:alert(1)", "/media/../secret.jpg"]) {
       const res = await request(app).post(`/messages/${pid}`).set("x-test-user", USER_B)
@@ -1029,5 +1041,57 @@ describe("messaging authorization: only owner <-> enquirer conversations", () =>
   afterAll(async () => {
     await pool.query("DELETE FROM messages WHERE property_id = $1", [pid]);
     await pool.query("DELETE FROM properties WHERE id = $1", [pid]);
+  });
+});
+
+describe("account deletion: DELETE /users/me", () => {
+  const USER_D = "test_user_jest_delete";
+  test("401 signed out, 400 without explicit confirmation", async () => {
+    expect((await request(app).delete("/users/me").send({ confirm: "DELETE" })).status).toBe(401);
+    expect((await request(app).delete("/users/me").set("x-test-user", USER_D).send({})).status).toBe(400);
+  });
+  test("if Clerk deletion fails, NOTHING is deleted (transaction rolled back)", async () => {
+    const created = await request(app).post("/properties").set("x-test-user", USER_D).send({ ...sampleListing, title: "Delete-me listing" });
+    expect(created.status).toBe(201);
+    await pool.query("INSERT INTO saved_searches (clerk_user_id, filters) VALUES ($1, '{}'::jsonb)", [USER_D]).catch(() => {});
+    // Tests have no Clerk secret → deleteClerkUser throws → must roll back.
+    const res = await request(app).delete("/users/me").set("x-test-user", USER_D).send({ confirm: "DELETE" });
+    expect(res.status).toBe(502);
+    const { rowCount } = await pool.query("SELECT 1 FROM properties WHERE id = $1", [created.body.id]);
+    expect(rowCount).toBe(1);
+    await pool.query("DELETE FROM properties WHERE clerk_user_id = $1", [USER_D]);
+    await pool.query("DELETE FROM saved_searches WHERE clerk_user_id = $1", [USER_D]);
+  });
+});
+
+describe("account deletion: purge scope (security)", () => {
+  const { purgeUserData, finishPendingDeletions } = require("../src/accountDeletion");
+  const VICTIM = "test_user_jest_victim", ATTACKER = "test_user_jest_attacker";
+  const vBase = `properties/jest-victim-${Date.now()}`, aBase = `properties/jest-attacker-${Date.now()}`;
+
+  test("returns ONLY media the user owns — forged listing URLs can't target others' photos", async () => {
+    await pool.query("INSERT INTO media_objects (base, clerk_user_id) VALUES ($1,$2),($3,$4)", [vBase, VICTIM, aBase, ATTACKER]);
+    const forged = await request(app).post("/properties").set("x-test-user", ATTACKER).send({
+      ...sampleListing, title: "forged", images: [`https://x/${vBase}.jpg`], thumbnails: [`https://x/${vBase}_thumb.jpg`],
+    });
+    expect(forged.status).toBe(201);
+    await pool.query("INSERT INTO notifications (clerk_user_id, type, title, body, data) VALUES ($1,'new_message','x','y',$2::jsonb)",
+      [VICTIM, JSON.stringify({ peer: ATTACKER })]).catch(() => {});
+    const client = await pool.connect();
+    let bases;
+    try { await client.query("BEGIN"); bases = await purgeUserData(client, ATTACKER); await client.query("COMMIT"); }
+    finally { client.release(); }
+    expect(bases).toEqual([aBase]);                       // never the victim's base
+    expect((await pool.query("SELECT 1 FROM media_objects WHERE base=$1", [vBase])).rowCount).toBe(1);
+    expect((await pool.query("SELECT 1 FROM properties WHERE clerk_user_id=$1", [ATTACKER])).rowCount).toBe(0);
+    expect((await pool.query("SELECT 1 FROM notifications WHERE data->>'peer'=$1", [ATTACKER])).rowCount).toBe(0);
+    await pool.query("DELETE FROM media_objects WHERE base=$1", [vBase]);
+  });
+
+  test("sweep clears a stale deletion marker when the Clerk user still exists", async () => {
+    await pool.query("INSERT INTO account_deletions (clerk_user_id, requested_at) VALUES ($1, NOW() - INTERVAL '1 hour') ON CONFLICT DO NOTHING", [VICTIM]);
+    const r = await finishPendingDeletions(pool);          // no Clerk secret in tests → getUser says "exists"
+    expect(r.cleared).toBeGreaterThanOrEqual(1);
+    expect((await pool.query("SELECT 1 FROM account_deletions WHERE clerk_user_id=$1", [VICTIM])).rowCount).toBe(0);
   });
 });

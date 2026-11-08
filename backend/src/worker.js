@@ -8,6 +8,7 @@ const { s3, putObject, BUCKET } = require("./storage");
 const pool = require("./db");
 const { reconcileOwners, backfillMessageSenders } = require("./clerkUsers");
 const { sweepStaleUploads } = require("./uploadSweep");
+const { finishPendingDeletions } = require("./accountDeletion");
 
 async function streamToBuffer(stream) {
   const chunks = [];
@@ -64,8 +65,9 @@ const maintenanceWorker = new Worker(
     }
     if (job.name === "sweep-uploads") {
       const r = await sweepStaleUploads(pool, s3, BUCKET);
-      if (r.bindings) console.log("🧹 upload sweep:", JSON.stringify(r));
-      return r;
+      const d = await finishPendingDeletions(pool);
+      if (r.bindings || d.pending) console.log("🧹 sweep:", JSON.stringify({ uploads: r, deletions: d }));
+      return { uploads: r, deletions: d };
     }
   },
   { connection }

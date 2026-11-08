@@ -12,6 +12,50 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-11-08 (Security: account-deletion review fixes — media ownership, Clerk-timeout safety, Host header)
+zamin-security review of Delete account found **HIGH-1 (blocking)**: deletion derived storage keys from the
+user's listing `images` URLs, which clients can forge → a throwaway account could delete anyone's photos.
+- **Fixed:** new `media_objects(base, clerk_user_id)` (migration `1731200000000_…`), written by `/process`
+  and legacy `/upload`. Deletion removes only owned bases (`src/accountDeletion.js`). Live-verified: forged
+  listing referencing a victim photo → after deletion own photo 404, **victim photo + thumb still 200**.
+- **MED-1:** Clerk timeout after a successful delete no longer orphans data — durable `account_deletions`
+  marker; on Clerk error we re-check the user (gone → commit); hourly sweep (`finishPendingDeletions`)
+  finishes leftovers or clears markers for users who still exist.
+- **MED-2:** chat-image host allowlist no longer uses `req.hostname` (client-controlled Host header); config
+  only (`S3_PUBLIC_ENDPOINT`, `S3_PUBLIC_BASE`, `API_PUBLIC_URL`). App's real URL format still 201. Test added.
+- LOW: purge also removes other users' notifications naming the deleted user; reports *about* the user are
+  kept (moderation evidence; privacy draft updated); live sockets disconnected; `lock_timeout`/`statement_timeout`
+  + per-IP limiter on deletion; indexes on `messages(sender_id)`/`(receiver_id)`; demo seed now only with
+  `SEED_DEMO=true` on API boot; bucket name escaped in the media regex.
+- Backend **119/119** (+ purge-scope, sweep and Host-spoof tests). Backlog: validate listing image URLs on
+  save, session revocation on delete (ROADMAP).
+
+### 2026-11-08 (Added: Delete account · Fixed: Home feed photos — seed duplicated on every boot, stale image hosts, bare prices)
+**Added — Delete account** (Play Store requirement). Settings → Delete account (under Sign out) → confirm
+modal → `DELETE /users/me` (`backend/src/routes/users.js`, `deleteClerkUser` in `clerkUsers.js`,
+`api.deleteAccount`). One transaction wipes every user-keyed row in 11 tables and deletes the Clerk user
+inside it (rollback if Clerk fails); listing photos removed from storage after commit. Per-user limit 5/h,
+explicit `{confirm:"DELETE"}`. Verified: live API E2E with a throwaway Clerk user (listing+photo, save,
+message → all gone; photo 404; Clerk 404) and on the emulator (throwaway account deleted → lands on
+sign-in → Clerk user gone). Tests: 401/400 guards + **rollback leaves data intact**. Privacy/Terms drafts updated.
+
+**Fixed — Home feed showed almost no photos.** Root cause: `runMigrations.js` runs `db/init.sql` on every
+api boot, and its seed `INSERT … ON CONFLICT DO NOTHING` never conflicted (no unique key) → 6 photo-less
+seed rows added per boot (216 dupes) burying the 118 photo listings. Seed now guarded by a `DO` block
+(`NOT EXISTS seed rows`); migration `1731000000000_dedupe_seed_listings` keeps the oldest copy per
+(owner,title) and never deletes a copy with messages/saves. Verified: 222 → 6 seed rows, stable across
+restarts; first 20 feed items all have photos. (Prod would have duplicated on every deploy too.)
+**Fixed — photos stored with a stale dev host never loaded** (e.g. `http://192.168.29.228/api/media/…`).
+`mobile/src/utils/media.js` `resolveMediaUrl` rebuilds any `/media/…` URL on the current API base, applied
+in `SmartImage` (all listing + chat photos). Prod MinIO URLs pass through. Verified on emulator.
+**Fixed — chat image guard rejected prod URLs** (introduced 2026-11-07): `MEDIA_PATH` now also accepts
+`/<bucket>/properties/…` and the `S3_PUBLIC_BASE` host. +1 test.
+**Fixed — old listings showed prices without ₹** ("85 L"): migration `1731100000000_normalize_bare_prices`
+rewrites digit-leading prices to the app convention (5 rows locally).
+Backend **116/116**. Ripple: SmartImage is the only listing/chat image renderer (cards, detail slider,
+My Listings, chat); avatars use Clerk URLs (unaffected).
+**Backend status:** local healthy; **prod Railway still "Application not found"** (needs owner).
+
 ### 2026-11-08 (Android Google Maps key wired ✅ + legal drafts + prod API found down)
 **Added — `mobile/app.config.js`.** Injects `GOOGLE_MAPS_ANDROID_KEY` into `android.config.googleMaps.apiKey`
 (env → `mobile/.env` → root `.env`; placeholder + build-time warning if unset, since react-native-maps
