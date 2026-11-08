@@ -4,7 +4,7 @@ const { requireAuth } = require("../middleware/auth");
 const { getAuth } = require("@clerk/express");
 const crypto = require("crypto");
 const { upload } = require("../upload");
-const { putObject, presignPut } = require("../storage");
+const { putObject, putUpload, presignPut } = require("../storage");
 const { thumbnailQueue } = require("../queue");
 const { validateProperty, isUuid, LOCATION_VISIBILITIES } = require("../validation");
 const { reconcileOwner, reconcileOwners, getUser, setLocationDefault } = require("../clerkUsers");
@@ -128,7 +128,7 @@ router.post("/upload", requireAuth, (req, res) => {
         const id = `${Date.now()}-${crypto.randomBytes(5).toString("hex")}`;
         const base = `properties/${id}`;
         const origKey = `${base}_orig`;
-        await putObject(origKey, f.buffer, f.mimetype || "image/jpeg");
+        await putUpload(origKey, f.buffer, f.mimetype || "image/jpeg");
         await pool.query(
           "INSERT INTO media_objects (base, clerk_user_id) VALUES ($1, $2) ON CONFLICT (base) DO NOTHING",
           [base, getAuth(req).userId]

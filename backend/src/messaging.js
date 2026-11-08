@@ -44,7 +44,9 @@ function forgetSenderIdentity(userId) { idCache.delete(userId); }
 // Returns sanitized { url, thumb } or null.
 // Dev: (/api)/media/properties/… via nginx. Prod: absolute MinIO/S3 URLs …/<bucket>/properties/….
 const BUCKET_NAME = (process.env.S3_BUCKET || "zamin").replace(/[^A-Za-z0-9._-]/g, "").replace(/\./g, "\\.");
-const MEDIA_PATH = new RegExp(`^(?:(?:/api)?/media|/${BUCKET_NAME})/properties/[A-Za-z0-9-]+(?:_thumb)?\\.jpg$`);
+// Prefix is optional: R2 public/custom domains serve the bucket root directly (/properties/…).
+// Absolute URLs must still be on a configured host (see safeMediaUrl).
+const MEDIA_PATH = new RegExp(`^(?:(?:/api)?/media|/${BUCKET_NAME})?/properties/[A-Za-z0-9-]+(?:_thumb)?\\.jpg$`);
 function safeMediaUrl(raw, req) {
   if (typeof raw !== "string" || raw.length > 500) return null;
   if (raw.startsWith("/")) return MEDIA_PATH.test(raw) ? raw : null;

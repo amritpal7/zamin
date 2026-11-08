@@ -12,6 +12,23 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-11-08 (Ops: free-tier hosting readiness — Render + Neon + Render Key Value + Cloudflare R2)
+Railway trial expired (prod "Application not found"). Code changes so the backend runs on free tiers:
+- `src/redisConfig.js`: one Redis config for BullMQ, Socket.io adapter and revocation; supports `REDIS_URL`
+  (redis/rediss, user/password/TLS) else `REDIS_HOST/PORT`.
+- `RUN_WORKER_IN_API=true` starts the thumbnail + maintenance workers inside the API (Render free has no
+  background workers) — `src/index.js`.
+- Storage (`src/storage.js`): `S3_REGION` (R2 `auto`); `S3_UPLOAD_BUCKET` — raw uploads in a separate private
+  bucket (R2 public access is per bucket, no policy to hide `_orig`), used by presign, worker, photo route,
+  sweep and account deletion; checksum calculation `WHEN_REQUIRED` → presigned PUTs no longer carry
+  `x-amz-checksum-crc32` (R2/S3 could reject); `ensureBucket` tolerates no create rights / no bucket policy.
+- Media path check accepts R2 public URLs (`/properties/<id>.jpg` at the bucket root) on configured hosts.
+- `realtime.js` uses the guarded Sentry from `instrument.js` (unguarded require crashed a fresh container).
+- `backend/Dockerfile` → **Node 22** (AWS SDK requires ≥22 from Jan 2027).
+- Verified locally: 125/125 tests on Node 22; photo pipeline 200; presign has no checksum param; free-host
+  mode (`RUN_WORKER_IN_API` + `REDIS_URL`, bogus `REDIS_HOST`) boots API, adapter and in-process workers.
+- New runbook `docs/DEPLOY_FREE.md`.
+
 ### 2026-11-08 (Security backlog cleared: listing-photo validation, session revocation, public deletion page)
 - **Listing photos validated on save** (`checkListingImages` in `routes/properties.js`, `mediaBaseOf` in
   `messaging.js`): new `images`/`thumbnails` must be our processed media on a configured host and owned by

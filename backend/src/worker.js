@@ -4,7 +4,7 @@ const { Worker } = require("bullmq");
 const sharp = require("sharp");
 const { GetObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3");
 const { connection, THUMBNAIL_QUEUE, MAINTENANCE_QUEUE, maintenanceQueue } = require("./queue");
-const { s3, putObject, BUCKET } = require("./storage");
+const { s3, putObject, BUCKET, UPLOAD_BUCKET } = require("./storage");
 const pool = require("./db");
 const { reconcileOwners, backfillMessageSenders } = require("./clerkUsers");
 const { sweepStaleUploads } = require("./uploadSweep");
@@ -23,7 +23,7 @@ const worker = new Worker(
   async (job) => {
     const { origKey, base } = job.data;
 
-    const obj = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: origKey }));
+    const obj = await s3.send(new GetObjectCommand({ Bucket: UPLOAD_BUCKET, Key: origKey }));
     const buf = await streamToBuffer(obj.Body);
 
     const full = await sharp(buf, { limitInputPixels: 25e6, sequentialRead: true }).rotate()
@@ -38,7 +38,7 @@ const worker = new Worker(
 
     // Best-effort cleanup of the raw original
     try {
-      await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: origKey }));
+      await s3.send(new DeleteObjectCommand({ Bucket: UPLOAD_BUCKET, Key: origKey }));
     } catch { /* leave the original if delete fails */ }
 
     return { base };
@@ -64,7 +64,7 @@ const maintenanceWorker = new Worker(
       return { owners, senders };
     }
     if (job.name === "sweep-uploads") {
-      const r = await sweepStaleUploads(pool, s3, BUCKET);
+      const r = await sweepStaleUploads(pool, s3, UPLOAD_BUCKET);
       const d = await finishPendingDeletions(pool);
       if (r.bindings || d.pending) console.log("🧹 sweep:", JSON.stringify({ uploads: r, deletions: d }));
       return { uploads: r, deletions: d };

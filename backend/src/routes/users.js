@@ -5,7 +5,7 @@ const { getAuth } = require("@clerk/express");
 const rateLimit = require("express-rate-limit");
 const sharp = require("sharp");
 const { GetObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3");
-const { s3, BUCKET } = require("../storage");
+const { s3, UPLOAD_BUCKET } = require("../storage");
 const { setProfileImage, reconcileOwner, deleteClerkUser, getUser } = require("../clerkUsers");
 const { purgeUserData, deleteOwnedMedia } = require("../accountDeletion");
 const { markDeleted } = require("../revocation");
@@ -42,7 +42,7 @@ router.post("/me/photo", photoLimiter, async (req, res) => {
 
     let buf;
     try {
-      const obj = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: origKey }));
+      const obj = await s3.send(new GetObjectCommand({ Bucket: UPLOAD_BUCKET, Key: origKey }));
       // Fail closed if the size is unknown, and re-check after reading.
       if (typeof obj.ContentLength !== "number" || obj.ContentLength > MAX_AVATAR_BYTES) {
         return res.status(413).json({ error: "Photo is too large (max 10 MB)." });
@@ -52,7 +52,7 @@ router.post("/me/photo", photoLimiter, async (req, res) => {
     } catch {
       return res.status(400).json({ error: "Photo upload didn't arrive. Please try again." });
     } finally {
-      s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: origKey })).catch(() => {});
+      s3.send(new DeleteObjectCommand({ Bucket: UPLOAD_BUCKET, Key: origKey })).catch(() => {});
     }
 
     let jpeg;

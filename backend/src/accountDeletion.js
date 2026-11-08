@@ -1,7 +1,7 @@
 // Account deletion: one purge used by DELETE /users/me and by the maintenance sweep that
 // finishes deletions whose Clerk delete succeeded but whose DB transaction did not commit.
 const { DeleteObjectCommand } = require("@aws-sdk/client-s3");
-const { s3, BUCKET } = require("./storage");
+const { s3, BUCKET, UPLOAD_BUCKET } = require("./storage");
 const { getUser } = require("./clerkUsers");
 
 // Delete every row keyed to `userId` inside the caller's transaction (`client`).
@@ -28,9 +28,10 @@ async function purgeUserData(client, userId) {
 function deleteOwnedMedia(bases) {
   for (const base of bases) {
     if (!/^properties\/[A-Za-z0-9-]+$/.test(base)) continue;
-    for (const key of [`${base}.jpg`, `${base}_thumb.jpg`, `${base}_orig`]) {
+    for (const key of [`${base}.jpg`, `${base}_thumb.jpg`]) {
       s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key })).catch(() => {});
     }
+    s3.send(new DeleteObjectCommand({ Bucket: UPLOAD_BUCKET, Key: `${base}_orig` })).catch(() => {});
   }
 }
 

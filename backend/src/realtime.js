@@ -3,11 +3,12 @@ const { verifyToken } = require("@clerk/backend");
 const { isDeleted } = require("./revocation");
 const { createAdapter } = require("@socket.io/redis-adapter");
 const IORedis = require("ioredis");
+const { redisOptions } = require("./redisConfig");
 
 // Attaches Socket.io to the HTTP server. Each client authenticates with its Clerk
 // session token and joins a personal room keyed by its Clerk user id, so the API
 // can push events to a specific user with io.to(userId).
-const Sentry = require("@sentry/node");
+const Sentry = require("./instrument"); // guarded: null when @sentry/node is absent (calls are try-wrapped)
 
 function attachRealtime(server, app) {
   const io = new Server(server, { cors: { origin: "*" } });
@@ -25,11 +26,7 @@ function attachRealtime(server, app) {
   // io.to(userId) reaches a user connected to ANY API instance. Best-effort — if
   // Redis is unreachable, Socket.io falls back to its in-memory adapter (fine for one instance).
   try {
-    const opts = {
-      host: process.env.REDIS_HOST || "redis",
-      port: Number(process.env.REDIS_PORT) || 6379,
-      maxRetriesPerRequest: null,
-    };
+    const opts = redisOptions({ maxRetriesPerRequest: null });
     const pub = new IORedis(opts);
     const sub = pub.duplicate();
     pub.on("error", (e) => console.error("socket.io redis pub error:", e.message));

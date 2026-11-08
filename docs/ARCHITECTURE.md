@@ -384,6 +384,7 @@ Shared code in `mobile/src`:
 
 Derived/compose-set: `DATABASE_URL`, `S3_ENDPOINT`, `S3_BUCKET`, `S3_PUBLIC_BASE=/media`,
 `REDIS_HOST/PORT`, `EXPO_PUBLIC_API_URL`, `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`.
+Free-tier hosting (Render + Neon + R2): `REDIS_URL` (redis:// or rediss://, overrides `REDIS_HOST/PORT`), `RUN_WORKER_IN_API=true` (workers in the API process), `S3_REGION` (`auto` on R2), `S3_UPLOAD_BUCKET` (private bucket for raw uploads), `SEED_DEMO`, `SUPPORT_EMAIL`, `API_PUBLIC_URL` — see `docs/DEPLOY_FREE.md`.
 `GOOGLE_MAPS_ANDROID_KEY` (mobile) — injected into the Android manifest by `mobile/app.config.js` (env → `mobile/.env` → root `.env`); native, so changing it needs `npx expo prebuild -p android` + a dev-build rebuild. Restricted in Google Cloud to `com.zamin.app` + SHA-1s.
 
 Security/ops (optional): `CORS_ORIGIN` (comma-separated allow-list; default `*` for dev),

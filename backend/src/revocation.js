@@ -3,14 +3,14 @@
 // (or recreate rows mid-deletion). On deletion we mark the id in Redis (shared across instances)
 // for longer than a token can live; requireAuth + socket auth reject marked ids.
 const IORedis = require("ioredis");
-const { connection } = require("./queue");
+const { redisOptions } = require("./redisConfig");
 
 const TTL_SECONDS = 300;
 const local = new Map(); // id → expiry ms (fast path + works if Redis is briefly down)
 let redis = null;
 function client() {
   if (!redis) {
-    redis = new IORedis({ host: connection.host, port: connection.port, lazyConnect: false, maxRetriesPerRequest: 1, enableOfflineQueue: false });
+    redis = new IORedis(redisOptions({ maxRetriesPerRequest: 1, enableOfflineQueue: false }));
     redis.on("error", () => {}); // never crash the API over the revocation cache
   }
   return redis;

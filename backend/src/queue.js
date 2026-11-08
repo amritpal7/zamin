@@ -1,11 +1,8 @@
 const { Queue } = require("bullmq");
 
 // BullMQ requires maxRetriesPerRequest: null on the connection.
-const connection = {
-  host: process.env.REDIS_HOST || "redis",
-  port: Number(process.env.REDIS_PORT || 6379),
-  maxRetriesPerRequest: null,
-};
+const { redisOptions } = require("./redisConfig");
+const connection = redisOptions({ maxRetriesPerRequest: null });
 
 const THUMBNAIL_QUEUE = "thumbnail";
 const MAINTENANCE_QUEUE = "maintenance";
