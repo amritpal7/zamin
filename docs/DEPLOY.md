@@ -1,3 +1,7 @@
+> ⚠️ **Superseded (2026-11-10).** The Railway trial expired and `api-production-43dd.up.railway.app` is gone.
+> Production now runs on the free stack in **`docs/DEPLOY_FREE.md`** — API **https://zamin-api.onrender.com**
+> (Render, Singapore) + Neon Postgres + Render Key Value + Cloudflare R2. Kept below for history.
+
 # Zamin — Production Deployment (Railway)
 
 Phase 1 of `LAUNCH.md` is live. The backend runs on **Railway** (project `zamin-prod`).

@@ -48,8 +48,10 @@ Three pillars we judge every change against:
       `SUPPORT_EMAIL`, then use the URL in Play Console once prod is hosted.
 - [~] **Terms of service / Privacy policy / Rate app** — drafts in `docs/legal/` (2026-11-08); owner to fill
       placeholders + legal review, then host them and re-add Settings rows. Rate row after store listing.
-- [ ] **Production API down** (found 2026-11-08) — Railway domain returns "Application not found"; restore
-      the service/domain before any deploy.
+- [x] **Production restored on free tier** (2026-11-10) — Render + Neon + Render Key Value + R2;
+      `https://zamin-api.onrender.com`. Verified live: health, auth, 118 listings, photo upload → R2 → worker →
+      public thumb, listing create, realtime handshake, /account-deletion. App configs point at it.
+- [ ] **Tester build** — Android APK (EAS `preview` profile, needs `eas login` + `eas init`) pointing at Render.
 - [x] **Listing photo upload verified on native Android** (2026-11-07) — presign → MinIO PUT →
       BullMQ resize/thumb → listing renders. Recheck the presign `x-amz-checksum-crc32` param on real S3/R2.
 - [x] **Confirm authorization on `saved`/`messages` routes** (2026-11-07) — audited saved, messages,

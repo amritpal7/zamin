@@ -1,5 +1,11 @@
 # Free-tier production stack (replaces Railway, 2026-11-08)
 
+**Live since 2026-11-10:** API `https://zamin-api.onrender.com` · Render service `srv-dbpagcff3r2c73fjc5f0`
+(workspace "My Workspace") · Key Value `zamin-redis` (`red-dbo55gff3r2c73a6vs4g`) · Neon `ap-southeast-1` ·
+R2 buckets `zamin-media` (public r2.dev) + `zamin-uploads` (private). Demo data: 118 listings (seed-demo + SEED_DEMO).
+Secrets (`DATABASE_URL`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `CLERK_*`, `SUPPORT_EMAIL`) were entered in the Render
+dashboard by the owner — names WITHOUT the `PROD_` prefix used in the local root `.env`.
+
 | Piece | Service | Free limits (check current pricing) |
 |---|---|---|
 | API **+ workers** | **Render** free web service (Docker, `backend/Dockerfile`), region **Singapore** | Sleeps after ~15 min idle, ~1 min cold start; 512 MB; no free background workers → `RUN_WORKER_IN_API=true` |

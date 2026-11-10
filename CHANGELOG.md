@@ -12,6 +12,20 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-11-10 (Ops: production live on the free stack — Render + Neon + Render Key Value + Cloudflare R2)
+- Render web service `zamin-api` (free, Docker, Singapore, `RUN_WORKER_IN_API=true`) + Key Value `zamin-redis`
+  (free, `noeviction`) created via the Render connector; secrets entered by the owner in the dashboard.
+  Neon (PG 18, `ap-southeast-1`, pooled) + R2 (`zamin-media` public, `zamin-uploads` private).
+- First boot: migrations + `SEED_DEMO` base rows; `scripts/seed-demo.js` run against Neon → **118 listings**.
+- **Verified live:** `/health` 200, `/saved` 401→200 with a token, `/properties` 118 with photos, presigned PUT
+  to R2 (private bucket, no checksum param) 200 → `/process` → in-process worker → public photo + thumb 200 on
+  r2.dev → listing create 201; raw `_orig` not public (404); Socket.io polling handshake OK; `/account-deletion` 200.
+- Fixes found while deploying: empty error logs on connection failures now print the error code; in-process
+  workers start only **after** migrations (boot-time maintenance job hit a not-yet-created schema on fresh Neon).
+- Server secrets moved out of `mobile/.env` into the root `.env` (they had been added there).
+- App: `mobile/eas.json` (preview + production) and `mobile/.env` → `https://zamin-api.onrender.com`; local Metro
+  recreated (local bundle still targets `10.0.2.2`). `docs/DEPLOY.md` marked superseded by `docs/DEPLOY_FREE.md`.
+
 ### 2026-11-08 (Ops: free-tier hosting readiness — Render + Neon + Render Key Value + Cloudflare R2)
 Railway trial expired (prod "Application not found"). Code changes so the backend runs on free tiers:
 - `src/redisConfig.js`: one Redis config for BullMQ, Socket.io adapter and revocation; supports `REDIS_URL`
