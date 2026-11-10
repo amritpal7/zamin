@@ -75,3 +75,9 @@ const INTERNAL_TAGS = new Set(["demo-seed"]);
 export function displayTags(tags) {
   return (Array.isArray(tags) ? tags : []).filter((t) => t && !INTERNAL_TAGS.has(String(t).toLowerCase()));
 }
+
+// "Sold" / "Rented" once the owner has closed the listing (closed_at), else null.
+export function closedLabel(p) {
+  if (!p?.closed_at) return null;
+  return p.status === "For Rent" ? "Rented" : "Sold";
+}

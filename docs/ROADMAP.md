@@ -184,7 +184,9 @@ The plan for taking chat further, tiered by user value. Tier 1 foundation is don
       photos + documents in the broker-less flow. (Doc files / PDFs = future extension.)
 - [x] **⚡ Quick replies** (2026-08-19) — context-aware canned chips (buyer vs owner) above the
       composer; one tap to send. Client-only.
-- [ ] Richer property context in the chat header (live price, "still available" badge).
+- [x] **Richer chat header** (2026-11-10) — listing photo, live price and Available / Sold / Rented chip;
+      "no longer available" when the listing was deleted or hidden. Backed by owner **Mark sold/rented ↔ Relist**
+      (My listings) — closed listings leave the feed/map but stay reachable from chats, saved and links.
 
 **Tier 3 — trust & safety (given fake-account concerns)**
 - [x] **Report / block user** (2026-08-19) — `blocks`+`reports` tables, `/users/:id/block|report`,

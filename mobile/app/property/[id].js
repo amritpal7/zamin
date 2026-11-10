@@ -16,7 +16,7 @@ import BottomSheet from "../../src/components/BottomSheet";
 import { Avatar, Tag } from "../../src/components/ui";
 import { useApi } from "../../src/hooks/useApi";
 import { SEED_PROPERTIES } from "../../src/data/properties";
-import { pricePerSqft, estimateEMI, displayTags } from "../../src/utils/property";
+import { pricePerSqft, estimateEMI, displayTags, closedLabel } from "../../src/utils/property";
 
 // react-native-maps is web-stubbed; only load the native parcel map on device.
 let MapView, Polygon, Marker;
@@ -592,8 +592,8 @@ export default function PropertyDetail() {
           {/* Status + price row */}
           <View style={{ flexDirection: "row", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
             <Chip
-              label={p.status}
-              color={p.status === "For Sale" ? C.green : C.blue}
+              label={closedLabel(p) || p.status}
+              color={closedLabel(p) ? C.red : p.status === "For Sale" ? C.green : C.blue}
             />
             <View style={{
               backgroundColor: color,
@@ -952,6 +952,12 @@ export default function PropertyDetail() {
             </Text>
           </View>
         ) : (
+          <View style={{ gap: 10 }}>
+          {closedLabel(p) && (
+            <Text style={{ color: C.fgDim, fontSize: 12, fontFamily: FONT, textAlign: "center" }}>
+              The owner has marked this property as {closedLabel(p).toLowerCase()}.
+            </Text>
+          )}
           <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
             <Pressable
               onPress={() => { if (!isSignedIn) { router.push("/sign-in"); return; } router.push(`/chat/${p.id}?peer=${p.clerk_user_id}`); }}
@@ -974,6 +980,7 @@ export default function PropertyDetail() {
                 <Icon name="send" size={18} color={C.fg} strokeWidth={1.7} />
               </Pressable>
             )}
+          </View>
           </View>
         )}
       </View>

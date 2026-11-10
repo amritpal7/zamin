@@ -12,11 +12,12 @@ import { C, FONT, FONT_MED, FONT_HEAD, FONT_HEAD_ITALIC } from "../src/theme";
 import { Icon } from "../src/components/Icon";
 import { Tag } from "../src/components/ui";
 import SmartImage from "../src/components/SmartImage";
-import { displayTags } from "../src/utils/property";
+import { displayTags, closedLabel } from "../src/utils/property";
 import { useApi } from "../src/hooks/useApi";
 import ConfirmModal from "../src/components/ConfirmModal";
 
-function MyListingCard({ property: p, onEdit, onDelete }) {
+function MyListingCard({ property: p, onEdit, onDelete, onToggleClosed, busy }) {
+  const closed = closedLabel(p);
   const ambient = p.color || C.amber;
   return (
     <View style={{
@@ -57,7 +58,9 @@ function MyListingCard({ property: p, onEdit, onDelete }) {
               </Text>
             </View>
             <View style={{ flexDirection: "row", gap: 6, marginTop: 8 }}>
-              <Tag color={p.status === "For Sale" ? C.green : C.blue} solid>{p.status}</Tag>
+              {closed
+                ? <Tag color={C.red} solid>{closed}</Tag>
+                : <Tag color={p.status === "For Sale" ? C.green : C.blue} solid>{p.status}</Tag>}
               <Tag color={C.amber}>{p.type}</Tag>
             </View>
           </View>
@@ -97,6 +100,22 @@ function MyListingCard({ property: p, onEdit, onDelete }) {
             <Text style={{ color: C.fg, fontFamily: FONT_MED, fontSize: 12 }}>Edit</Text>
           </Pressable>
           <Pressable
+            onPress={onToggleClosed}
+            disabled={busy}
+            accessibilityLabel={closed ? "Relist" : p.status === "For Rent" ? "Mark rented" : "Mark sold"}
+            style={({ pressed }) => ({
+              flex: 1, backgroundColor: C.chipBg, borderRadius: 999, paddingVertical: 10,
+              alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 6,
+              opacity: busy ? 0.5 : pressed ? 0.85 : 1,
+              borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder,
+            })}
+          >
+            <Icon name={closed ? "home" : "check"} size={14} color={C.fg} />
+            <Text style={{ color: C.fg, fontFamily: FONT_MED, fontSize: 12 }}>
+              {closed ? "Relist" : p.status === "For Rent" ? "Mark rented" : "Mark sold"}
+            </Text>
+          </Pressable>
+          <Pressable
             onPress={onDelete}
             style={({ pressed }) => ({
               flex: 1, backgroundColor: C.red + "1A", borderRadius: 999, paddingVertical: 10,
@@ -128,6 +147,19 @@ export default function MyListings() {
   const [loading,      setLoading]      = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting,     setDeleting]     = useState(false);
+  const [toggling,     setToggling]     = useState(null);   // id being marked sold/relisted
+
+  const toggleClosed = async (p) => {
+    setToggling(p.id);
+    try {
+      const updated = await apiRef.current.setAvailability(p.id, !p.closed_at);
+      setListings(prev => prev.map(x => (x.id === p.id ? { ...x, closed_at: updated.closed_at } : x)));
+    } catch (e) {
+      Alert.alert("Couldn't update", e.message || "Please try again.");
+    } finally {
+      setToggling(null);
+    }
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -244,6 +276,8 @@ export default function MyListings() {
             property={p}
             onEdit={() => router.push(`/property/edit/${p.id}`)}
             onDelete={() => setDeleteTarget(p)}
+            onToggleClosed={() => toggleClosed(p)}
+            busy={toggling === p.id}
           />
         ))}
       </ScrollView>

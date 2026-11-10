@@ -12,6 +12,24 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-11-10 (Added: mark listings Sold/Rented; richer chat header)
+Owners could only delete a sold property (breaking every buyer's chat and saved link), and the chat header
+couldn't say whether the property was still available.
+- `backend/migrations/1731400000000_listing_closed.js`: `properties.closed_at`.
+- `POST /properties/:id/availability {closed}` (owner only; re-closing keeps the original date). `GET /properties`
+  (feed + map) excludes closed listings; detail, saved, mine, chats still return them with `closed_at`.
+- App: `utils/property.js` `closedLabel()` ("Sold"/"Rented" by status). My listings: **Mark sold / Mark rented ↔
+  Relist** button + red status tag. Property detail: red Sold/Rented chip + "The owner has marked this property
+  as sold." above the contact bar. PropertyCard (saved/discover): status pill shows Sold/Rented. Chat header pill:
+  listing photo, live price, Available/Sold/Rented chip; 404 → "This listing is no longer available."
+- Ripple checked: feed/map query (closed excluded), saved (kept, badge), insights comparables (unchanged — closed
+  listings are still valid price comparisons), saved-search notify (new listings are never closed), contact
+  endpoint (still works for an existing conversation), edit/PUT doesn't touch `closed_at`.
+- Tests: backend 143/143 (+2), mobile 44/44, bundle compiles. Emulator: Mark rented → Rented tag → Relist;
+  chat header Available → Sold after closing; detail chip + banner.
+- Noticed once (not reproducible on relaunch): a cold-start "state update on a component that hasn't mounted"
+  red box ~3 s after launch, before any changed screen mounts — logged for follow-up.
+
 ### 2026-11-10 (Security/Added: owner phone only after a chat starts; saved-list privacy fix)
 Every listing payload carried `owner_phone` (scrapable by anyone, signed out), and `GET /saved` returned raw
 rows (exact coordinates of hidden/approximate listings).

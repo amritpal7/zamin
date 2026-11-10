@@ -228,7 +228,8 @@ router.get("/", async (req, res) => {
     if (hasGeo) params.push(glat, glng); // $1, $2
 
     // Soft-hide: deleted/flagged owners (owner_active) and moderation-flagged listings (flagged).
-    let where = "owner_active IS DISTINCT FROM false AND flagged IS DISTINCT FROM true AND owner_banned IS NOT TRUE";
+    // Sold/rented (closed_at) listings leave browse + map; chats, saved and direct links still open them.
+    let where = "owner_active IS DISTINCT FROM false AND flagged IS DISTINCT FROM true AND owner_banned IS NOT TRUE AND closed_at IS NULL";
     if (hasGeo) {
       where += " AND latitude IS NOT NULL AND longitude IS NOT NULL";
       // A 'hidden' listing must NOT surface in a proximity search: even with its coords
@@ -393,6 +394,27 @@ router.get("/:id", async (req, res) => {
     if ((rows[0].flagged || rows[0].owner_banned) && rows[0].clerk_user_id !== userId && !isAdmin(userId)) {
       return res.status(404).json({ error: "Not found" });
     }
+    res.json(publicListing(rows[0], userId));
+  } catch (err) {
+    console.error("[properties]", err.message || err.code || String(err));
+    res.status(500).json({ error: "Something went wrong. Please try again." });
+  }
+});
+
+// POST /properties/:id/availability { closed: true|false } — owner marks the listing Sold/Rented
+// (by its status) or puts it back on the market. Never deletes anything.
+router.post("/:id/availability", requireAuth, async (req, res) => {
+  try {
+    if (!isUuid(req.params.id)) return res.status(400).json({ error: "Invalid property id" });
+    const closed = req.body?.closed;
+    if (typeof closed !== "boolean") return res.status(400).json({ error: "closed must be true or false" });
+    const { userId } = getAuth(req);
+    const { rows } = await pool.query(
+      `UPDATE properties SET closed_at = CASE WHEN $1 THEN COALESCE(closed_at, NOW()) ELSE NULL END, updated_at = NOW()
+        WHERE id = $2 AND clerk_user_id = $3 RETURNING *`,
+      [closed, req.params.id, userId]
+    );
+    if (!rows[0]) return res.status(404).json({ error: "Not found or not owner" });
     res.json(publicListing(rows[0], userId));
   } catch (err) {
     console.error("[properties]", err.message || err.code || String(err));

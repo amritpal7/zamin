@@ -7,7 +7,7 @@ import { Icon } from "./Icon";
 import SmartImage from "./SmartImage";
 import PressableScale from "./PressableScale";
 import { Avatar } from "./ui";
-import { pricePerSqft, estimateEMI } from "../utils/property";
+import { pricePerSqft, estimateEMI, closedLabel } from "../utils/property";
 
 export default function PropertyCard({ property: p, onPress, onSave, saved, isOwn, featured }) {
   useTheme();
@@ -61,7 +61,7 @@ export default function PropertyCard({ property: p, onPress, onSave, saved, isOw
           {/* Status + (when it's yours) a clear "Your listing" badge — top left */}
           <View style={{ position: "absolute", top: 16, left: 16, gap: 8, alignItems: "flex-start" }}>
             <View style={{
-              backgroundColor: "rgba(10,14,26,0.55)",
+              backgroundColor: closedLabel(p) ? "rgba(190,40,40,0.85)" : "rgba(10,14,26,0.55)",
               borderRadius: 999,
               paddingHorizontal: 12,
               paddingVertical: 7,
@@ -69,7 +69,7 @@ export default function PropertyCard({ property: p, onPress, onSave, saved, isOw
               borderColor: "rgba(255,236,210,0.18)",
             }}>
               <Text style={{ color: "#F5EFE6", fontSize: 11, fontFamily: FONT, fontWeight: "500" }}>
-                {p.status}
+                {closedLabel(p) || p.status}
               </Text>
             </View>
             {isOwn && (

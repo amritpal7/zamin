@@ -15,6 +15,7 @@ import { Avatar } from "../../src/components/ui";
 import SmartImage from "../../src/components/SmartImage";
 import { SEED_PROPERTIES } from "../../src/data/properties";
 import { useApi } from "../../src/hooks/useApi";
+import { closedLabel } from "../../src/utils/property";
 import { useSocket } from "../../src/context/SocketContext";
 import { setActiveChat } from "../../src/components/PushManager";
 import BottomSheet from "../../src/components/BottomSheet";
@@ -174,8 +175,12 @@ export default function Chat() {
   const doUnblock = async () => { try { await apiRef.current.unblockUser(peer); setBlock((b) => ({ ...b, blockedByMe: false })); } catch {} };
   const doReport = async (reason) => { setReportOpen(false); setMenuOpen(false); try { await apiRef.current.reportUser(peer, reason, id); Alert.alert("Reported", "Thanks — our team will review this."); } catch {} };
 
+  // Live listing for the header (current price + availability). A 404 means it was deleted or
+  // hidden by moderation — say so instead of showing a stale card.
+  const [listingGone, setListingGone] = useState(false);
   useEffect(() => {
-    api.getProperty(id).then(setP).catch(() => {});
+    api.getProperty(id).then((x) => { setP(x); setListingGone(false); })
+      .catch((e) => { if (e?.status === 404) { setListingGone(true); setP(null); } });
   }, [id]);
 
   useEffect(() => {
@@ -484,18 +489,37 @@ export default function Chat() {
               })}
             >
               <View style={{
-                width: 44, height: 44, borderRadius: 12,
+                width: 44, height: 44, borderRadius: 12, overflow: "hidden",
                 backgroundColor: (p.color || C.amber) + "33",
                 alignItems: "center", justifyContent: "center",
               }}>
-                <Text style={{ fontSize: 22 }}>{p.img}</Text>
+                {p.thumbnails?.[0] || p.images?.[0]
+                  ? <SmartImage uri={p.thumbnails?.[0] || p.images[0]} style={StyleSheet.absoluteFill} />
+                  : <Text style={{ fontSize: 22 }}>{p.img}</Text>}
               </View>
-              <View style={{ flex: 1 }}>
+              <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={{ color: C.fg, fontFamily: FONT_HEAD, fontSize: 16, letterSpacing: -0.2 }} numberOfLines={1}>{p.title}</Text>
-                <Text style={{ color: C.amberText, fontFamily: FONT_MED, fontSize: 13, marginTop: 2 }}>{typeof p.price === "number" ? `₹${p.price}` : p.price}</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 2 }}>
+                  <Text style={{ color: C.amberText, fontFamily: FONT_MED, fontSize: 13 }}>{typeof p.price === "number" ? `₹${p.price}` : p.price}</Text>
+                  {(() => {
+                    const closed = closedLabel(p);
+                    const color = closed ? C.red : C.green;
+                    return (
+                      <View style={{ backgroundColor: color + "22", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 }}>
+                        <Text style={{ color, fontFamily: FONT_MED, fontSize: 10 }}>{closed || "Available"}</Text>
+                      </View>
+                    );
+                  })()}
+                </View>
               </View>
               <Icon name="chevR" size={16} color={C.fgDim} />
             </Pressable>
+          )}
+
+          {!p && listingGone && (
+            <View style={{ backgroundColor: C.glassBg, borderRadius: 18, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder, padding: 12, marginBottom: 6 }}>
+              <Text style={{ color: C.fgDim, fontFamily: FONT, fontSize: 13, textAlign: "center" }}>This listing is no longer available.</Text>
+            </View>
           )}
 
           {loading && <ActivityIndicator color={C.amber} style={{ marginTop: 20 }} />}

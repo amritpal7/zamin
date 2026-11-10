@@ -35,6 +35,8 @@ export function useApi() {
     getProperty: (id) => request(`/properties/${id}`),
     // Owner's phone — server only answers after you've messaged the owner (403 code "chat_first").
     getContact: (id) => request(`/properties/${id}/contact`),
+    // Owner: mark Sold/Rented (closed=true) or back on the market (closed=false).
+    setAvailability: (id, closed) => request(`/properties/${id}/availability`, { method: "POST", body: JSON.stringify({ closed }) }),
     getInsights: (id) => request(`/properties/${id}/insights`),
     getMyProperties: () => request("/properties/mine"),
     createProperty: (data) => request("/properties", { method: "POST", body: JSON.stringify(data) }),

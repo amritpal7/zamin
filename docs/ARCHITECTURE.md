@@ -109,6 +109,7 @@ Three tables. Clerk owns identity; we key everything by `clerk_user_id VARCHAR(2
 | img, color | VARCHAR | emoji + accent color fallback |
 | images, thumbnails | TEXT[] | object-storage URLs (added via migration) |
 | verified | BOOLEAN | **owner-level trust badge, server-authoritative.** Set from the owner's Clerk account (≥1 verified email/phone) on create + kept in sync across all their listings by `reconcileOwners`. Never trusted from the client. Seed rows keep their init.sql values (reconcile skips `seed_user_*`) |
+| closed_at | TIMESTAMPTZ | set when the owner marks it Sold/Rented (label follows `status`); excluded from browse/map, shown with a badge elsewhere (migration `1731400000000`) |
 | owner_active | BOOLEAN | false = owner's Clerk account no longer exists (reconciled). **Soft-hide:** false rows are excluded from `GET /properties` + `GET /saved` (data retained, reachable by direct id) |
 | owner_image | TEXT | owner's Clerk profile photo URL (denormalized; set on create + reconcile) |
 | location_visibility | VARCHAR | `exact` \| `approximate` \| `hidden`. **Server-enforced privacy** (`locationPrivacy.js`): reads redact non-owners' coords — `approximate` returns a deterministic ~400m jitter (+`location_precision`/`location_radius_m`), `hidden` returns null lat/lng and null `distance_km`. Owner always sees exact. Per-listing (Post/Edit) with a global default in Clerk `publicMetadata.default_location_visibility` (bulk-set via `PUT /properties/location-visibility`) |
@@ -242,6 +243,7 @@ Base path through nginx: `/api`. Direct: `http://localhost:4000`.
 |--------|------|------|---------|
 | GET | `/properties` | public | List (paginated): `?limit`(1–100,def 24)`&offset` + `?type&status&search` + geo `?lat&lng&radius`. Returns `{items,total,limit,offset,hasMore}`; per-listing location redacted |
 | GET | `/properties/:id` | public | Single property |
+| POST | `/properties/:id/availability` | 🔒 owner | `{closed: bool}` — mark Sold/Rented (sets `closed_at`, keeps first date) or relist (`null`). Closed listings leave `GET /properties` (feed + map) but still open by id / in saved / chats |
 | GET | `/properties/:id/contact` | 🔒 | Owner's phone `{phone}` — only after the caller has messaged the owner about this listing (owner/admin always); else 403 `{code:"chat_first"}`; blocked either way → 403; hidden/banned/removed → 404; 60/h per user |
 | GET | `/properties/:id/insights` | public | Price insights: listing ₹/sqft vs area median of comparable listings (same type+status+locality) → verdict good_deal/at_market/above_market/insufficient (`insights.js`) |
 | POST | `/properties/:id/report` | 🔒 | Flag a listing (dedup per reporter); auto-hides (`flagged`) after 3 distinct reporters |

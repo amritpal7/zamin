@@ -1338,3 +1338,43 @@ describe("contact privacy: owner phone only after the viewer has messaged the ow
     await pool.query("DELETE FROM properties WHERE id = ANY($1::uuid[])", [[pid, noPhoneId]]);
   });
 });
+
+describe("availability: owner marks a listing sold/rented", () => {
+  let pid;
+  beforeAll(async () => {
+    pid = (await request(app).post("/properties").set("x-test-user", USER_A).send({ ...sampleListing, title: "Availability Listing Zq" })).body.id;
+  });
+  const inFeed = async () => (await request(app).get("/properties?search=Availability%20Listing%20Zq")).body.items.some((r) => r.id === pid);
+  test("validation + ownership", async () => {
+    expect((await request(app).post(`/properties/${pid}/availability`).send({ closed: true })).status).toBe(401);
+    expect((await request(app).post(`/properties/${pid}/availability`).set("x-test-user", USER_A).send({ closed: "yes" })).status).toBe(400);
+    expect((await request(app).post(`/properties/${pid}/availability`).set("x-test-user", USER_B).send({ closed: true })).status).toBe(404);
+    expect((await request(app).post("/properties/nope/availability").set("x-test-user", USER_A).send({ closed: true })).status).toBe(400);
+  });
+  test("closing removes it from the feed but keeps detail + saved working; reopening restores", async () => {
+    expect(await inFeed()).toBe(true);
+    await request(app).post(`/saved/${pid}`).set("x-test-user", USER_B);
+    const closed = await request(app).post(`/properties/${pid}/availability`).set("x-test-user", USER_A).send({ closed: true });
+    expect(closed.status).toBe(200);
+    expect(closed.body.closed_at).toBeTruthy();
+    expect(closed.body.owner_phone).toBe(sampleListing.owner_phone); // owner's own view
+    expect(await inFeed()).toBe(false);
+    const detail = await request(app).get(`/properties/${pid}`).set("x-test-user", USER_B);
+    expect(detail.status).toBe(200);
+    expect(detail.body.closed_at).toBeTruthy();
+    const saved = await request(app).get("/saved").set("x-test-user", USER_B);
+    expect(saved.body.find((r) => r.id === pid)?.closed_at).toBeTruthy();
+    const mine = await request(app).get("/properties/mine").set("x-test-user", USER_A);
+    expect(mine.body.find((r) => r.id === pid)?.closed_at).toBeTruthy();
+    // closing twice keeps the original date
+    const again = await request(app).post(`/properties/${pid}/availability`).set("x-test-user", USER_A).send({ closed: true });
+    expect(again.body.closed_at).toBe(closed.body.closed_at);
+    const reopened = await request(app).post(`/properties/${pid}/availability`).set("x-test-user", USER_A).send({ closed: false });
+    expect(reopened.body.closed_at).toBeNull();
+    expect(await inFeed()).toBe(true);
+  });
+  afterAll(async () => {
+    await pool.query("DELETE FROM saved_properties WHERE property_id = $1", [pid]);
+    await pool.query("DELETE FROM properties WHERE id = $1", [pid]);
+  });
+});
