@@ -10,7 +10,7 @@ const { putObject, putUpload, presignPut } = require("../storage");
 const { thumbnailQueue } = require("../queue");
 const { validateProperty, isUuid, LOCATION_VISIBILITIES } = require("../validation");
 const { reconcileOwner, reconcileOwners, getUser, setLocationDefault } = require("../clerkUsers");
-const { redactLocation } = require("../locationPrivacy");
+const { publicListing, hasPhone } = require("../listingView");
 const { computePhotoTrust } = require("../photoTrust");
 const { computeInsights, MIN_SAMPLE } = require("../insights");
 const { mediaBaseOf } = require("../messaging");
@@ -279,7 +279,7 @@ router.get("/", async (req, res) => {
     // Enforce per-listing location privacy before anything leaves the server. The
     // owner (userId, resolved above) always sees their own exact coords.
     res.json({
-      items: rows.map((r) => redactLocation(r, userId)),
+      items: rows.map((r) => publicListing(r, userId)),
       total, limit, offset,
       hasMore: offset + rows.length < total,
     });
@@ -320,7 +320,7 @@ router.get("/mine", requireAuth, async (req, res) => {
       "SELECT * FROM properties WHERE clerk_user_id = $1 ORDER BY created_at DESC",
       [userId]
     );
-    res.json(rows);
+    res.json(rows.map((r) => publicListing(r, userId)));
   } catch (err) {
     console.error("[properties]", err.message || err.code || String(err));
     res.status(500).json({ error: "Something went wrong. Please try again." });
@@ -374,7 +374,7 @@ router.put("/:id", requireAuth, async (req, res) => {
        req.params.id, userId, parcelJson]
     );
     if (!rows[0]) return res.status(404).json({ error: "Not found or not owner" });
-    res.json(redactLocation(rows[0], userId));
+    res.json(publicListing(rows[0], userId));
   } catch (err) {
     console.error("[properties]", err.message || err.code || String(err));
     res.status(500).json({ error: "Something went wrong. Please try again." });
@@ -393,7 +393,48 @@ router.get("/:id", async (req, res) => {
     if ((rows[0].flagged || rows[0].owner_banned) && rows[0].clerk_user_id !== userId && !isAdmin(userId)) {
       return res.status(404).json({ error: "Not found" });
     }
-    res.json(redactLocation(rows[0], userId));
+    res.json(publicListing(rows[0], userId));
+  } catch (err) {
+    console.error("[properties]", err.message || err.code || String(err));
+    res.status(500).json({ error: "Something went wrong. Please try again." });
+  }
+});
+
+// GET /properties/:id/contact — the owner's phone number, revealed only once the viewer has
+// messaged the owner about THIS listing (owner and admins always). 403 { code: "chat_first" }
+// tells the app to send them to chat. Blocked either way → 403, hidden/banned/deleted → 404.
+const contactLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, max: 60, standardHeaders: true, legacyHeaders: false,
+  keyGenerator: (req) => getAuth(req).userId || req.ip,
+  message: { error: "Too many requests. Please try again later." },
+});
+router.get("/:id/contact", requireAuth, contactLimiter, async (req, res) => {
+  try {
+    if (!isUuid(req.params.id)) return res.status(404).json({ error: "Not found" });
+    const { userId } = getAuth(req);
+    const { rows } = await pool.query(
+      "SELECT clerk_user_id, owner_phone, owner_active, flagged, owner_banned FROM properties WHERE id = $1",
+      [req.params.id]
+    );
+    const p = rows[0];
+    if (!p) return res.status(404).json({ error: "Not found" });
+    const owner = p.clerk_user_id;
+    if (owner === userId || isAdmin(userId)) return res.json({ phone: p.owner_phone || null });
+    if (p.flagged || p.owner_banned || p.owner_active === false) return res.status(404).json({ error: "Not found" });
+    if (!hasPhone(p)) return res.json({ phone: null });
+    const blocked = await pool.query(
+      "SELECT 1 FROM blocks WHERE (blocker_id = $1 AND blocked_id = $2) OR (blocker_id = $2 AND blocked_id = $1) LIMIT 1",
+      [owner, userId]
+    );
+    if (blocked.rowCount) return res.status(403).json({ error: "You can't contact this owner." });
+    const chatted = await pool.query(
+      "SELECT 1 FROM messages WHERE property_id = $1 AND sender_id = $2 AND receiver_id = $3 LIMIT 1",
+      [req.params.id, userId, owner]
+    );
+    if (!chatted.rowCount) {
+      return res.status(403).json({ error: "Send the owner a message first — their number unlocks after you've said hello.", code: "chat_first" });
+    }
+    res.json({ phone: p.owner_phone });
   } catch (err) {
     console.error("[properties]", err.message || err.code || String(err));
     res.status(500).json({ error: "Something went wrong. Please try again." });
@@ -482,7 +523,7 @@ router.post("/", requireAuth, async (req, res) => {
     );
     // Notify users whose saved search matches this new listing (best-effort; never fails create).
     try { await notifyListingMatch(pool, rows[0]); } catch (e) { console.error("saved-search notify failed:", e.message); }
-    res.status(201).json(rows[0]);
+    res.status(201).json(publicListing(rows[0], userId));
   } catch (err) {
     console.error("[properties]", err.message || err.code || String(err));
     res.status(500).json({ error: "Something went wrong. Please try again." });

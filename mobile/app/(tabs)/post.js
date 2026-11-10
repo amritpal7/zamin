@@ -1037,6 +1037,9 @@ export default function Post() {
             )}
 
             <InputField labelText="WhatsApp / Contact Number" icon="phone" value={form.contactPhone} onChange={v => set("contactPhone", v.replace(/[^0-9+\s\-]/g, ""))} placeholder="e.g. 98765 43210" keyboardType="phone-pad" />
+            <Text style={{ color: C.fgDim, fontSize: 11, fontFamily: FONT, marginTop: -8 }}>
+              Only shown to people after they've messaged you about this listing.
+            </Text>
 
             {/* Location privacy — how precisely the pin is shown to other users */}
             <View>

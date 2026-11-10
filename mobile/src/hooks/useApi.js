@@ -18,7 +18,10 @@ export function useApi() {
     const res = await trackedFetch(`${BASE}${path}`, { redirect: "manual", ...options, headers: { ...headers, ...options.headers } });
     if (!res.ok || res.type === "opaqueredirect") {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || (res.status === 401 ? "Unauthorized" : res.statusText) || "Request failed");
+      throw Object.assign(
+        new Error(err.error || (res.status === 401 ? "Unauthorized" : res.statusText) || "Request failed"),
+        { status: res.status, code: err.code }
+      );
     }
     return res.json();
   }, [getToken]);
@@ -30,6 +33,8 @@ export function useApi() {
       return request(`/properties${q ? `?${q}` : ""}`);
     },
     getProperty: (id) => request(`/properties/${id}`),
+    // Owner's phone — server only answers after you've messaged the owner (403 code "chat_first").
+    getContact: (id) => request(`/properties/${id}/contact`),
     getInsights: (id) => request(`/properties/${id}/insights`),
     getMyProperties: () => request("/properties/mine"),
     createProperty: (data) => request("/properties", { method: "POST", body: JSON.stringify(data) }),

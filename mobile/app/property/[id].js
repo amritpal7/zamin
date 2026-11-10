@@ -463,18 +463,45 @@ export default function PropertyDetail() {
     }
   };
 
-  const call = () => {
-    if (!isSignedIn) { router.push("/sign-in"); return; }
-    const phone = p?.owner_phone?.replace(/\s/g, "");
-    if (!phone) { Alert.alert("No number", "Owner hasn't added a phone number."); return; }
-    Linking.openURL(`tel:${phone}`).catch(() => Alert.alert("Call", `Calling ${p.owner_phone}…`));
+  // The owner's number isn't in the listing payload (anti-scraping). It's fetched on tap and only
+  // unlocks once you've messaged the owner about this listing; until then we point you to chat.
+  const [revealedPhone, setRevealedPhone] = useState(null);
+  const openChat = () => router.push(`/chat/${p.id}?peer=${p.clerk_user_id}`);
+  const getPhone = async () => {
+    if (revealedPhone) return revealedPhone;
+    if (p?.owner_phone) return p.owner_phone;                 // owner viewing their own listing
+    try {
+      const { phone } = await api.getContact(p.id);
+      if (!phone) { Alert.alert("No number", "This owner hasn't added a phone number."); return null; }
+      setRevealedPhone(phone);
+      return phone;
+    } catch (e) {
+      if (e.code === "chat_first") {
+        Alert.alert("Say hello first", "The owner's number unlocks after you've sent them a message about this property.", [
+          { text: "Not now", style: "cancel" },
+          { text: "Open chat", onPress: openChat },
+        ]);
+      } else {
+        Alert.alert("Couldn't get the number", e.message || "Please try again.");
+      }
+      return null;
+    }
   };
 
-  const whatsapp = () => {
+  const call = async () => {
     if (!isSignedIn) { router.push("/sign-in"); return; }
-    const phone = (p?.owner_phone || "").replace(/\D/g, "");
-    const num   = phone.length === 10 ? `91${phone}` : phone;
-    if (!num) { Alert.alert("No number", "Owner hasn't added a WhatsApp number."); return; }
+    const raw = await getPhone();
+    if (!raw) return;
+    const phone = raw.replace(/\s/g, "");
+    Linking.openURL(`tel:${phone}`).catch(() => Alert.alert("Call", `Owner's number: ${raw}`));
+  };
+
+  const whatsapp = async () => {
+    if (!isSignedIn) { router.push("/sign-in"); return; }
+    const raw = await getPhone();
+    if (!raw) return;
+    const digits = raw.replace(/\D/g, "");
+    const num    = digits.length === 10 ? `91${digits}` : digits;
     const text = encodeURIComponent(`Hi! I saw "${p.title}" on Zamin and I'm interested. Is it still available?`);
     Linking.openURL(`https://wa.me/${num}?text=${text}`).catch(() =>
       Alert.alert("WhatsApp", "Could not open WhatsApp.")
@@ -516,7 +543,7 @@ export default function PropertyDetail() {
   const color    = p.color || C.amber;
   const ppsf     = pricePerSqft(p.price, p.area);
   const emi      = estimateEMI(p.price, p.status);
-  const hasPhone = !!(p.owner_phone?.replace(/\D/g, "").length);
+  const hasPhone = p.has_phone ?? !!(p.owner_phone?.replace(/\D/g, "").length);
   const isOwn    = !!userId && p.clerk_user_id === userId;
 
   return (

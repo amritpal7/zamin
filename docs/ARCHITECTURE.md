@@ -97,7 +97,7 @@ Three tables. Clerk owns identity; we key everything by `clerk_user_id VARCHAR(2
 |--------|------|-------|
 | id | UUID PK | `uuid_generate_v4()` |
 | clerk_user_id | VARCHAR | owner (Clerk user id) |
-| owner_name, owner_phone, owner_avatar | VARCHAR | denormalized owner display |
+| owner_name, owner_phone, owner_avatar | VARCHAR | denormalized owner display. **`owner_phone` is never sent to non-owners** — listing responses go through `listingView.publicListing()` (location redaction + `has_phone` boolean); the number comes only from `GET /properties/:id/contact` |
 | title, description | VARCHAR/TEXT | |
 | type | VARCHAR | House \| Apartment \| Land \| Commercial |
 | status | VARCHAR | For Sale \| For Rent |
@@ -242,6 +242,7 @@ Base path through nginx: `/api`. Direct: `http://localhost:4000`.
 |--------|------|------|---------|
 | GET | `/properties` | public | List (paginated): `?limit`(1–100,def 24)`&offset` + `?type&status&search` + geo `?lat&lng&radius`. Returns `{items,total,limit,offset,hasMore}`; per-listing location redacted |
 | GET | `/properties/:id` | public | Single property |
+| GET | `/properties/:id/contact` | 🔒 | Owner's phone `{phone}` — only after the caller has messaged the owner about this listing (owner/admin always); else 403 `{code:"chat_first"}`; blocked either way → 403; hidden/banned/removed → 404; 60/h per user |
 | GET | `/properties/:id/insights` | public | Price insights: listing ₹/sqft vs area median of comparable listings (same type+status+locality) → verdict good_deal/at_market/above_market/insufficient (`insights.js`) |
 | POST | `/properties/:id/report` | 🔒 | Flag a listing (dedup per reporter); auto-hides (`flagged`) after 3 distinct reporters |
 | GET | `/properties/mine` | 🔒 | Current user's listings |

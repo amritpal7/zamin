@@ -1270,3 +1270,71 @@ describe("revocation: banned ids rejected; cleared on unban", () => {
     expect((await request(app).get("/saved").set("x-test-user", "test_user_jest_banned")).status).toBe(200);
   });
 });
+
+describe("contact privacy: owner phone only after the viewer has messaged the owner", () => {
+  const USER_D = "test_user_jest_d";
+  let pid, noPhoneId;
+  beforeAll(async () => {
+    pid = (await request(app).post("/properties").set("x-test-user", USER_A).send({ ...sampleListing, title: "Phone Privacy Listing" })).body.id;
+    noPhoneId = (await request(app).post("/properties").set("x-test-user", USER_A).send({ ...sampleListing, owner_phone: null, title: "No Phone Listing" })).body.id;
+  });
+  test("public feed, detail and saved never include owner_phone for others (has_phone instead)", async () => {
+    const list = await request(app).get("/properties?search=Phone%20Privacy%20Listing");
+    const item = list.body.items.find((r) => r.id === pid);
+    expect(item.owner_phone).toBeUndefined();
+    expect(item.has_phone).toBe(true);
+    const detail = await request(app).get(`/properties/${pid}`).set("x-test-user", USER_D);
+    expect(detail.body.owner_phone).toBeUndefined();
+    expect(detail.body.has_phone).toBe(true);
+    const anon = await request(app).get(`/properties/${pid}`);
+    expect(anon.body.owner_phone).toBeUndefined();
+    await request(app).post(`/saved/${pid}`).set("x-test-user", USER_D);
+    const saved = await request(app).get("/saved").set("x-test-user", USER_D);
+    const s = saved.body.find((r) => r.id === pid);
+    expect(s.owner_phone).toBeUndefined();
+    expect(s.has_phone).toBe(true);
+    const none = await request(app).get(`/properties/${noPhoneId}`);
+    expect(none.body.has_phone).toBe(false);
+  });
+  test("owner still sees their own number (detail, mine, create)", async () => {
+    const detail = await request(app).get(`/properties/${pid}`).set("x-test-user", USER_A);
+    expect(detail.body.owner_phone).toBe(sampleListing.owner_phone);
+    const mine = await request(app).get("/properties/mine").set("x-test-user", USER_A);
+    expect(mine.body.find((r) => r.id === pid).owner_phone).toBe(sampleListing.owner_phone);
+  });
+  test("contact: 401 signed out, 403 chat_first before messaging, phone after", async () => {
+    expect((await request(app).get(`/properties/${pid}/contact`)).status).toBe(401);
+    const before = await request(app).get(`/properties/${pid}/contact`).set("x-test-user", USER_D);
+    expect(before.status).toBe(403);
+    expect(before.body.code).toBe("chat_first");
+    expect(before.body.phone).toBeUndefined();
+    expect((await request(app).post(`/messages/${pid}`).set("x-test-user", USER_D).send({ text: "Is it available?", receiver_id: USER_A })).status).toBe(201);
+    const after = await request(app).get(`/properties/${pid}/contact`).set("x-test-user", USER_D);
+    expect(after.status).toBe(200);
+    expect(after.body.phone).toBe(sampleListing.owner_phone);
+  });
+  test("contact: messaging about a DIFFERENT listing doesn't unlock this one", async () => {
+    const other = (await request(app).post("/properties").set("x-test-user", USER_A).send({ ...sampleListing, title: "Other Phone Listing" })).body.id;
+    const res = await request(app).get(`/properties/${other}/contact`).set("x-test-user", USER_D);
+    expect(res.status).toBe(403);
+    await pool.query("DELETE FROM properties WHERE id = $1", [other]);
+  });
+  test("contact: owner gets own number; blocked viewer refused; hidden listing 404; no phone → null", async () => {
+    expect((await request(app).get(`/properties/${pid}/contact`).set("x-test-user", USER_A)).body.phone).toBe(sampleListing.owner_phone);
+    const none = await request(app).get(`/properties/${noPhoneId}/contact`).set("x-test-user", USER_D);
+    expect(none.status).toBe(200);
+    expect(none.body.phone).toBeNull();
+    await pool.query("INSERT INTO blocks (blocker_id, blocked_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", [USER_A, USER_D]);
+    expect((await request(app).get(`/properties/${pid}/contact`).set("x-test-user", USER_D)).status).toBe(403);
+    await pool.query("DELETE FROM blocks WHERE blocker_id = $1 AND blocked_id = $2", [USER_A, USER_D]);
+    await pool.query("UPDATE properties SET flagged = true WHERE id = $1", [pid]);
+    expect((await request(app).get(`/properties/${pid}/contact`).set("x-test-user", USER_D)).status).toBe(404);
+    await pool.query("UPDATE properties SET flagged = false WHERE id = $1", [pid]);
+    expect((await request(app).get("/properties/not-a-uuid/contact").set("x-test-user", USER_D)).status).toBe(404);
+  });
+  afterAll(async () => {
+    await pool.query("DELETE FROM saved_properties WHERE clerk_user_id = $1", [USER_D]);
+    await pool.query("DELETE FROM messages WHERE property_id = ANY($1::uuid[])", [[pid, noPhoneId]]);
+    await pool.query("DELETE FROM properties WHERE id = ANY($1::uuid[])", [[pid, noPhoneId]]);
+  });
+});

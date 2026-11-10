@@ -3,6 +3,7 @@ const pool = require("../db");
 const { requireAuth } = require("../middleware/auth");
 const { getAuth } = require("@clerk/express");
 const { isUuid } = require("../validation");
+const { publicListing } = require("../listingView");
 
 // All saved routes require auth
 router.use(requireAuth);
@@ -20,9 +21,11 @@ router.get("/", async (req, res) => {
        ORDER BY s.created_at DESC`,
       [userId]
     );
-    res.json(rows);
+    // Same privacy view as the public feed (location precision + no owner phone).
+    res.json(rows.map((r) => publicListing(r, userId)));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("[saved]", err.message || err.code || String(err));
+    res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });
 
@@ -37,7 +40,8 @@ router.post("/:propertyId", async (req, res) => {
     );
     res.json({ saved: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("[saved]", err.message || err.code || String(err));
+    res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });
 
@@ -52,7 +56,8 @@ router.delete("/:propertyId", async (req, res) => {
     );
     res.json({ saved: false });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("[saved]", err.message || err.code || String(err));
+    res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });
 

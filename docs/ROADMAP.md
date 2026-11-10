@@ -190,7 +190,8 @@ The plan for taking chat further, tiered by user value. Tier 1 foundation is don
 - [x] **Report / block user** (2026-08-19) — `blocks`+`reports` tables, `/users/:id/block|report`,
       messaging rejected 403 when either party blocked the other; chat header menu + blocked banner.
 - [x] **Verified badge** in the chat header (2026-08-19) — shows when the peer owns a verified listing.
-- [ ] Contact-reveal controls (e.g. show phone only after a chat starts).
+- [x] **Contact-reveal controls** (2026-11-10) — owner phone removed from every listing payload; revealed by
+      `GET /properties/:id/contact` only after you've messaged the owner about that listing.
 - [x] Moderation (2026-11-10): auto-hide after 3 reports (existing) + **admin Moderation screen** (Me → Moderation,
       admins via `ADMIN_USER_IDS`): hide/restore/dismiss listings; dismiss/ban/unban users (Clerk ban + hide listings).
 

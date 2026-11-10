@@ -31,6 +31,7 @@ of bug while building new features. Newest first. Update this whenever we fix a 
 | **Aggregates over user-typed strings (medians/averages) poisoned by mislabelled rows** | 1 | A single `For Rent` row priced like a sale (`₹1.8 Cr`) — copied many times by seeds — dragged the rental ₹/sqft median 400× up, so every honest listing read "100% below market". Free-text price/status means any aggregate must **filter implausible values per category** before computing (see `rentPlausible` in `insights.js`). Also sanity-check seed data against the same rules. |
 | **Hard-coded dark-theme colours (`"#fff"`, `"#10172A"`, `StatusBar style="light"`) and raw amber text** | 1 (sweep found 6 sites) | Never hard-code a surface/text colour that should follow the theme — use `C.*` tokens, and set them **inline** (module-level `StyleSheet.create` freezes the first theme). Status bar must follow `scheme`. Amber *text* on a pale/amber tint → `C.amberText`; text on a solid amber fill → `C.ink`. Check every new screen in **light AND dark** on Android. |
 | **Trusting a client-supplied storage key** | 1 | Any object key the server (or worker) will read, overwrite or **delete** must be derived server-side from an ownership-checked id — never taken from the request body. `/properties/process` took `origKey` from the client and the worker deleted it (cross-user photo deletion). Validate ids with a strict regex too. |
+| **A route returns listing rows without the shared privacy view** | 1 | Any response containing `properties` rows must map them through `listingView.publicListing(row, viewerId)` (location precision + no `owner_phone` for non-owners). `GET /saved` returned raw `p.*` — exact coordinates of `hidden`/`approximate` listings and every owner's phone. Check with a consumer request, not just the detail screen. |
 | **Client-supplied identity / recipient / URLs in messaging** | 1 | Server must decide *who* a message is from (Clerk), *who* it may go to (listing owner ↔ enquirer), and *what* it may link to (own media only). Never persist `sender_*` display fields or arbitrary URLs from the request body. |
 | **Editing `mobile/.env` while Metro runs overrides the container env** | 1 | Metro hot-reloads `mobile/.env`, and its `EXPO_PUBLIC_*` values (prod API URL) then win over the docker env (`10.0.2.2`) → emulator silently talks to prod. After any `mobile/.env` edit, recreate Metro: `HOST_IP=10.0.2.2 docker compose up -d mobile`, and confirm `grep -c 10.0.2.2/api` in the bundle. |
 | **`ON CONFLICT DO NOTHING` without a unique key is NOT idempotent** | 1 | It only skips rows that violate a unique/exclusion constraint. `init.sql` (run on every boot) re-inserted seed rows each time. Guard seeds with `IF NOT EXISTS (…)` in a `DO` block, or add a real unique key. Anything run on every boot must be tested by booting twice and counting rows. |
@@ -39,6 +40,16 @@ of bug while building new features. Newest first. Update this whenever we fix a 
 | **Reusing one state column for two independent reasons** | 1 | Ban/unban toggled the per-listing `flagged` moderation flag, so unban un-hid listings hidden for their own reasons. Give each independent reason its own column (`flagged` vs `owner_banned` vs `owner_active`) and filter on all of them — including direct-id and saved-list reads, not just the public list. |
 
 ## Log
+
+### 2026-11-10 (owner phone + exact coordinates exposed in public listing payloads)
+- **Symptom:** every listing in `GET /properties` / `GET /properties/:id` carried `owner_phone`, so anyone
+  could scrape all owners' numbers without signing in. `GET /saved` additionally skipped location redaction
+  (exact coords of `hidden`/`approximate` listings, raw `photo_geo`) and returned `err.message` on 500s.
+- **Root cause:** privacy was applied per route (`redactLocation`) and the saved route was written without
+  it; phone privacy didn't exist.
+- **Fix:** `backend/src/listingView.js` `publicListing()` used by every listing response (properties
+  list/detail/mine/create/update, saved); phone via `GET /properties/:id/contact` after a chat.
+- *Guardrail:* see the table row "A route returns listing rows without the shared privacy view".
 
 ### 2026-11-07 (native profile photo + A–Z sweep)
 - **Profile photo (native):** clerk-expo@2 `setProfileImage` can't send RN file bytes on Android (1×1 / no

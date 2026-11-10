@@ -12,6 +12,24 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-11-10 (Security/Added: owner phone only after a chat starts; saved-list privacy fix)
+Every listing payload carried `owner_phone` (scrapable by anyone, signed out), and `GET /saved` returned raw
+rows (exact coordinates of hidden/approximate listings).
+- `backend/src/listingView.js` (new): `publicListing(row, viewer)` = `redactLocation` + drop `owner_phone`
+  for non-owners + `has_phone` boolean. Used by `GET /properties`, `/properties/:id`, `/mine`, `POST`/`PUT`
+  responses (`routes/properties.js`) and `GET /saved` (`routes/saved.js`, which also stops leaking
+  `err.message` on all three routes).
+- `GET /properties/:id/contact` (🔒, 60/h): phone only if the caller has sent the owner a message about this
+  listing (owner/admin always); 403 `code:"chat_first"` otherwise; blocks → 403; hidden/banned/removed → 404.
+- App: `property/[id].js` Call/WhatsApp fetch the number on tap (`useApi.getContact`); before a chat they show
+  "Say hello first" with **Open chat**. `useApi` errors now carry `status` + `code`. Post/Edit form notes the
+  number is only shown after someone messages you.
+- Ripple checked: `owner_phone` readers (`property/[id].js` call/WhatsApp/hasPhone, `post.js` edit prefill —
+  owner still gets it), messages list/socket payloads (no phone), notifications (no listing rows), visits.
+- Tests: backend 141/141 (+5 contact-privacy), mobile 44/44, bundle compiles. Verified with a real Clerk
+  token on the local API (feed 0/100 rows with phone; non-admin 403 chat_first → message → 200) and on the
+  Android emulator (prompt → Open chat → send → Call opens dialer with the number).
+
 ### 2026-11-10 (Added: admin moderation — reported listings & users)
 Reports were collected (listing reports auto-hide at 3) but nobody could act on them, and **user reports
 (from chat) were never surfaced anywhere**.
