@@ -52,7 +52,7 @@ const tokenCache = {
 // to sign-in rather than landing on a broken/empty screen.)
 const PROTECTED_SEGMENTS = new Set([
   "(tabs)", "chat", "messages", "my-listings", "settings",
-  "visits", "notifications", "saved-searches",
+  "visits", "notifications", "saved-searches", "moderation",
 ]);
 
 function AuthGuard() {
@@ -147,6 +147,7 @@ function RootLayout() {
             <Stack.Screen name="notifications" />
             <Stack.Screen name="saved-searches" />
             <Stack.Screen name="settings" />
+            <Stack.Screen name="moderation" />
           </Stack>
           </SocketProvider>
         </SafeAreaProvider>

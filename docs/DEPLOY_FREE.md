@@ -63,6 +63,7 @@ Why not Render Postgres free: deleted after 30 days.
 | `S3_PUBLIC_BASE` | `https://pub-….r2.dev` (photo URLs become `<base>/properties/<id>.jpg`) |
 | `API_PUBLIC_URL` | `https://zamin-api.onrender.com` (or the assigned URL) |
 | `SUPPORT_EMAIL` | your support address (shown on `/account-deletion`) |
+| `ADMIN_USER_IDS` | your Clerk user id(s), comma-separated — enables Me → Moderation |
 | `SEED_DEMO` | `true` only if you want the 6 demo listings |
 | `SENTRY_DSN` | optional |
 

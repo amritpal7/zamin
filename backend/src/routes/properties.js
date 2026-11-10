@@ -1,3 +1,5 @@
+const rateLimit = require("express-rate-limit");
+const { isAdmin } = require("./admin");
 const router = require("express").Router();
 const pool = require("../db");
 const { requireAuth } = require("../middleware/auth");
@@ -146,11 +148,10 @@ router.post("/upload", requireAuth, (req, res) => {
 // POST /properties/reconcile-owners — check each owner against Clerk and update
 // owner_active. Admin-only: it fans out a Clerk request per owner, so it must not
 // be triggerable by any user. The worker also runs this on a schedule.
-const ADMIN_IDS = (process.env.ADMIN_USER_IDS || "").split(",").map((s) => s.trim()).filter(Boolean);
 router.post("/reconcile-owners", requireAuth, async (req, res) => {
   try {
     const { userId } = getAuth(req);
-    if (!ADMIN_IDS.includes(userId)) return res.status(403).json({ error: "Admins only" });
+    if (!isAdmin(userId)) return res.status(403).json({ error: "Admins only" });
     const result = await reconcileOwners(pool);
     res.json(result);
   } catch (err) {
@@ -177,24 +178,25 @@ router.post("/reconcile-me", requireAuth, async (req, res) => {
 // POST /properties/:id/report { reason } — flag a listing for moderation. Auto-hides the
 // listing once REPORTS_TO_HIDE distinct users have reported it (soft-hide; restorable by admin).
 const REPORTS_TO_HIDE = 3;
-router.post("/:id/report", requireAuth, async (req, res) => {
+const reportLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false,
+  keyGenerator: (req) => getAuth(req).userId || req.ip,
+  message: { error: "Too many reports. Please try again later." },
+});
+router.post("/:id/report", requireAuth, reportLimiter, async (req, res) => {
   try {
     if (!isUuid(req.params.id)) return res.status(400).json({ error: "Invalid property id" });
     const { userId } = getAuth(req);
     const { rows: pr } = await pool.query("SELECT clerk_user_id FROM properties WHERE id = $1", [req.params.id]);
     if (!pr[0]) return res.status(404).json({ error: "Not found" });
     if (pr[0].clerk_user_id === userId) return res.status(400).json({ error: "You can't report your own listing." });
-    // One report per (reporter, property): dedupe so a single user can't force a hide.
-    const dup = await pool.query(
-      "SELECT 1 FROM reports WHERE reporter_id = $1 AND property_id = $2 LIMIT 1",
-      [userId, req.params.id]
+    // One report per (reporter, property) — enforced by a unique index, so a single user can't
+    // force a hide even with concurrent taps.
+    await pool.query(
+      `INSERT INTO reports (reporter_id, reported_id, property_id, reason) VALUES ($1, $2, $3, $4)
+       ON CONFLICT DO NOTHING`,
+      [userId, pr[0].clerk_user_id, req.params.id, (req.body?.reason || "unspecified").slice(0, 100)]
     );
-    if (!dup.rows.length) {
-      await pool.query(
-        "INSERT INTO reports (reporter_id, reported_id, property_id, reason) VALUES ($1, $2, $3, $4)",
-        [userId, pr[0].clerk_user_id, req.params.id, (req.body?.reason || "unspecified").slice(0, 100)]
-      );
-    }
     const { rows: cnt } = await pool.query(
       "SELECT COUNT(DISTINCT reporter_id)::int AS n FROM reports WHERE property_id = $1", [req.params.id]
     );
@@ -204,42 +206,6 @@ router.post("/:id/report", requireAuth, async (req, res) => {
       hidden = true;
     }
     res.json({ reported: true, reportCount: cnt[0].n, hidden });
-  } catch (err) {
-    console.error("[properties]", err.message || err.code || String(err));
-    res.status(500).json({ error: "Something went wrong. Please try again." });
-  }
-});
-
-// GET /properties/moderation — admin-only queue of reported listings (report counts + reasons).
-router.get("/moderation", requireAuth, async (req, res) => {
-  try {
-    const { userId } = getAuth(req);
-    if (!ADMIN_IDS.includes(userId)) return res.status(403).json({ error: "Admins only" });
-    const { rows } = await pool.query(
-      `SELECT p.id, p.title, p.clerk_user_id AS owner_id, p.owner_name, p.flagged,
-              COUNT(DISTINCT r.reporter_id)::int AS reporters,
-              ARRAY_AGG(DISTINCT r.reason) AS reasons
-         FROM reports r JOIN properties p ON p.id = r.property_id
-        GROUP BY p.id
-        ORDER BY reporters DESC, p.flagged DESC`
-    );
-    res.json(rows);
-  } catch (err) {
-    console.error("[properties]", err.message || err.code || String(err));
-    res.status(500).json({ error: "Something went wrong. Please try again." });
-  }
-});
-
-// POST /properties/:id/moderate { action: "hide" | "restore" } — admin flag/unflag a listing.
-router.post("/:id/moderate", requireAuth, async (req, res) => {
-  try {
-    if (!isUuid(req.params.id)) return res.status(400).json({ error: "Invalid property id" });
-    const { userId } = getAuth(req);
-    if (!ADMIN_IDS.includes(userId)) return res.status(403).json({ error: "Admins only" });
-    const flagged = req.body?.action === "hide";
-    const { rowCount } = await pool.query("UPDATE properties SET flagged = $1 WHERE id = $2", [flagged, req.params.id]);
-    if (!rowCount) return res.status(404).json({ error: "Not found" });
-    res.json({ id: req.params.id, flagged });
   } catch (err) {
     console.error("[properties]", err.message || err.code || String(err));
     res.status(500).json({ error: "Something went wrong. Please try again." });
@@ -262,7 +228,7 @@ router.get("/", async (req, res) => {
     if (hasGeo) params.push(glat, glng); // $1, $2
 
     // Soft-hide: deleted/flagged owners (owner_active) and moderation-flagged listings (flagged).
-    let where = "owner_active IS DISTINCT FROM false AND flagged IS DISTINCT FROM true";
+    let where = "owner_active IS DISTINCT FROM false AND flagged IS DISTINCT FROM true AND owner_banned IS NOT TRUE";
     if (hasGeo) {
       where += " AND latitude IS NOT NULL AND longitude IS NOT NULL";
       // A 'hidden' listing must NOT surface in a proximity search: even with its coords
@@ -418,9 +384,15 @@ router.put("/:id", requireAuth, async (req, res) => {
 // GET /properties/:id — single property (public)
 router.get("/:id", async (req, res) => {
   try {
+    if (!isUuid(req.params.id)) return res.status(404).json({ error: "Not found" });
     const { rows } = await pool.query("SELECT * FROM properties WHERE id = $1", [req.params.id]);
     if (!rows[0]) return res.status(404).json({ error: "Not found" });
     const { userId } = getAuth(req);
+    // Moderation-hidden listings (and every listing of a banned owner) are gone for the public,
+    // including direct links / saved lists / notifications. Owner and admins can still open them.
+    if ((rows[0].flagged || rows[0].owner_banned) && rows[0].clerk_user_id !== userId && !isAdmin(userId)) {
+      return res.status(404).json({ error: "Not found" });
+    }
     res.json(redactLocation(rows[0], userId));
   } catch (err) {
     console.error("[properties]", err.message || err.code || String(err));
@@ -449,6 +421,7 @@ router.get("/:id/insights", async (req, res) => {
         `SELECT price, area FROM properties
          WHERE id <> $1 AND type = $2 AND status = $3
            AND owner_active IS DISTINCT FROM false
+           AND flagged IS DISTINCT FROM true AND owner_banned IS NOT TRUE
            AND location ILIKE $4`,
         [listing.id, listing.type, listing.status, `%${term}%`]
       );

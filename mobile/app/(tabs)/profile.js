@@ -61,11 +61,13 @@ export default function Profile() {
   const [savedCount,     setSavedCount]     = useState(0);
   const [inquiriesCount, setInquiriesCount] = useState(0);
   const [statsLoading,   setStatsLoading]   = useState(false);
+  const [isAdmin,        setIsAdmin]        = useState(false);
 
   useFocusEffect(
     useCallback(() => {
       if (!isSignedIn) return;
       setStatsLoading(true);
+      apiRef.current.getAdminStatus().then((d) => setIsAdmin(!!d?.admin)).catch(() => setIsAdmin(false));
       Promise.all([apiRef.current.getMyProperties(), apiRef.current.getSaved(), apiRef.current.getConversations()])
         .then(([mine, saved, convos]) => {
           setListedCount(mine.length);
@@ -207,13 +209,16 @@ export default function Profile() {
             borderColor: C.glassBorder,
             overflow: "hidden",
           }}>
-            {MENU.map((item, i) => (
+            {(isAdmin
+              ? [...MENU.slice(0, -1), { icon: "flag", label: "Moderation", sub: "Review reported listings & users", route: "/moderation" }, MENU[MENU.length - 1]]
+              : MENU
+            ).map((item, i, list) => (
               <React.Fragment key={item.label}>
                 <GlassRow
                   {...item}
                   onPress={() => item.route && router.push(item.route)}
                 />
-                {i < MENU.length - 1 && <Divider />}
+                {i < list.length - 1 && <Divider />}
               </React.Fragment>
             ))}
           </View>

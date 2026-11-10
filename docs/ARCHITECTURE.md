@@ -244,8 +244,6 @@ Base path through nginx: `/api`. Direct: `http://localhost:4000`.
 | GET | `/properties/:id` | public | Single property |
 | GET | `/properties/:id/insights` | public | Price insights: listing ₹/sqft vs area median of comparable listings (same type+status+locality) → verdict good_deal/at_market/above_market/insufficient (`insights.js`) |
 | POST | `/properties/:id/report` | 🔒 | Flag a listing (dedup per reporter); auto-hides (`flagged`) after 3 distinct reporters |
-| GET | `/properties/moderation` | 🔒 admin | Moderation queue: reported listings + reporter counts/reasons |
-| POST | `/properties/:id/moderate` | 🔒 admin | Hide/restore a listing (`flagged`) |
 | GET | `/properties/mine` | 🔒 | Current user's listings |
 | POST | `/properties` | 🔒 | Create listing |
 | PUT | `/properties/:id` | 🔒 owner | Update listing |
@@ -274,6 +272,10 @@ Base path through nginx: `/api`. Direct: `http://localhost:4000`.
 ### Users / trust & safety (`routes/users.js`, all 🔒)
 | Method | Path | Purpose |
 |--------|------|---------|
+| GET | `/admin/status` | 🔒 `{ admin }` — is the caller in `ADMIN_USER_IDS` (client shows Me → Moderation) |
+| GET | `/admin/reports` | 🔒 admin — `{ listings, users }` open report queues (counts + reasons; reporter ids not exposed) |
+| POST | `/admin/listings/:id` | 🔒 admin — `{ action: hide \| restore \| dismiss }` (dismiss clears reports + unflags) |
+| POST | `/admin/users/:id` | 🔒 admin — `{ action: dismiss \| ban \| unban }`; ban = Clerk ban (no sign-in) + `owner_banned` hides all their listings (per-listing `flagged` untouched) + session revoke; every action logged `[moderation]` |
 | GET | `/account-deletion` | **Public HTML** (no auth) — how to delete your account in-app or by email (`SUPPORT_EMAIL`). Play Console → Data safety → deletion URL = `<API base>/account-deletion`. |
 | DELETE | `/users/me` | **Delete account** (Settings → Delete account). Body `{ confirm: "DELETE" }`; limits 5/h per user + 10/h per IP. Writes an `account_deletions` marker, then one transaction (`lock_timeout 3s`, `statement_timeout 15s`) runs `purgeUserData` (`src/accountDeletion.js`: media_objects, properties→cascade, messages, saves, searches, notifications incl. others' rows naming the user, push tokens, uploads, visits, blocks, reviews, reports *filed by* the user) and deletes the **Clerk user inside it** (if Clerk errors but the user is actually gone → commit). Storage cleanup deletes only objects in `media_objects` owned by the user (never keys from listing URLs). Live sockets disconnected; the id is marked revoked in Redis (`src/revocation.js`, 5 min) so `requireAuth` + socket auth reject the still-valid JWT. The hourly sweep finishes any marker whose Clerk user is gone. |
 | POST | `/users/me/photo` | Set the caller's **profile photo**. Body `{ base }` from a prior `/properties/presign` + direct PUT. Consumes the caller's `pending_uploads` binding (403 otherwise), sharp re-encodes to 512² JPEG (strips EXIF, rejects non-images, ≤10 MB), forwards to Clerk Backend API `POST /v1/users/:id/profile_image`, then `reconcileOwner` so `owner_image` updates on their listings. Used on all platforms (clerk-expo@2's `setProfileImage` can't send bytes on Android). Per-user limit 10 / 10 min; formats jpeg/png/webp/heif only; 25 MP pixel cap; 10 s Clerk timeout. |

@@ -19,6 +19,8 @@ services:
       # Clerk backend secret — get from dashboard.clerk.com
       CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
       CLERK_PUBLISHABLE_KEY: ${CLERK_PUBLISHABLE_KEY}
+      ADMIN_USER_IDS: ${ADMIN_USER_IDS:-}
+      SUPPORT_EMAIL: ${SUPPORT_EMAIL:-}
       # Database (Postgres via Docker). Creds default to dev values; override in prod via .env.
       DATABASE_URL: postgres://${POSTGRES_USER:-zamin}:${POSTGRES_PASSWORD:-zamin_pass}@db:5432/${POSTGRES_DB:-zamin_db}
       # Object storage (MinIO now; swap to S3/R2 later via these vars only)

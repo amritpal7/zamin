@@ -110,6 +110,12 @@ export function useApi() {
       return request("/users/me/photo", { method: "POST", body: JSON.stringify({ base: f.base }) });
     },
 
+    // Moderation (admins only — server enforces ADMIN_USER_IDS)
+    getAdminStatus: () => request("/admin/status"),
+    getReports: () => request("/admin/reports"),
+    moderateListing: (id, action) => request(`/admin/listings/${encodeURIComponent(id)}`, { method: "POST", body: JSON.stringify({ action }) }),
+    moderateUser: (id, action) => request(`/admin/users/${encodeURIComponent(id)}`, { method: "POST", body: JSON.stringify({ action }) }),
+
     // Permanently delete the signed-in account + all its data (server deletes the Clerk user too).
     deleteAccount: () => request("/users/me", { method: "DELETE", body: JSON.stringify({ confirm: "DELETE" }) }),
 

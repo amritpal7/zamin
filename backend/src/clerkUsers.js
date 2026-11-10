@@ -15,7 +15,7 @@ async function getUser(id) {
   // unverified. seed/demo owners are likewise short-circuited.
   if (!id || !SECRET || id.startsWith("seed_user_")) return empty;
   try {
-    const res = await fetch(`https://api.clerk.com/v1/users/${id}`, {
+    const res = await fetch(`https://api.clerk.com/v1/users/${encodeURIComponent(id)}`, {
       headers: { Authorization: `Bearer ${SECRET}` },
     });
     if (res.status === 404) return { reliable: true, exists: false, imageUrl: null, name: null, avatar: null, verified: false };
@@ -29,7 +29,7 @@ async function getUser(id) {
       (u.phone_numbers || []).some((p) => p.verification?.status === "verified");
     // Owner's default location visibility for new listings (set in Settings). null = unset.
     const locationDefault = u.public_metadata?.default_location_visibility || null;
-    return { reliable: true, exists: true, imageUrl: u.has_image ? u.image_url : null, name, avatar, username: uname || null, verified, locationDefault };
+    return { reliable: true, exists: true, imageUrl: u.has_image ? u.image_url : null, name, avatar, username: uname || null, verified, locationDefault, banned: !!u.banned };
   } catch {
     return { reliable: false, exists: true, imageUrl: null, name: null, avatar: null, verified: false };
   }

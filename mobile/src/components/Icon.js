@@ -35,6 +35,7 @@ function renderPath(name, p, color) {
     case "pin":      return <G {...p}><Path d="M12 22s7-7 7-12a7 7 0 10-14 0c0 5 7 12 7 12z" /><Circle cx="12" cy="10" r="2.5" /></G>;
     case "star":     return <Path d="M12 4l2.5 5 5.5.8-4 3.9 1 5.5-5-2.7-5 2.7 1-5.5-4-3.9 5.5-.8L12 4z" {...p} fill={color} />;
     case "lock":     return <G {...p}><Rect x="5" y="11" width="14" height="10" rx="2.5" /><Path d="M8 11V8a4 4 0 018 0v3" /></G>;
+    case "flag":     return <G {...p}><Path d="M5 21V4" /><Path d="M5 4h11l-2 4 2 4H5" /></G>;
     case "clock":    return <G {...p}><Circle cx="12" cy="12" r="9" /><Path d="M12 7v5l3 2" /></G>;
     case "close":    return <Path d="M6 6l12 12M18 6L6 18" {...p} />;
     case "chevR":    return <Path d="M9 6l6 6-6 6" {...p} />;

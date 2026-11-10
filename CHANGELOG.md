@@ -12,6 +12,33 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-11-10 (Added: admin moderation — reported listings & users)
+Reports were collected (listing reports auto-hide at 3) but nobody could act on them, and **user reports
+(from chat) were never surfaced anywhere**.
+- `backend/src/routes/admin.js` (`/admin`, admins = `ADMIN_USER_IDS`, read per request): `status`, `reports`
+  (listing + user queues, Clerk display names, banned state), listing `hide|restore|dismiss`, user
+  `dismiss|ban|unban` (Clerk Backend API ban + flag all their listings; admins can't be banned).
+- User reports deduped per reporter/target/listing; 500s no longer leak `err.message`; `getUser` returns `banned`.
+- App: `mobile/app/moderation.js` (cards with thumbnail, reporters/reasons/time, status pill, actions, ban
+  confirm, pull-to-refresh, "All clear" empty state); Me menu shows **Moderation** only for admins
+  (`GET /admin/status`); route protected by AuthGuard; new `flag` icon.
+- `docker-compose.yml` passes `ADMIN_USER_IDS` + `SUPPORT_EMAIL` to the api.
+- **Security review fixes (zamin-security, no blockers):**
+  - M1: user-report targets must be Clerk-shaped (`user_…`/`seed_user_N`) — junk/path-like ids rejected (they
+    reached server-side Clerk lookups); per-user limit 20/h on both report routes; `getUser` encodes the id;
+    admin queue lookups capped at 10 concurrent.
+  - M2: ban uses a new `owner_banned` column (migration `1731300000000_…`), not per-listing `flagged` — unban
+    no longer un-hides listings hidden for their own reasons (live-verified with real Clerk ban/unban).
+  - M3: `GET /properties/:id` → 404 for hidden / banned-owner listings except owner + admins; saved lists,
+    public feed and insights comparables exclude them.
+  - L1: ban marks the id revoked (Redis, 5 min) + disconnects sockets; unban clears it. L2: unique index on
+    reports + `ON CONFLICT DO NOTHING` (dupes removed first). L3: `[moderation]` audit log lines; Clerk 404 →
+    404. L4: legacy `/properties/moderation` + `/:id/moderate` removed; one `isAdmin`. L5: id validation.
+  - Backend **136/136**.
+- Verified on emulator (local, @zamintest01 as admin): queue shows seeded listing + user reports; Hide →
+  "Hidden" and gone from public feed; Restore; **Ban** → Clerk banned + 11/11 listings hidden; **Unban** →
+  restored; Dismiss ×2 → "All clear". Fixed a stretched status pill (alignSelf). Backend **130/130** (+5).
+
 ### 2026-11-10 (Added: cold-start handling for the free host · Fixed: internal "demo-seed" tag shown on listings)
 **Problem:** the free Render API sleeps after ~15 min idle; the next request takes up to ~1 min — testers
 would see an endless spinner or an error and assume the app is broken.

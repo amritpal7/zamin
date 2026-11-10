@@ -2,6 +2,7 @@ const router = require("express").Router();
 const pool = require("../db");
 const { requireAuth } = require("../middleware/auth");
 const { getAuth } = require("@clerk/express");
+const { isUuid } = require("../validation");
 const rateLimit = require("express-rate-limit");
 const sharp = require("sharp");
 const { GetObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3");
@@ -176,19 +177,31 @@ router.get("/:userId/block", async (req, res) => {
 });
 
 // POST /users/:userId/report { reason, property_id } — file a report for moderation.
-router.post("/:userId/report", async (req, res) => {
+// Report targets must look like real account ids (Clerk "user_…", or the demo "seed_user_N"), so a
+// client can't fill the queue with junk ids or steer the server-side Clerk lookups shown to admins.
+const REPORTABLE_ID = /^(?:user_[A-Za-z0-9]+|seed_user_\d+)$/;
+const userReportLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false,
+  keyGenerator: (req) => getAuth(req).userId || req.ip,
+  message: { error: "Too many reports. Please try again later." },
+});
+router.post("/:userId/report", userReportLimiter, async (req, res) => {
   try {
     const { userId } = getAuth(req);
     const target = req.params.userId;
-    if (!target || target === userId) return res.status(400).json({ error: "Invalid user" });
+    if (!REPORTABLE_ID.test(target || "") || target === userId) return res.status(400).json({ error: "Invalid user" });
     const { reason, property_id } = req.body;
+    const pid = isUuid(property_id) ? property_id : null;
+    // One report per reporter per (user, listing) — unique index; repeat taps are no-ops.
     await pool.query(
-      "INSERT INTO reports (reporter_id, reported_id, property_id, reason) VALUES ($1, $2, $3, $4)",
-      [userId, target, property_id || null, (reason || "unspecified").slice(0, 100)]
+      `INSERT INTO reports (reporter_id, reported_id, property_id, reason) VALUES ($1, $2, $3, $4)
+       ON CONFLICT DO NOTHING`,
+      [userId, target, pid, (reason || "unspecified").slice(0, 100)]
     );
     res.json({ reported: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("[users report]", err.message || err.code || String(err));
+    res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });
 

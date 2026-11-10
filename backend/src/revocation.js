@@ -21,11 +21,24 @@ async function markDeleted(userId) {
   try { await client().set(`deleted-user:${userId}`, "1", "EX", TTL_SECONDS); } catch { /* local still applies */ }
 }
 
-async function isDeleted(userId) {
-  if (!userId) return false;
-  const exp = local.get(String(userId));
-  if (exp) { if (exp > Date.now()) return true; local.delete(String(userId)); }
-  try { return (await client().exists(`deleted-user:${userId}`)) === 1; } catch { return false; } // fail open on cache outage
+// Banned users: Clerk stops issuing tokens, but an already-issued JWT stays valid ~60 s and open
+// sockets stay connected — reject them immediately. Cleared on unban.
+async function markBanned(userId) {
+  local.set(`b:${userId}`, Date.now() + TTL_SECONDS * 1000);
+  try { await client().set(`banned-user:${userId}`, "1", "EX", TTL_SECONDS); } catch {}
+}
+async function clearBanned(userId) {
+  local.delete(`b:${userId}`);
+  try { await client().del(`banned-user:${userId}`); } catch {}
 }
 
-module.exports = { markDeleted, isDeleted };
+async function isDeleted(userId) {
+  if (!userId) return false;
+  for (const k of [String(userId), `b:${userId}`]) {
+    const exp = local.get(k);
+    if (exp) { if (exp > Date.now()) return true; local.delete(k); }
+  }
+  try { return (await client().exists(`deleted-user:${userId}`, `banned-user:${userId}`)) > 0; } catch { return false; } // fail open on cache outage
+}
+
+module.exports = { markDeleted, isDeleted, markBanned, clearBanned };

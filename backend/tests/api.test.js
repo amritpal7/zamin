@@ -698,9 +698,11 @@ describe("trust & safety: block & report", () => {
   });
 
   test("report stores a report", async () => {
-    const res = await request(app).post(`/users/${USER_B}/report`).set("x-test-user", USER_A).send({ reason: "Spam", property_id: pid });
+    // Report targets must be Clerk-shaped ids (user_…) — security review 2026-11-10.
+    const target = "user_jestReportedB";
+    const res = await request(app).post(`/users/${target}/report`).set("x-test-user", USER_A).send({ reason: "Spam", property_id: pid });
     expect(res.status).toBe(200);
-    const { rows } = await pool.query("SELECT reason FROM reports WHERE reporter_id=$1 AND reported_id=$2", [USER_A, USER_B]);
+    const { rows } = await pool.query("SELECT reason FROM reports WHERE reporter_id=$1 AND reported_id=$2", [USER_A, target]);
     expect(rows.some((r) => r.reason === "Spam")).toBe(true);
   });
 });
@@ -1153,5 +1155,118 @@ describe("public account-deletion page", () => {
     expect(r.status).toBe(200);
     expect(r.headers["content-type"]).toMatch(/html/);
     expect(r.text).toMatch(/Delete account/);
+  });
+});
+
+describe("moderation (admin)", () => {
+  const ADMIN = "test_user_jest_admin", REPORTER1 = "test_user_jest_rep1", REPORTER2 = "test_user_jest_rep2";
+  const OFFENDER = "user_jestOffender"; // Clerk-shaped: user reports require it
+  let pid, prevAdmins;
+  beforeAll(async () => {
+    prevAdmins = process.env.ADMIN_USER_IDS;
+    process.env.ADMIN_USER_IDS = ADMIN;
+    const r = await request(app).post("/properties").set("x-test-user", OFFENDER).send({ ...sampleListing, title: "Reported listing" });
+    pid = r.body.id;
+  });
+  afterAll(async () => {
+    process.env.ADMIN_USER_IDS = prevAdmins || "";
+    await pool.query("DELETE FROM reports WHERE reported_id = $1", [OFFENDER]);
+    await pool.query("DELETE FROM properties WHERE clerk_user_id = $1", [OFFENDER]);
+  });
+
+  test("status tells the client who is an admin", async () => {
+    expect((await request(app).get("/admin/status").set("x-test-user", ADMIN)).body.admin).toBe(true);
+    expect((await request(app).get("/admin/status").set("x-test-user", REPORTER1)).body.admin).toBe(false);
+  });
+  test("non-admins get 403 on the queue and actions", async () => {
+    expect((await request(app).get("/admin/reports").set("x-test-user", REPORTER1)).status).toBe(403);
+    expect((await request(app).post(`/admin/listings/${pid}`).set("x-test-user", REPORTER1).send({ action: "hide" })).status).toBe(403);
+  });
+  test("reported listing + reported user appear in the queue (user reports deduped)", async () => {
+    await request(app).post(`/properties/${pid}/report`).set("x-test-user", REPORTER1).send({ reason: "spam" });
+    await request(app).post(`/properties/${pid}/report`).set("x-test-user", REPORTER2).send({ reason: "fake" });
+    for (let i = 0; i < 3; i++) await request(app).post(`/users/${OFFENDER}/report`).set("x-test-user", REPORTER1).send({ reason: "harassment" });
+    const q = (await request(app).get("/admin/reports").set("x-test-user", ADMIN)).body;
+    const l = q.listings.find((x) => x.id === pid);
+    expect(l.reporters).toBe(2);
+    expect(l.reasons.sort()).toEqual(["fake", "spam"]);
+    const u = q.users.find((x) => x.user_id === OFFENDER);
+    expect(u.reporters).toBe(1);
+    expect((await pool.query("SELECT 1 FROM reports WHERE reported_id=$1 AND property_id IS NULL", [OFFENDER])).rowCount).toBe(1);
+  });
+  test("hide → hidden from public feed; restore → back; dismiss → reports cleared", async () => {
+    await request(app).post(`/admin/listings/${pid}`).set("x-test-user", ADMIN).send({ action: "hide" });
+    let feed = (await request(app).get("/properties?limit=200")).body.items;
+    expect(feed.some((p) => p.id === pid)).toBe(false);
+    await request(app).post(`/admin/listings/${pid}`).set("x-test-user", ADMIN).send({ action: "restore" });
+    feed = (await request(app).get("/properties?limit=200")).body.items;
+    expect(feed.some((p) => p.id === pid)).toBe(true);
+    const d = await request(app).post(`/admin/listings/${pid}`).set("x-test-user", ADMIN).send({ action: "dismiss" });
+    expect(d.body.dismissed).toBe(true);
+    expect((await pool.query("SELECT 1 FROM reports WHERE property_id=$1", [pid])).rowCount).toBe(0);
+  });
+  test("ban guards: invalid id 400, admins can't be banned", async () => {
+    expect((await request(app).post("/admin/users/not-a-clerk-id").set("x-test-user", ADMIN).send({ action: "ban" })).status).toBe(400);
+    expect((await request(app).post("/admin/users/user_x").set("x-test-user", ADMIN).send({ action: "nope" })).status).toBe(400);
+  });
+});
+
+describe("moderation visibility + report hardening (security review fixes)", () => {
+  const OWNER = "test_user_jest_vis_owner", VIEWER = "test_user_jest_vis_viewer", ADMIN = "test_user_jest_vis_admin";
+  let hiddenId, bannedId, prev;
+  beforeAll(async () => {
+    prev = process.env.ADMIN_USER_IDS; process.env.ADMIN_USER_IDS = ADMIN;
+    hiddenId = (await request(app).post("/properties").set("x-test-user", OWNER).send({ ...sampleListing, title: "Hidden by moderation" })).body.id;
+    bannedId = (await request(app).post("/properties").set("x-test-user", OWNER).send({ ...sampleListing, title: "Owner banned" })).body.id;
+    await pool.query("UPDATE properties SET flagged = true WHERE id = $1", [hiddenId]);
+  });
+  afterAll(async () => {
+    process.env.ADMIN_USER_IDS = prev || "";
+    await pool.query("DELETE FROM saved_properties WHERE clerk_user_id = $1", [VIEWER]);
+    await pool.query("DELETE FROM reports WHERE reporter_id = $1", [VIEWER]);
+    await pool.query("DELETE FROM properties WHERE clerk_user_id = $1", [OWNER]);
+  });
+
+  test("hidden listing: 404 by direct id for others, visible to owner and admin", async () => {
+    expect((await request(app).get(`/properties/${hiddenId}`).set("x-test-user", VIEWER)).status).toBe(404);
+    expect((await request(app).get(`/properties/${hiddenId}`)).status).toBe(404);
+    expect((await request(app).get(`/properties/${hiddenId}`).set("x-test-user", OWNER)).status).toBe(200);
+    expect((await request(app).get(`/properties/${hiddenId}`).set("x-test-user", ADMIN)).status).toBe(200);
+  });
+  test("hidden listings disappear from saved lists", async () => {
+    await request(app).post(`/saved/${hiddenId}`).set("x-test-user", VIEWER);
+    const saved = (await request(app).get("/saved").set("x-test-user", VIEWER)).body;
+    expect(saved.some((p) => p.id === hiddenId)).toBe(false);
+  });
+  test("ban hides all owner listings without touching per-listing flags; unban restores only unflagged", async () => {
+    await pool.query("UPDATE properties SET owner_banned = true WHERE clerk_user_id = $1", [OWNER]);
+    let feed = (await request(app).get("/properties?limit=500")).body.items;
+    expect(feed.some((p) => p.id === bannedId)).toBe(false);
+    expect((await request(app).get(`/properties/${bannedId}`).set("x-test-user", VIEWER)).status).toBe(404);
+    await pool.query("UPDATE properties SET owner_banned = false WHERE clerk_user_id = $1", [OWNER]);
+    feed = (await request(app).get("/properties?limit=500")).body.items;
+    expect(feed.some((p) => p.id === bannedId)).toBe(true);
+    expect(feed.some((p) => p.id === hiddenId)).toBe(false);          // still hidden by its own moderation flag
+  });
+  test("user reports: junk / path-like targets rejected; duplicates collapse", async () => {
+    for (const t of ["..%2F..%2Fv1%2Finstance", "not-a-user", "user_"]) {
+      expect((await request(app).post(`/users/${t}/report`).set("x-test-user", VIEWER).send({ reason: "x" })).status).toBe(400);
+    }
+    await Promise.all([1, 2, 3].map(() => request(app).post("/users/user_jestTarget1/report").set("x-test-user", VIEWER).send({ reason: "spam" })));
+    const { rowCount } = await pool.query("SELECT 1 FROM reports WHERE reporter_id = $1 AND reported_id = 'user_jestTarget1'", [VIEWER]);
+    expect(rowCount).toBe(1);
+  });
+  test("legacy admin endpoints are gone", async () => {
+    expect((await request(app).get("/properties/moderation").set("x-test-user", ADMIN)).status).toBe(404);
+  });
+});
+
+describe("revocation: banned ids rejected; cleared on unban", () => {
+  const { markBanned, clearBanned } = require("../src/revocation");
+  test("ban → 401, unban → allowed again", async () => {
+    await markBanned("test_user_jest_banned");
+    expect((await request(app).get("/saved").set("x-test-user", "test_user_jest_banned")).status).toBe(401);
+    await clearBanned("test_user_jest_banned");
+    expect((await request(app).get("/saved").set("x-test-user", "test_user_jest_banned")).status).toBe(200);
   });
 });
