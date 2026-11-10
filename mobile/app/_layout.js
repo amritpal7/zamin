@@ -22,6 +22,8 @@ import {
 } from "@expo-google-fonts/geist-mono";
 import { C } from "../src/theme";
 import { ThemeProvider, useTheme } from "../src/context/ThemeContext";
+import ServerWakeBanner from "../src/components/ServerWakeBanner";
+import { warmUpServer } from "../src/utils/serverStatus";
 import { SocketProvider } from "../src/context/SocketContext";
 import PushManager from "../src/components/PushManager";
 import * as Sentry from "@sentry/react-native";
@@ -74,6 +76,9 @@ function AuthGuard() {
 }
 
 // Status-bar icons must contrast with the active theme (light bg → dark icons).
+// Start waking the (free, sleep-on-idle) API immediately, during splash/sign-in.
+warmUpServer();
+
 function ThemedStatusBar() {
   const { scheme } = useTheme();
   return <StatusBar style={scheme === "dark" ? "light" : "dark"} />;
@@ -114,7 +119,16 @@ function RootLayout() {
           <ThemedStatusBar />
           <AuthGuard />
           <PushManager />
-          <Stack screenOptions={{
+          <Stack
+            // Wrap every screen so the cold-start banner lives INSIDE the visible screen's view tree
+            // (as a sibling of <Stack> it was drawn under the native screens on Android).
+            screenLayout={({ children }) => (
+              <View style={{ flex: 1 }}>
+                {children}
+                <ServerWakeBanner />
+              </View>
+            )}
+            screenOptions={{
             headerShown: false,
             contentStyle: { backgroundColor: C.bg },
             animation: "slide_from_right",

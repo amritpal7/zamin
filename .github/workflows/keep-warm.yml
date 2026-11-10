@@ -1,0 +1,21 @@
+# Keeps the free Render API awake (it sleeps after ~15 min without traffic and then takes ~1 min
+# to wake). /health does not touch the database, so Neon still scales to zero between real use.
+# One always-on free service ≈ 730 h/month, inside Render's 750 free instance-hours.
+# Note: GitHub may delay scheduled runs by several minutes and pauses schedules after 60 days
+# without repo activity — the app's wake banner covers the gaps.
+name: keep-warm
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+permissions: {}
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Ping API health
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 120 https://zamin-api.onrender.com/health || true)
+          echo "health -> $code"
+          [ "$code" = "200" ]

@@ -68,3 +68,10 @@ export function estimateEMI(priceStr, status) {
   if (emi >= 1000) return `EMI ~₹${Math.round(emi / 1000)}k/mo`;
   return `EMI ~₹${Math.round(emi)}/mo`;
 }
+
+// Tags shown to users — drops internal markers (the demo seeder tags its rows "demo-seed" so it
+// can clear them; that must never appear on a listing).
+const INTERNAL_TAGS = new Set(["demo-seed"]);
+export function displayTags(tags) {
+  return (Array.isArray(tags) ? tags : []).filter((t) => t && !INTERNAL_TAGS.has(String(t).toLowerCase()));
+}

@@ -87,3 +87,11 @@ describe("thumbFor", () => {
     expect(thumbFor("https://cdn.example.com/logo.jpg")).toBe("https://cdn.example.com/logo.jpg");
   });
 });
+
+import { displayTags } from "../property";
+describe("displayTags", () => {
+  test("hides internal markers, keeps real tags", () => {
+    expect(displayTags(["Road Access", "demo-seed", "Clear Title"])).toEqual(["Road Access", "Clear Title"]);
+    expect(displayTags(null)).toEqual([]);
+  });
+});

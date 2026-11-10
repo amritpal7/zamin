@@ -12,6 +12,22 @@ Format: each entry is dated and tagged `Added` / `Changed` / `Fixed` / `Removed`
 
 ## [Unreleased]
 
+### 2026-11-10 (Added: cold-start handling for the free host · Fixed: internal "demo-seed" tag shown on listings)
+**Problem:** the free Render API sleeps after ~15 min idle; the next request takes up to ~1 min — testers
+would see an endless spinner or an error and assume the app is broken.
+- `mobile/src/utils/serverStatus.js`: `trackedFetch` (used by the API client + presign) flags "slow" after
+  4 s pending and retries a **GET** once on network error / 502–504 (never POST/PUT/DELETE — no double
+  submit); `warmUpServer()` pings `/health` at app start (server wakes during splash/sign-in).
+- `mobile/src/components/ServerWakeBanner.js`: "Waking up the server… first load can take up to a minute",
+  mounted via the root Stack `screenLayout` (as a sibling of `<Stack>` it rendered *under* the native screens
+  on Android — see BUGLOG). Uses `elevate()`, ignores touches.
+- `.github/workflows/keep-warm.yml`: pings `/health` every 10 min (public repo → free minutes; one always-on
+  free service ≈ 730 h < 750 h/month). `/health` doesn't touch Neon, so the DB still scales to zero.
+- Verified on emulator by pausing the API container: banner appears at ~4 s, clears on resume; app recovers.
+  Tests: 4 new (`serverStatus.test.js`).
+**Fixed:** demo listings showed the seeder's internal `demo-seed` tag — `displayTags()` (`utils/property.js`)
+filters internal markers in property detail + My Listings. Verified on device. Mobile tests **44/44**.
+
 ### 2026-11-10 (Ops: production live on the free stack — Render + Neon + Render Key Value + Cloudflare R2)
 - Render web service `zamin-api` (free, Docker, Singapore, `RUN_WORKER_IN_API=true`) + Key Value `zamin-redis`
   (free, `noeviction`) created via the Render connector; secrets entered by the owner in the dashboard.

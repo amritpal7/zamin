@@ -70,6 +70,11 @@ Why not Render Postgres free: deleted after 30 days.
 Point the build at the new API: `mobile/eas.json` profiles + `mobile/.env` `EXPO_PUBLIC_API_URL=https://<render-url>`.
 Remember: after editing `mobile/.env`, recreate local Metro (see BUGLOG).
 
+## Keep-warm
+`.github/workflows/keep-warm.yml` pings `/health` every 10 min so testers rarely hit a cold start; the app also
+shows a "Waking up the server…" banner and retries reads. GitHub pauses schedules after 60 days without repo
+activity — re-enable under Actions if it stops.
+
 ## Known trade-offs
 - Cold start ~1 min after 15 min idle (first request is slow; realtime reconnects). Upgrade the web
   service to Starter (or Railway Hobby) when you have steady users.

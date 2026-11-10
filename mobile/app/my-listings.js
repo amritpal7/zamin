@@ -12,6 +12,7 @@ import { C, FONT, FONT_MED, FONT_HEAD, FONT_HEAD_ITALIC } from "../src/theme";
 import { Icon } from "../src/components/Icon";
 import { Tag } from "../src/components/ui";
 import SmartImage from "../src/components/SmartImage";
+import { displayTags } from "../src/utils/property";
 import { useApi } from "../src/hooks/useApi";
 import ConfirmModal from "../src/components/ConfirmModal";
 
@@ -69,15 +70,15 @@ function MyListingCard({ property: p, onEdit, onDelete }) {
           </View>
         </View>
 
-        {p.tags?.length > 0 && (
+        {displayTags(p.tags).length > 0 && (
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
-            {p.tags.slice(0, 4).map(t => (
+            {displayTags(p.tags).slice(0, 4).map(t => (
               <View key={t} style={{ backgroundColor: C.chipBg, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, borderWidth: StyleSheet.hairlineWidth, borderColor: C.glassBorder }}>
                 <Text style={{ color: C.fg, fontSize: 10, fontFamily: FONT }}>{t}</Text>
               </View>
             ))}
-            {p.tags.length > 4 && (
-              <Text style={{ color: C.fgDim, fontSize: 10, fontFamily: FONT, paddingVertical: 4 }}>+{p.tags.length - 4} more</Text>
+            {displayTags(p.tags).length > 4 && (
+              <Text style={{ color: C.fgDim, fontSize: 10, fontFamily: FONT, paddingVertical: 4 }}>+{displayTags(p.tags).length - 4} more</Text>
             )}
           </View>
         )}

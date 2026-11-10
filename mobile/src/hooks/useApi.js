@@ -1,11 +1,9 @@
 import { useAuth } from "@clerk/clerk-expo";
-import Constants from "expo-constants";
 import { useCallback, useMemo } from "react";
 import { rememberLocal } from "../utils/imageCache";
+import { API_BASE, trackedFetch } from "../utils/serverStatus";
 
-const BASE = Constants.expoConfig?.extra?.apiUrl
-  || process.env.EXPO_PUBLIC_API_URL
-  || "http://localhost/api";
+const BASE = API_BASE;
 
 export function useApi() {
   const { getToken } = useAuth();
@@ -17,7 +15,7 @@ export function useApi() {
     // redirect: "manual" prevents fetch from silently following 302 redirects
     // (Clerk's requireAuth used to redirect to sign-in instead of returning 401,
     //  which caused fetch to receive HTML and fail JSON parsing with no clear error)
-    const res = await fetch(`${BASE}${path}`, { redirect: "manual", ...options, headers: { ...headers, ...options.headers } });
+    const res = await trackedFetch(`${BASE}${path}`, { redirect: "manual", ...options, headers: { ...headers, ...options.headers } });
     if (!res.ok || res.type === "opaqueredirect") {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || (res.status === 401 ? "Unauthorized" : res.statusText) || "Request failed");
@@ -58,7 +56,7 @@ export function useApi() {
       const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
 
       // 1) signed upload URLs
-      const presignRes = await fetch(`${BASE}/properties/presign`, {
+      const presignRes = await trackedFetch(`${BASE}/properties/presign`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders },
         body: JSON.stringify({ count: uris.length }),
@@ -99,7 +97,7 @@ export function useApi() {
     setProfilePhoto: async (uri) => {
       const token = await getToken();
       const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
-      const presignRes = await fetch(`${BASE}/properties/presign`, {
+      const presignRes = await trackedFetch(`${BASE}/properties/presign`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders },
         body: JSON.stringify({ count: 1 }),

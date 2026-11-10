@@ -35,6 +35,7 @@ of bug while building new features. Newest first. Update this whenever we fix a 
 | **Editing `mobile/.env` while Metro runs overrides the container env** | 1 | Metro hot-reloads `mobile/.env`, and its `EXPO_PUBLIC_*` values (prod API URL) then win over the docker env (`10.0.2.2`) → emulator silently talks to prod. After any `mobile/.env` edit, recreate Metro: `HOST_IP=10.0.2.2 docker compose up -d mobile`, and confirm `grep -c 10.0.2.2/api` in the bundle. |
 | **`ON CONFLICT DO NOTHING` without a unique key is NOT idempotent** | 1 | It only skips rows that violate a unique/exclusion constraint. `init.sql` (run on every boot) re-inserted seed rows each time. Guard seeds with `IF NOT EXISTS (…)` in a `DO` block, or add a real unique key. Anything run on every boot must be tested by booting twice and counting rows. |
 | **Storing absolute URLs with a deploy-specific host** | 1 | Dev uploads saved `http://<LAN-IP>/api/media/…`; when the IP changed, photos broke. Store host-independent paths or resolve on display (`resolveMediaUrl`). Keep host-specific logic in one place. |
+| **Overlay rendered as a sibling of `<Stack>` is hidden on Android** | 1 | Native screen containers draw above later JS siblings; `zIndex` (and even a high `elevation`) on the sibling didn't help. Put app-wide overlays inside each screen via the Stack `screenLayout` prop (or a portal/Modal), and verify on Android with a screenshot, not just the accessibility dump (it reports hidden views). |
 
 ## Log
 

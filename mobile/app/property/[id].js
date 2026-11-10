@@ -16,7 +16,7 @@ import BottomSheet from "../../src/components/BottomSheet";
 import { Avatar, Tag } from "../../src/components/ui";
 import { useApi } from "../../src/hooks/useApi";
 import { SEED_PROPERTIES } from "../../src/data/properties";
-import { pricePerSqft, estimateEMI } from "../../src/utils/property";
+import { pricePerSqft, estimateEMI, displayTags } from "../../src/utils/property";
 
 // react-native-maps is web-stubbed; only load the native parcel map on device.
 let MapView, Polygon, Marker;
@@ -650,9 +650,9 @@ export default function PropertyDetail() {
         <View style={{ paddingHorizontal: 22 }}>
 
           {/* Tags */}
-          {(p.tags || []).length > 0 && (
+          {displayTags(p.tags).length > 0 && (
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 7, marginBottom: 16 }}>
-              {(p.tags || []).map(t => <Tag key={t}>{t}</Tag>)}
+              {displayTags(p.tags).map(t => <Tag key={t}>{t}</Tag>)}
             </View>
           )}
 

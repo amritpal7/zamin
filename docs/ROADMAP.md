@@ -51,7 +51,8 @@ Three pillars we judge every change against:
 - [x] **Production restored on free tier** (2026-11-10) — Render + Neon + Render Key Value + R2;
       `https://zamin-api.onrender.com`. Verified live: health, auth, 118 listings, photo upload → R2 → worker →
       public thumb, listing create, realtime handshake, /account-deletion. App configs point at it.
-- [ ] **Tester build** — Android APK (EAS `preview` profile, needs `eas login` + `eas init`) pointing at Render.
+- [ ] **Tester build — PENDING (owner, parked 2026-11-10)** — Android APK via EAS `preview` profile (already points at
+      Render). Owner runs `npx eas-cli login` + `npx eas-cli init` in `mobile/`, then Claude starts the build.
 - [x] **Listing photo upload verified on native Android** (2026-11-07) — presign → MinIO PUT →
       BullMQ resize/thumb → listing renders. Recheck the presign `x-amz-checksum-crc32` param on real S3/R2.
 - [x] **Confirm authorization on `saved`/`messages` routes** (2026-11-07) — audited saved, messages,
@@ -88,9 +89,7 @@ Now/Near/Medium as we pick them up.
       proximity to a chosen amenity. Consider precomputing nearest-POI distances at ingest for speed.
 
 **Tech / infra**
-- [ ] **Postgres on [Neon](https://neon.tech)** — swap the Railway `postgres:16` container for managed
-      Neon (branching, autoscale, PITR backups). Drop-in: change `DATABASE_URL` (`docs/DEPLOY.md`); run
-      `npm run migrate:up`. Low-risk since schema self-provisions via `runMigrations` (init.sql + migrations).
+- [x] **Postgres on [Neon](https://neon.tech)** (2026-11-10) — production DB (free, `ap-southeast-1`); see `docs/DEPLOY_FREE.md`.
 - [ ] **[Sentry](https://sentry.io)** — error/crash + performance monitoring, backend (Express) + mobile
       (Expo). Wire DSNs via env; scrub PII. Pairs with the "observability" platform item below.
 - [ ] **[CodeRabbit](https://coderabbit.ai)** — automated PR review + security-issue detection. Complements
@@ -217,7 +216,7 @@ The plan for taking chat further, tiered by user value. Tier 1 foundation is don
 
 - [~] CI/CD: GitHub Actions runs API tests (Postgres+Redis) + `npm audit` on push/PR (2026-08-19).
       Next: lint, build, deploy stages.
-- [ ] Prod object storage (S3/R2) via `S3_*` env swap.
+- [x] Prod object storage (S3/R2) via `S3_*` env swap — Cloudflare R2 (2026-11-10).
 - [ ] Observability — logs/metrics/error tracking (Sentry).
 - [ ] Standalone app builds (EAS) for App Store / Play Store.
 
