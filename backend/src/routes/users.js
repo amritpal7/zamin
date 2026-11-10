@@ -70,7 +70,7 @@ router.post("/me/photo", photoLimiter, async (req, res) => {
     await reconcileOwner(pool, userId).catch((e) => console.error("[me/photo] reconcile", e.message));
     res.json({ imageUrl });
   } catch (err) {
-    console.error("[me/photo]", err.message);
+    console.error("[me/photo]", err.message || err.code || String(err));
     res.status(502).json({ error: "Could not update photo. Please try again." });
   }
 });
@@ -116,7 +116,7 @@ router.delete("/me", deleteIpLimiter, deleteLimiter, async (req, res) => {
     // Genuine failure (Clerk user still exists) → clear the marker so the sweep doesn't act.
     const u = await getUser(userId).catch(() => ({ reliable: false }));
     if (u.reliable && u.exists) await pool.query("DELETE FROM account_deletions WHERE clerk_user_id = $1", [userId]).catch(() => {});
-    console.error("[delete me]", err.message);
+    console.error("[delete me]", err.message || err.code || String(err));
     return res.status(502).json({ error: "Could not delete your account. Please try again." });
   } finally {
     client.release();

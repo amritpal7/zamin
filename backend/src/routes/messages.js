@@ -53,7 +53,7 @@ router.get("/", async (req, res) => {
     rows.sort((a, b) => new Date(b.last_time) - new Date(a.last_time));
     res.json(rows);
   } catch (err) {
-    console.error("[messages]", err.message);
+    console.error("[messages]", err.message || err.code || String(err));
     res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });
@@ -81,7 +81,7 @@ router.get("/:propertyId", async (req, res) => {
         );
     res.json(rows);
   } catch (err) {
-    console.error("[messages]", err.message);
+    console.error("[messages]", err.message || err.code || String(err));
     res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });
@@ -140,7 +140,7 @@ router.post("/:propertyId", async (req, res) => {
     } catch (e) { console.error("notification insert failed:", e.message); }
     res.status(201).json(rows[0]);
   } catch (err) {
-    console.error("[messages]", err.message);
+    console.error("[messages]", err.message || err.code || String(err));
     res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });
@@ -193,7 +193,7 @@ router.post("/:propertyId/proposal", async (req, res) => {
     });
     res.status(201).json(row);
   } catch (err) {
-    console.error("[messages]", err.message);
+    console.error("[messages]", err.message || err.code || String(err));
     res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });
@@ -229,7 +229,7 @@ router.post("/proposal/:id/respond", async (req, res) => {
     } catch (e) { console.error("proposal-respond notification failed:", e.message); }
     res.json(rows[0]);
   } catch (err) {
-    console.error("[messages]", err.message);
+    console.error("[messages]", err.message || err.code || String(err));
     res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });
@@ -277,7 +277,7 @@ router.post("/proposal/:id/counter", async (req, res) => {
     });
     res.status(201).json({ original: updatedOrig, proposal: created });
   } catch (err) {
-    console.error("[messages]", err.message);
+    console.error("[messages]", err.message || err.code || String(err));
     res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });
@@ -299,7 +299,7 @@ router.post("/:propertyId/read", async (req, res) => {
     if (io && rowCount) io.to(String(peer)).emit("read", { propertyId: req.params.propertyId, by: userId });
     res.json({ read: rowCount });
   } catch (err) {
-    console.error("[messages]", err.message);
+    console.error("[messages]", err.message || err.code || String(err));
     res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });

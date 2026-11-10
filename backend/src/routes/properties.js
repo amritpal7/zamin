@@ -154,7 +154,7 @@ router.post("/reconcile-owners", requireAuth, async (req, res) => {
     const result = await reconcileOwners(pool);
     res.json(result);
   } catch (err) {
-    console.error("[properties]", err.message);
+    console.error("[properties]", err.message || err.code || String(err));
     res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });
@@ -169,7 +169,7 @@ router.post("/reconcile-me", requireAuth, async (req, res) => {
     const result = await reconcileOwner(pool, userId);
     res.json(result);
   } catch (err) {
-    console.error("[properties]", err.message);
+    console.error("[properties]", err.message || err.code || String(err));
     res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });
@@ -205,7 +205,7 @@ router.post("/:id/report", requireAuth, async (req, res) => {
     }
     res.json({ reported: true, reportCount: cnt[0].n, hidden });
   } catch (err) {
-    console.error("[properties]", err.message);
+    console.error("[properties]", err.message || err.code || String(err));
     res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });
@@ -225,7 +225,7 @@ router.get("/moderation", requireAuth, async (req, res) => {
     );
     res.json(rows);
   } catch (err) {
-    console.error("[properties]", err.message);
+    console.error("[properties]", err.message || err.code || String(err));
     res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });
@@ -241,7 +241,7 @@ router.post("/:id/moderate", requireAuth, async (req, res) => {
     if (!rowCount) return res.status(404).json({ error: "Not found" });
     res.json({ id: req.params.id, flagged });
   } catch (err) {
-    console.error("[properties]", err.message);
+    console.error("[properties]", err.message || err.code || String(err));
     res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });
@@ -318,7 +318,7 @@ router.get("/", async (req, res) => {
       hasMore: offset + rows.length < total,
     });
   } catch (err) {
-    console.error("[properties]", err.message);
+    console.error("[properties]", err.message || err.code || String(err));
     res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });
@@ -340,7 +340,7 @@ router.put("/location-visibility", requireAuth, async (req, res) => {
     try { defaultSaved = await setLocationDefault(userId, visibility); } catch { /* keep false */ }
     res.json({ updated: rowCount, default: visibility, defaultSaved });
   } catch (err) {
-    console.error("[properties]", err.message);
+    console.error("[properties]", err.message || err.code || String(err));
     res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });
@@ -356,7 +356,7 @@ router.get("/mine", requireAuth, async (req, res) => {
     );
     res.json(rows);
   } catch (err) {
-    console.error("[properties]", err.message);
+    console.error("[properties]", err.message || err.code || String(err));
     res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });
@@ -410,7 +410,7 @@ router.put("/:id", requireAuth, async (req, res) => {
     if (!rows[0]) return res.status(404).json({ error: "Not found or not owner" });
     res.json(redactLocation(rows[0], userId));
   } catch (err) {
-    console.error("[properties]", err.message);
+    console.error("[properties]", err.message || err.code || String(err));
     res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });
@@ -423,7 +423,7 @@ router.get("/:id", async (req, res) => {
     const { userId } = getAuth(req);
     res.json(redactLocation(rows[0], userId));
   } catch (err) {
-    console.error("[properties]", err.message);
+    console.error("[properties]", err.message || err.code || String(err));
     res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });
@@ -465,7 +465,7 @@ router.get("/:id/insights", async (req, res) => {
 
     res.json(computeInsights(listing, comps, areaLabel));
   } catch (err) {
-    console.error("[properties]", err.message);
+    console.error("[properties]", err.message || err.code || String(err));
     res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });
@@ -511,7 +511,7 @@ router.post("/", requireAuth, async (req, res) => {
     try { await notifyListingMatch(pool, rows[0]); } catch (e) { console.error("saved-search notify failed:", e.message); }
     res.status(201).json(rows[0]);
   } catch (err) {
-    console.error("[properties]", err.message);
+    console.error("[properties]", err.message || err.code || String(err));
     res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });
@@ -528,7 +528,7 @@ router.delete("/:id", requireAuth, async (req, res) => {
     if (!rowCount) return res.status(404).json({ error: "Not found or not owner" });
     res.json({ success: true });
   } catch (err) {
-    console.error("[properties]", err.message);
+    console.error("[properties]", err.message || err.code || String(err));
     res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });
